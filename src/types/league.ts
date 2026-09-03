@@ -33,10 +33,11 @@ export interface MatchResult {
   winnerId: string;
   scorePlayer1: number;
   scorePlayer2: number;
-  p1RatingBefore: number;
-  p2RatingBefore: number;
-  p1RatingAfter: number;
-  p2RatingAfter: number;
+  status: "pending" | "confirmed" | "rejected";
+  p1RatingBefore?: number;
+  p2RatingBefore?: number;
+  p1RatingAfter?: number;
+  p2RatingAfter?: number;
   playedAt: string;
 }
 

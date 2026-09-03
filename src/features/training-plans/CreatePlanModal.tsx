@@ -131,8 +131,8 @@ export const CreatePlanModal: React.FC<CreatePlanModalProps> = ({
       if (planToEdit) {
         setTitle(planToEdit.title);
         setPlayerId(planToEdit.playerId || "");
-        setYear(planToEdit.year);
-        setCalendarWeek(planToEdit.calendarWeek);
+        setYear(planToEdit.year ?? new Date().getFullYear());
+        setCalendarWeek(planToEdit.calendarWeek ?? 1);
         setCoachNote(planToEdit.coachNote || "");
         setPerformanceTestId(planToEdit.performanceTestId || "");
         setBlocks(planToEdit.blocks || []);
@@ -262,6 +262,7 @@ export const CreatePlanModal: React.FC<CreatePlanModalProps> = ({
       };
 
       if (planToEdit) {
+        if (!planToEdit.id) return;
         const planRef = doc(db, "trainingPlans", planToEdit.id);
         await updateDoc(planRef, planData);
       } else {

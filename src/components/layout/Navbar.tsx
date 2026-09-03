@@ -1,5 +1,6 @@
 import React from 'react';
 import { useAuth } from '../../context/AuthContext';
+import { NotificationBell } from '../common/NotificationBell';
 import { 
   AppBar, 
   Toolbar, 
@@ -10,7 +11,7 @@ import {
   Tooltip 
 } from '@mui/material';
 import LogoutIcon from '@mui/icons-material/Logout';
-import Logo from '../../../public/logo.jpg'
+import Logo from '../../assets/logo.jpg';
 
 interface NavbarProps {
   onOpenProfile?: () => void;
@@ -31,6 +32,9 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenProfile }) => {
 
         {currentUser && (
           <div className="flex items-center gap-4">
+            {/* Glocke für Benachrichtigungen eingebaut */}
+            <NotificationBell />
+
             <Tooltip title="Mein Profil & Einstellungen">
               <IconButton onClick={onOpenProfile} color="inherit" size="small">
                 <Avatar 

@@ -50,23 +50,37 @@ import CalendarMonthIcon from "@mui/icons-material/CalendarMonth";
 import SportsKabaddiIcon from "@mui/icons-material/SportsKabaddi";
 import PlayArrowIcon from "@mui/icons-material/PlayArrow";
 import HistoryIcon from "@mui/icons-material/History";
+import CheckCircleIcon from "@mui/icons-material/CheckCircle";
+import CancelIcon from "@mui/icons-material/Cancel";
+
+// Interface für Match-Ergebnisse
+interface MatchResult {
+  id: string;
+  leagueId: string;
+  player1Id: string;
+  player2Id: string;
+  winnerId: string;
+  scorePlayer1: number;
+  scorePlayer2: number;
+  status: "pending" | "confirmed" | "rejected";
+  playedAt: string;
+}
 
 export const LeagueView: React.FC = () => {
   const { userProfile } = useAuth();
 
-  const [activeTab, setActiveTab] = useState(0); // 0 = Übung des Monats, 1 = Performance Leagues, 2 = Match Leagues
+  const [activeTab, setActiveTab] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Daten aus Firestore
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [exercises, setExercises] = useState<Exercise[]>([]);
   const [testResults, setTestResults] = useState<TestResult[]>([]);
   const [leagues, setLeagues] = useState<LeagueConfig[]>([]);
   const [monthlyConfigs, setMonthlyConfigs] = useState<MonthlyExerciseConfig[]>([]);
   const [ratings, setRatings] = useState<PlayerRating[]>([]);
+  const [matches, setMatches] = useState<MatchResult[]>([]);
 
-  // State für "Übung des Monats" Archiv-Filter
   const currentDate = new Date();
   const [selectedArchivedMonth, setSelectedArchivedMonth] = useState<number>(
     currentDate.getMonth() + 1
@@ -75,7 +89,6 @@ export const LeagueView: React.FC = () => {
     currentDate.getFullYear()
   );
 
-  // State für Modals
   const [isRecordModalOpen, setIsRecordModalOpen] = useState(false);
   const [isMatchModalOpen, setIsMatchModalOpen] = useState(false);
   const [selectedProfileUser, setSelectedProfileUser] = useState<UserProfile | null>(null);
@@ -90,13 +103,14 @@ export const LeagueView: React.FC = () => {
   const fetchData = async () => {
     setLoading(true);
     try {
-      const [uSnap, exSnap, resSnap, lSnap, mSnap, rSnap] = await Promise.all([
+      const [uSnap, exSnap, resSnap, lSnap, mSnap, rSnap, matchSnap] = await Promise.all([
         getDocs(collection(db, "users")),
         getDocs(collection(db, "exercises")),
         getDocs(collection(db, "testResults")),
         getDocs(collection(db, "leagues")),
         getDocs(collection(db, "monthlyExercises")),
         getDocs(collection(db, "playerRatings")),
+        getDocs(collection(db, "matchResults")),
       ]);
 
       const fetchedUsers: UserProfile[] = [];
@@ -136,12 +150,19 @@ export const LeagueView: React.FC = () => {
         fetchedRatings.push({ id: d.id, ...data } as unknown as PlayerRating);
       });
 
+      const fetchedMatches: MatchResult[] = [];
+      matchSnap.forEach((d) => {
+        const data = d.data();
+        fetchedMatches.push({ id: d.id, ...data } as MatchResult);
+      });
+
       setUsers(fetchedUsers);
       setExercises(fetchedEx);
       setTestResults(fetchedRes);
       setLeagues(fetchedLeagues);
       setMonthlyConfigs(fetchedMonthly);
       setRatings(fetchedRatings);
+      setMatches(fetchedMatches);
     } catch (err) {
       console.error(err);
       setError("Fehler beim Laden der Ligationen.");
@@ -154,14 +175,12 @@ export const LeagueView: React.FC = () => {
     fetchData();
   }, []);
 
-  // Handler nach Aufzeichnung eines neuen Übungsergebnisses
   const handleResultRecorded = async () => {
     if (!userProfile || !monthlyExercise || !currentMonthlyConfig) {
       await fetchData();
       return;
     }
 
-    // Bisherigen Highscore des Nutzers für diese Monatsübung ermitteln
     const userPreviousResults = testResults.filter((res) => {
       const resExId = (res as any).exerciseId || res.testId;
       if (res.userId !== userProfile.uid || resExId !== monthlyExercise.id) return false;
@@ -177,10 +196,8 @@ export const LeagueView: React.FC = () => {
       0
     );
 
-    // Neueste Daten laden
     await fetchData();
 
-    // Nach dem Fetch die frisch geladenen Ergebnisse prüfen
     const latestResSnap = await getDocs(collection(db, "testResults"));
     let newBest = 0;
     latestResSnap.forEach((d) => {
@@ -197,7 +214,6 @@ export const LeagueView: React.FC = () => {
       }
     });
 
-    // Wenn der neue Bestwert höher ist als der alte, Benachrichtigung senden
     if (newBest > oldHighscore) {
       await sendNotificationIfEnabled({
         userId: userProfile.uid,
@@ -209,7 +225,6 @@ export const LeagueView: React.FC = () => {
     }
   };
 
-  // Namensdarstellung basierend auf den Datenschutz-Einstellungen
   const getDisplayName = (user?: UserProfile) => {
     if (!user) return "Anonymer Spieler";
     const vis = user.privacySettings?.leaderboardVisibility || "nickname";
@@ -218,7 +233,6 @@ export const LeagueView: React.FC = () => {
     return user.nickname || user.realName;
   };
 
-  // 1. Berechnung "Übung des Monats" Highscore
   const currentMonthlyConfig = monthlyConfigs.find(
     (m) => m.month === selectedArchivedMonth && m.year === selectedArchivedYear
   );
@@ -259,7 +273,6 @@ export const LeagueView: React.FC = () => {
     return leaderboard.sort((a, b) => b.score - a.score);
   };
 
-  // 2. Berechnung Performance League (Durchschnitt + Bonus/Malus)
   const calculatePerformanceScore = (
     userId: string,
     exerciseIds?: string[]
@@ -276,14 +289,12 @@ export const LeagueView: React.FC = () => {
       );
       if (userExResults.length === 0) return;
 
-      // Historischer Durchschnitt berechnen
       const totalPointsSum = userExResults.reduce(
         (s, r) => s + r.totalPoints,
         0
       );
       const avg = totalPointsSum / userExResults.length;
 
-      // Letztes Ergebnis nehmen
       const latestResult = userExResults.sort(
         (a, b) =>
           new Date(b.completedAt).getTime() - new Date(a.completedAt).getTime()
@@ -307,7 +318,7 @@ export const LeagueView: React.FC = () => {
     return totalLeaguePoints;
   };
 
-  // 3. ELO / TTR Match eintragen
+  // 1v1 Match anfragen (Status: pending)
   const handleRecordMatch = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!userProfile || !selectedOpponentId || !selectedMatchLeagueId) return;
@@ -318,12 +329,52 @@ export const LeagueView: React.FC = () => {
     try {
       const p1Id = userProfile.uid;
       const p2Id = selectedOpponentId;
+      const p1Won = myScore > opponentScore;
+
+      await addDoc(collection(db, "matchResults"), {
+        leagueId: selectedMatchLeagueId,
+        player1Id: p1Id,
+        player2Id: p2Id,
+        winnerId: p1Won ? p1Id : p2Id,
+        scorePlayer1: myScore,
+        scorePlayer2: opponentScore,
+        status: "pending", // Wartet auf Bestätigung des Gegners
+        playedAt: new Date().toISOString(),
+      });
+
+      // Benachrichtigung an Gegner senden
+      await sendNotificationIfEnabled({
+        userId: p2Id,
+        type: "trainingPlanReminder", // oder custom notification type falls gewünscht
+        title: "Neues 1v1 Match eingetragen",
+        message: `${getDisplayName(userProfile)} hat ein Match gegen dich eingetragen (${myScore}:${opponentScore}). Bitte bestätige das Ergebnis.`,
+        link: "/league",
+      });
+
+      setIsMatchModalOpen(false);
+      setSelectedOpponentId("");
+      setMyScore(0);
+      setOpponentScore(0);
+      fetchData();
+    } catch (err) {
+      console.error(err);
+      setError("Fehler beim Anfragen des Matches.");
+    } finally {
+      setMatchSubmitting(false);
+    }
+  };
+
+  // Match bestätigen & Ratings berechnen
+  const handleConfirmMatch = async (match: MatchResult) => {
+    try {
+      const p1Id = match.player1Id;
+      const p2Id = match.player2Id;
 
       const p1RatingObj = ratings.find(
-        (r) => r.userId === p1Id && r.leagueId === selectedMatchLeagueId
+        (r) => r.userId === p1Id && r.leagueId === match.leagueId
       );
       const p2RatingObj = ratings.find(
-        (r) => r.userId === p2Id && r.leagueId === selectedMatchLeagueId
+        (r) => r.userId === p2Id && r.leagueId === match.leagueId
       );
 
       const p1RatingBefore = p1RatingObj ? p1RatingObj.rating : 1000;
@@ -331,10 +382,8 @@ export const LeagueView: React.FC = () => {
 
       let p1Change = 0;
       let p2Change = 0;
+      const p1Won = match.winnerId === p1Id;
 
-      const p1Won = myScore > opponentScore;
-
-      // TTR/ELO Regelwerk
       if (p1RatingBefore === p2RatingBefore) {
         p1Change = p1Won ? 50 : -50;
         p2Change = p1Won ? -50 : 50;
@@ -349,22 +398,16 @@ export const LeagueView: React.FC = () => {
       const p1RatingAfter = Math.max(0, p1RatingBefore + p1Change);
       const p2RatingAfter = Math.max(0, p2RatingBefore + p2Change);
 
-      // Match Resultat speichern
-      await addDoc(collection(db, "matchResults"), {
-        leagueId: selectedMatchLeagueId,
-        player1Id: p1Id,
-        player2Id: p2Id,
-        winnerId: p1Won ? p1Id : p2Id,
-        scorePlayer1: myScore,
-        scorePlayer2: opponentScore,
+      // Match Status auf confirmed setzen & Ratings sichern
+      const matchRef = doc(db, "matchResults", match.id);
+      await updateDoc(matchRef, {
+        status: "confirmed",
         p1RatingBefore,
         p2RatingBefore,
         p1RatingAfter,
         p2RatingAfter,
-        playedAt: new Date().toISOString(),
       });
 
-      // Ratings in Firestore aktualisieren
       const updateRating = async (
         userId: string,
         leagueId: string,
@@ -387,29 +430,25 @@ export const LeagueView: React.FC = () => {
         }
       };
 
-      await updateRating(
-        p1Id,
-        selectedMatchLeagueId,
-        p1RatingAfter,
-        p1RatingObj
-      );
-      await updateRating(
-        p2Id,
-        selectedMatchLeagueId,
-        p2RatingAfter,
-        p2RatingObj
-      );
+      await updateRating(p1Id, match.leagueId, p1RatingAfter, p1RatingObj);
+      await updateRating(p2Id, match.leagueId, p2RatingAfter, p2RatingObj);
 
-      setIsMatchModalOpen(false);
-      setSelectedOpponentId("");
-      setMyScore(0);
-      setOpponentScore(0);
       fetchData();
     } catch (err) {
       console.error(err);
-      setError("Fehler beim Speichern des Spielergebnisses.");
-    } finally {
-      setMatchSubmitting(false);
+      setError("Fehler beim Bestätigen des Matches.");
+    }
+  };
+
+  // Match ablehnen
+  const handleRejectMatch = async (matchId: string) => {
+    try {
+      const matchRef = doc(db, "matchResults", matchId);
+      await updateDoc(matchRef, { status: "rejected" });
+      fetchData();
+    } catch (err) {
+      console.error(err);
+      setError("Fehler beim Ablehnen des Matches.");
     }
   };
 
@@ -479,7 +518,6 @@ export const LeagueView: React.FC = () => {
                 </Typography>
               </div>
 
-              {/* Archiv-Filter */}
               <div className="flex gap-2 items-center">
                 <HistoryIcon color="action" />
                 <FormControl size="small" className="w-28">
@@ -535,7 +573,6 @@ export const LeagueView: React.FC = () => {
 
             <Divider className="my-2" />
 
-            {/* Highscore Tabelle */}
             <Typography variant="h6" className="font-bold">
               Rangliste ({selectedArchivedMonth} / {selectedArchivedYear})
             </Typography>
@@ -590,7 +627,6 @@ export const LeagueView: React.FC = () => {
             </TableContainer>
           </Paper>
 
-          {/* Modal zur Ergebniserfassung für die Monatsübung */}
           {monthlyExercise && (
             <RecordResultModal
               open={isRecordModalOpen}
@@ -692,6 +728,47 @@ export const LeagueView: React.FC = () => {
       {/* TAB 3: MATCH LEAGUES (1v1 Duelle) */}
       {activeTab === 2 && (
         <div className="flex flex-col gap-6">
+          {/* AUSSTEHENDE BESTÄTIGUNGEN */}
+          {userProfile && matches.filter((m) => m.status === "pending" && m.player2Id === userProfile.uid).length > 0 && (
+            <Paper className="p-4 border border-amber-400 bg-amber-50/20 flex flex-col gap-3">
+              <Typography variant="subtitle1" className="font-bold text-amber-700">
+                ⏳ Ausstehende Match-Bestätigungen
+              </Typography>
+              {matches
+                .filter((m) => m.status === "pending" && m.player2Id === userProfile.uid)
+                .map((m) => {
+                  const p1 = users.find((u) => u.uid === m.player1Id);
+                  return (
+                    <div key={m.id} className="flex justify-between items-center bg-white dark:bg-gray-800 p-3 rounded shadow-sm">
+                      <Typography variant="body2">
+                        <strong>{getDisplayName(p1)}</strong> hat ein Match gegen dich eingetragen: <strong>{m.scorePlayer1} : {m.scorePlayer2}</strong>
+                      </Typography>
+                      <div className="flex gap-2">
+                        <Button
+                          size="small"
+                          variant="contained"
+                          color="success"
+                          startIcon={<CheckCircleIcon />}
+                          onClick={() => handleConfirmMatch(m)}
+                        >
+                          Bestätigen
+                        </Button>
+                        <Button
+                          size="small"
+                          variant="outlined"
+                          color="error"
+                          startIcon={<CancelIcon />}
+                          onClick={() => handleRejectMatch(m.id)}
+                        >
+                          Ablehnen
+                        </Button>
+                      </div>
+                    </div>
+                  );
+                })}
+            </Paper>
+          )}
+
           {leagues.filter((l) => l.type === "match" && l.isActive).length === 0 ? (
             <Typography
               variant="body1"
@@ -787,14 +864,12 @@ export const LeagueView: React.FC = () => {
         </div>
       )}
 
-      {/* Modal: Öffentliches Spielerprofil */}
       <PublicProfileModal
         open={Boolean(selectedProfileUser)}
         onClose={() => setSelectedProfileUser(null)}
         user={selectedProfileUser}
       />
 
-      {/* Modal: 1v1 Match eintragen */}
       <Dialog
         open={isMatchModalOpen}
         onClose={() => setIsMatchModalOpen(false)}
@@ -852,6 +927,9 @@ export const LeagueView: React.FC = () => {
                 />
               </Card>
             </div>
+            <Typography variant="caption" color="textSecondary">
+              * Das Match wird erst nach Bestätigung durch den Gegner gewertet und in die Rangliste eingetragen.
+            </Typography>
           </DialogContent>
 
           <DialogActions className="p-4">
@@ -864,7 +942,7 @@ export const LeagueView: React.FC = () => {
               color="primary"
               disabled={matchSubmitting || !selectedOpponentId}
             >
-              {matchSubmitting ? "Speichert..." : "Ergebnis Werten"}
+              {matchSubmitting ? "Wird angefragt..." : "Match anfragen"}
             </Button>
           </DialogActions>
         </form>

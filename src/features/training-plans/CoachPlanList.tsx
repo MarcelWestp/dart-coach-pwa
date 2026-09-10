@@ -10,7 +10,6 @@ import {
 import { db } from "../../firebase/config";
 import { useAuth } from "../../context/AuthContext";
 import { getWeekAndYearFromDate } from "../../utils/calenderweek";
-import { sendNotificationIfEnabled } from "../../services/notificationService";
 import type { UserProfile } from "../../types/user";
 import type {
   TrainingPlan,
@@ -19,6 +18,7 @@ import type {
 } from "../../types/trainingPlan";
 import type { Exercise } from "../../types/exercise";
 import type { PlayerGroup } from "../../types/group";
+import { sendNotificationIfEnabled } from "../../services/notificationService";
 import {
   Paper,
   Typography,
@@ -34,6 +34,7 @@ import {
   FormControl,
   InputLabel,
   Select,
+  Switch,
   MenuItem,
   RadioGroup,
   Radio,
@@ -41,15 +42,18 @@ import {
   FormLabel,
   TextField,
   IconButton,
-  Divider,
+  Tabs,
+  Tab,
   Box,
+  Chip,
+  Divider,
 } from "@mui/material";
 import AssignmentIcon from "@mui/icons-material/Assignment";
 import AddIcon from "@mui/icons-material/Add";
 import DeleteIcon from "@mui/icons-material/Delete";
 import EditIcon from "@mui/icons-material/Edit";
 import SendIcon from "@mui/icons-material/Send";
-import FitnessCenterIcon from "@mui/icons-material/FitnessCenter";
+import PersonIcon from "@mui/icons-material/Person";
 
 interface CoachPlanListProps {
   myRoster?: UserProfile[];
@@ -58,12 +62,18 @@ interface CoachPlanListProps {
 export const CoachPlanList: React.FC<CoachPlanListProps> = () => {
   const { userProfile } = useAuth();
 
+  const [activeTab, setActiveTab] = useState<number>(0); // 0 = Vorlagen, 1 = Zugewiesene Pläne
+  const [selectedPlayerFilter, setSelectedPlayerFilter] =
+    useState<string>("all"); // Neuer State für Spieler-Filter
+
   const [templates, setTemplates] = useState<TrainingPlan[]>([]);
+  const [assignedPlans, setAssignedPlans] = useState<TrainingPlan[]>([]);
   const [exercises, setExercises] = useState<Exercise[]>([]);
   const [players, setPlayers] = useState<UserProfile[]>([]);
   const [groups, setGroups] = useState<PlayerGroup[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [showCompleted, setShowCompleted] = useState<boolean>(true);
 
   // Zuweisungs-Modal State
   const [isAssignModalOpen, setIsAssignModalOpen] = useState(false);
@@ -91,21 +101,47 @@ export const CoachPlanList: React.FC<CoachPlanListProps> = () => {
   const fetchData = async () => {
     setLoading(true);
     try {
-      const [templatesSnap, exercisesSnap, usersSnap, groupsSnap] =
-        await Promise.all([
-          getDocs(collection(db, "trainingPlans")),
-          getDocs(collection(db, "exercises")),
-          getDocs(collection(db, "users")),
-          getDocs(collection(db, "playerGroups")),
-        ]);
+      const [
+        templatesSnap,
+        assignedSnap,
+        exercisesSnap,
+        usersSnap,
+        groupsSnap,
+      ] = await Promise.all([
+        getDocs(collection(db, "trainingPlans")),
+        getDocs(collection(db, "assignedPlans")),
+        getDocs(collection(db, "exercises")),
+        getDocs(collection(db, "users")),
+        getDocs(collection(db, "playerGroups")),
+      ]);
 
+      // Vorlagen laden
       const fetchedTemplates: TrainingPlan[] = [];
       templatesSnap.forEach((d) => {
         const data = d.data();
         delete data.id;
-        if (data.isTemplate) {
+        if (data.isTemplate && data.coachId === userProfile?.uid) {
           fetchedTemplates.push({ id: d.id, ...data } as TrainingPlan);
         }
+      });
+
+      // Zugewiesene Pläne laden
+      const fetchedAssigned: TrainingPlan[] = [];
+      assignedSnap.forEach((d) => {
+        const data = d.data();
+        delete data.id;
+        if (data.coachId === userProfile?.uid) {
+          fetchedAssigned.push({ id: d.id, ...data } as TrainingPlan);
+        }
+      });
+
+      // Sortierung nach Jahr & Kalenderwoche absteigend
+      fetchedAssigned.sort((a, b) => {
+        const yearA = a.year ?? 0;
+        const yearB = b.year ?? 0;
+        const weekA = a.calendarWeek ?? 0;
+        const weekB = b.calendarWeek ?? 0;
+        return yearB !== yearA ? yearB - yearA : weekB - weekA;
       });
 
       const fetchedExercises: Exercise[] = [];
@@ -130,6 +166,7 @@ export const CoachPlanList: React.FC<CoachPlanListProps> = () => {
       });
 
       setTemplates(fetchedTemplates);
+      setAssignedPlans(fetchedAssigned);
       setExercises(fetchedExercises);
       setPlayers(fetchedPlayers);
       setGroups(fetchedGroups);
@@ -143,7 +180,7 @@ export const CoachPlanList: React.FC<CoachPlanListProps> = () => {
 
   useEffect(() => {
     fetchData();
-  }, []);
+  }, [userProfile?.uid]);
 
   // --- EDITOR-HANDLING ---
   const handleOpenCreateModal = () => {
@@ -265,12 +302,13 @@ export const CoachPlanList: React.FC<CoachPlanListProps> = () => {
       fetchData();
     } catch (err) {
       console.error(err);
-      setError("Fehler beim Speichern des Trainingsplans.");
+      setError("Fehler beim Speichern der Trainingsplan-Vorlage.");
     } finally {
       setSubmitting(false);
     }
   };
 
+  // LÖSCHEN EINER VORLAGE
   const handleDeleteTemplate = async (id?: string) => {
     if (!id) return;
     if (
@@ -289,7 +327,26 @@ export const CoachPlanList: React.FC<CoachPlanListProps> = () => {
     }
   };
 
-  // --- ZUWEISUNGS-HANDLING (INCL. BENACHRICHTIGUNG) ---
+  // LÖSCHEN EINES ZUGEWIESENEN PLANS
+  const handleDeleteAssignedPlan = async (id?: string, title?: string) => {
+    if (!id) return;
+    if (
+      !window.confirm(
+        `Möchtest du den zugewiesenen Plan "${title || "Trainingsplan"}" für diesen Spieler wirklich löschen?`,
+      )
+    )
+      return;
+
+    try {
+      await deleteDoc(doc(db, "assignedPlans", id));
+      fetchData();
+    } catch (err) {
+      console.error(err);
+      setError("Fehler beim Löschen des zugewiesenen Trainingsplans.");
+    }
+  };
+
+  // --- ZUWEISUNGS-HANDLING ---
   const handleOpenAssignModal = (template: TrainingPlan) => {
     setSelectedPlanTemplate(template);
     setAssignmentType("single");
@@ -316,9 +373,8 @@ export const CoachPlanList: React.FC<CoachPlanListProps> = () => {
         targetUserIds = group.memberIds;
       }
 
-      // 1. Zuweisung in Firestore 'assignedPlans' anlegen
-      const assignPromises = targetUserIds.map((userId) =>
-        addDoc(collection(db, "assignedPlans"), {
+      const assignPromises = targetUserIds.map(async (userId) => {
+        await addDoc(collection(db, "assignedPlans"), {
           title: selectedPlanTemplate.title,
           coachId: userProfile.uid,
           playerId: userId,
@@ -331,27 +387,24 @@ export const CoachPlanList: React.FC<CoachPlanListProps> = () => {
           isTemplate: false,
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),
-        }),
-      );
+        });
 
-      await Promise.all(assignPromises);
-
-      // 2. Benachrichtigung an alle Ziel-Spieler senden (Prüfung der Nutzereinstellungen erfolgt intern)
-      const notificationPromises = targetUserIds.map((userId) =>
-        sendNotificationIfEnabled({
+        // Benachrichtigung senden
+        await sendNotificationIfEnabled({
           userId,
           type: "newOrUpdatedTrainingPlans",
           title: "Neuer Trainingsplan zugewiesen",
-          message: `Dein Trainer hat dir den Trainingsplan "${selectedPlanTemplate.title}" zugewiesen.`,
+          message: `Dein Trainer hat dir den Trainingsplan "${selectedPlanTemplate.title}" für KW ${selectedPlanTemplate.calendarWeek} zugewiesen.`,
           link: "/my-plans",
-        }),
-      );
+        });
+      });
 
-      await Promise.all(notificationPromises);
+      await Promise.all(assignPromises);
 
       setIsAssignModalOpen(false);
       setSelectedPlayerId("");
       setSelectedGroupId("");
+      fetchData();
     } catch (err) {
       console.error(err);
       setError("Fehler beim Zuweisen des Trainingsplans.");
@@ -360,15 +413,27 @@ export const CoachPlanList: React.FC<CoachPlanListProps> = () => {
     }
   };
 
-  if (loading) {
-    return (
-      <div className="flex justify-center items-center p-8">
-        <CircularProgress />
-      </div>
-    );
-  }
+  const getPlayerName = (uid?: string) => {
+    if (!uid) return "Unbekannter Spieler";
+    const p = players.find((user) => user.uid === uid);
+    return p ? p.nickname || p.realName || p.email : "Unbekannter Spieler";
+  };
 
-  const calculatedInfo = getWeekAndYearFromDate(startDate);
+  // Gefilterte Liste zugewiesener Pläne
+  const filteredAssignedPlans = assignedPlans.filter((plan) => {
+    // 1. Spieler-Filter
+    if (
+      selectedPlayerFilter !== "all" &&
+      plan.playerId !== selectedPlayerFilter
+    ) {
+      return false;
+    }
+    // 2. Abgeschlossen-Filter (falls Schalter deaktiviert ist)
+    if (!showCompleted && plan.status === "completed") {
+      return false;
+    }
+    return true;
+  });
 
   return (
     <div className="p-6 max-w-6xl mx-auto flex flex-col gap-6">
@@ -385,8 +450,8 @@ export const CoachPlanList: React.FC<CoachPlanListProps> = () => {
             Vorlagen
           </Typography>
           <Typography variant="body2" color="textSecondary">
-            Erstelle strukturierte Pläne aus Blöcken & Übungen und weise sie
-            deinen Spielern zu.
+            Erstelle Vorlagen und verwalte die zugewiesenen Pläne deiner
+            Spieler.
           </Typography>
         </div>
 
@@ -396,7 +461,7 @@ export const CoachPlanList: React.FC<CoachPlanListProps> = () => {
           startIcon={<AddIcon />}
           onClick={handleOpenCreateModal}
         >
-          Neuen Plan erstellen
+          Neue Vorlage erstellen
         </Button>
       </div>
 
@@ -406,97 +471,298 @@ export const CoachPlanList: React.FC<CoachPlanListProps> = () => {
         </Alert>
       )}
 
-      {/* Vorlagen Liste */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {templates.length === 0 ? (
-          <Paper className="p-8 text-center col-span-full">
-            <Typography variant="body1" color="textSecondary">
-              Keine Pläne/Vorlagen vorhanden. Erstelle jetzt deinen ersten
-              Trainingsplan!
-            </Typography>
-          </Paper>
-        ) : (
-          templates.map((template) => (
-            <Card
-              key={template.id}
-              variant="outlined"
-              className="flex flex-col justify-between shadow-sm"
+      {/* Tabs zur Verwaltung */}
+      <Paper variant="outlined">
+        <Tabs
+          value={activeTab}
+          onChange={(_, newValue) => setActiveTab(newValue)}
+          indicatorColor="primary"
+          textColor="primary"
+        >
+          <Tab label={`Vorlagen (${templates.length})`} />
+          <Tab label={`Zugewiesene Pläne (${assignedPlans.length})`} />
+        </Tabs>
+      </Paper>
+
+      {/* TAB 0: VORLAGEN */}
+      {activeTab === 0 && (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {templates.length === 0 ? (
+            <Typography
+              variant="body2"
+              color="textSecondary"
+              className="py-4 col-span-2 text-center italic"
             >
-              <CardContent className="flex flex-col gap-3">
-                <div className="flex justify-between items-start">
-                  <Typography variant="h6" className="font-bold">
-                    {template.templateName || template.title}
-                  </Typography>
-                  <div className="flex gap-1">
-                    <IconButton
-                      size="small"
-                      onClick={() => handleOpenEditModal(template)}
-                      color="primary"
-                    >
-                      <EditIcon fontSize="small" />
-                    </IconButton>
-                    <IconButton
-                      size="small"
-                      onClick={() => handleDeleteTemplate(template.id)}
-                      color="error"
-                    >
-                      <DeleteIcon fontSize="small" />
-                    </IconButton>
-                  </div>
-                </div>
-
-                {template.coachNote && (
-                  <Typography variant="body2" color="textSecondary">
-                    {template.coachNote}
-                  </Typography>
-                )}
-
-                {/* Blöcke Vorschau */}
-                <div className="flex flex-col gap-2 mt-2">
-                  {template.blocks?.map((b, idx) => (
-                    <Paper key={b.id || idx} variant="outlined" className="p-2">
-                      <Typography variant="caption" className="font-bold block">
-                        {b.title} ({b.exercises.length} Übungen)
+              Keine Vorlagen vorhanden. Erstelle eine neue Vorlage.
+            </Typography>
+          ) : (
+            templates.map((template) => (
+              <Card
+                key={template.id}
+                variant="outlined"
+                className="flex flex-col justify-between shadow-sm"
+              >
+                <CardContent>
+                  <div className="flex justify-between items-start mb-2">
+                    <div>
+                      <Typography
+                        variant="h6"
+                        className="font-bold"
+                        color="text.primary"
+                      >
+                        {template.title}
                       </Typography>
-                    </Paper>
-                  ))}
-                </div>
+                      <Typography variant="caption" color="textSecondary">
+                        KW {template.calendarWeek} / {template.year}
+                      </Typography>
+                    </div>
 
-                <Divider className="my-1" />
+                    <div className="flex gap-1">
+                      <IconButton
+                        size="small"
+                        color="primary"
+                        onClick={() => handleOpenEditModal(template)}
+                      >
+                        <EditIcon fontSize="small" />
+                      </IconButton>
+                      <IconButton
+                        size="small"
+                        color="error"
+                        onClick={() => handleDeleteTemplate(template.id)}
+                      >
+                        <DeleteIcon fontSize="small" />
+                      </IconButton>
+                    </div>
+                  </div>
 
-                <Box className="flex justify-end">
+                  {template.coachNote && (
+                    <Typography
+                      variant="body2"
+                      color="textSecondary"
+                      className="mb-2 italic"
+                    >
+                      "{template.coachNote}"
+                    </Typography>
+                  )}
+
+                  {/* Abgerundete Blöcke untereinander */}
+                  <div className="flex flex-col gap-2 my-3">
+                    {template.blocks && template.blocks.length > 0 ? (
+                      template.blocks.map((block, idx) => (
+                        <Paper
+                          key={block.id || idx}
+                          variant="outlined"
+                          sx={{
+                            borderRadius: 3,
+                            px: 2,
+                            py: 1.2,
+                            bgcolor: "action.hover",
+                            borderColor: "divider",
+                          }}
+                        >
+                          <Typography
+                            variant="body2"
+                            className="font-medium"
+                            color="text.primary"
+                          >
+                            {block.title} ({block.exercises?.length || 0}{" "}
+                            {block.exercises?.length === 1
+                              ? "Übung"
+                              : "Übungen"}
+                            )
+                          </Typography>
+                        </Paper>
+                      ))
+                    ) : (
+                      <Typography
+                        variant="caption"
+                        color="textSecondary"
+                        className="italic"
+                      >
+                        Keine Blöcke in dieser Vorlage enthalten.
+                      </Typography>
+                    )}
+                  </div>
+                </CardContent>
+
+                <Box className="p-4 pt-0">
                   <Button
                     variant="contained"
                     color="primary"
+                    fullWidth
                     startIcon={<SendIcon />}
                     onClick={() => handleOpenAssignModal(template)}
                   >
                     Plan Zuweisen
                   </Button>
                 </Box>
-              </CardContent>
-            </Card>
-          ))
-        )}
-      </div>
+              </Card>
+            ))
+          )}
+        </div>
+      )}
 
-      {/* MODAL 1: Plan/Vorlage Erstellen & Bearbeiten */}
+      {/* TAB 1: ZUGEWIESENE PLÄNE */}
+      {activeTab === 1 && (
+        <div className="flex flex-col gap-4">
+          {/* Filter-Zeile: Spieler-Filter + Abgeschlossen-Switch */}
+          <div className="flex justify-between items-center flex-wrap gap-4 bg-gray-50 dark:bg-gray-800 p-3 rounded-lg border border-gray-200 dark:border-gray-700">
+            <div className="flex items-center gap-4 flex-wrap">
+              {/* Spieler-Filter Dropdown */}
+              <FormControl size="small" className="min-w-[220px]">
+                <InputLabel>Nach Spieler filtern</InputLabel>
+                <Select
+                  value={selectedPlayerFilter}
+                  label="Nach Spieler filtern"
+                  onChange={(e) => setSelectedPlayerFilter(e.target.value)}
+                >
+                  <MenuItem value="all">
+                    Alle Spieler ({assignedPlans.length} Pläne)
+                  </MenuItem>
+                  {players.map((p) => {
+                    const count = assignedPlans.filter(
+                      (ap) => ap.playerId === p.uid,
+                    ).length;
+                    return (
+                      <MenuItem key={p.uid} value={p.uid}>
+                        {p.nickname || p.realName} ({count})
+                      </MenuItem>
+                    );
+                  })}
+                </Select>
+              </FormControl>
+
+              {/* Schalter: Abgeschlossene Pläne ein-/ausblenden */}
+              <FormControlLabel
+                control={
+                  <Switch
+                    checked={showCompleted}
+                    onChange={(e) => setShowCompleted(e.target.checked)}
+                    color="primary"
+                  />
+                }
+                label={
+                  <Typography variant="body2" className="font-medium">
+                    Abgeschlossene Pläne anzeigen
+                  </Typography>
+                }
+              />
+            </div>
+
+            <Typography variant="caption" color="textSecondary">
+              Zeige {filteredAssignedPlans.length} von {assignedPlans.length}{" "}
+              zugewiesenen Plänen
+            </Typography>
+          </div>
+
+          {/* Karten-Grid */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {filteredAssignedPlans.length === 0 ? (
+              <Typography
+                variant="body2"
+                color="textSecondary"
+                className="py-4 col-span-2 text-center italic"
+              >
+                Bisher wurden für diese Filterkombination keine Trainingspläne
+                gefunden.
+              </Typography>
+            ) : (
+              filteredAssignedPlans.map((plan) => (
+                <Card
+                  key={plan.id}
+                  variant="outlined"
+                  className="flex flex-col justify-between"
+                >
+                  <CardContent>
+                    <div className="flex justify-between items-start mb-2">
+                      <div>
+                        <Typography variant="h6" className="font-bold">
+                          {plan.title}
+                        </Typography>
+                        <Typography
+                          variant="subtitle2"
+                          color="primary"
+                          className="font-bold flex items-center gap-1"
+                        >
+                          <PersonIcon fontSize="small" />{" "}
+                          {getPlayerName(plan.playerId)}
+                        </Typography>
+                        <Typography variant="caption" color="textSecondary">
+                          Zugewiesen für KW {plan.calendarWeek} / {plan.year}
+                        </Typography>
+                      </div>
+
+                      <IconButton
+                        size="small"
+                        color="error"
+                        onClick={() =>
+                          handleDeleteAssignedPlan(plan.id, plan.title)
+                        }
+                        title="Zugewiesenen Plan löschen"
+                      >
+                        <DeleteIcon fontSize="small" />
+                      </IconButton>
+                    </div>
+
+                    <div className="flex gap-2 my-2">
+                      <Chip
+                        label={
+                          plan.status === "completed"
+                            ? "Abgeschlossen"
+                            : plan.status === "in_progress"
+                              ? "In Bearbeitung"
+                              : "Zugewiesen"
+                        }
+                        color={
+                          plan.status === "completed"
+                            ? "success"
+                            : plan.status === "in_progress"
+                              ? "warning"
+                              : "default"
+                        }
+                        size="small"
+                      />
+                      <Chip
+                        label={`${plan.blocks?.length || 0} Blöcke`}
+                        size="small"
+                        variant="outlined"
+                      />
+                    </div>
+
+                    {plan.coachNote && (
+                      <Typography
+                        variant="body2"
+                        color="textSecondary"
+                        className="mt-2 italic"
+                      >
+                        Hinweis: {plan.coachNote}
+                      </Typography>
+                    )}
+                  </CardContent>
+                </Card>
+              ))
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Modal: Plan / Vorlage Erstellen & Bearbeiten */}
       <Dialog
         open={isEditorModalOpen}
         onClose={() => setIsEditorModalOpen(false)}
         maxWidth="md"
         fullWidth
       >
-        <DialogTitle className="font-bold">
-          {editingTemplateId
-            ? "Trainingsplan Bearbeiten"
-            : "Neuen Trainingsplan Erstellen"}
-        </DialogTitle>
         <form onSubmit={handleSaveTemplate}>
+          <DialogTitle className="font-bold">
+            {editingTemplateId
+              ? "Vorlage Bearbeiten"
+              : "Neue Vorlage Erstellen"}
+          </DialogTitle>
           <DialogContent dividers className="flex flex-col gap-4">
             <TextField
-              label="Titel des Trainingsplans"
-              placeholder="z. B. Scoring & Checkout Fokus - Woche 1"
+              label="Titel des Plans"
+              variant="outlined"
               fullWidth
               required
               value={planTitle}
@@ -512,9 +778,7 @@ export const CoachPlanList: React.FC<CoachPlanListProps> = () => {
                 value={startDate}
                 onChange={(e) => setStartDate(e.target.value)}
                 slotProps={{
-                  inputLabel: {
-                    shrink: true,
-                  },
+                  inputLabel: { shrink: true },
                 }}
               />
 
@@ -527,20 +791,22 @@ export const CoachPlanList: React.FC<CoachPlanListProps> = () => {
                   color="textSecondary"
                   className="font-bold"
                 >
-                  Berechnete Zuweisung:
+                  Berechnete KW:
                 </Typography>
                 <Typography
                   variant="body2"
-                  className="font-bold text-primary-main"
+                  className="font-bold"
+                  color="primary"
                 >
-                  KW {calculatedInfo.calendarWeek} / {calculatedInfo.year}
+                  KW {getWeekAndYearFromDate(startDate).calendarWeek} /{" "}
+                  {getWeekAndYearFromDate(startDate).year}
                 </Typography>
               </Paper>
             </div>
 
             <TextField
-              label="Trainer-Hinweis für den gesamten Plan"
-              placeholder="z. B. Alle Blöcke konzentriert absolvieren."
+              label="Trainer-Notiz / Anweisung"
+              variant="outlined"
               multiline
               rows={2}
               fullWidth
@@ -553,170 +819,130 @@ export const CoachPlanList: React.FC<CoachPlanListProps> = () => {
             {/* Blöcke Verwalten */}
             <div className="flex justify-between items-center">
               <Typography variant="h6" className="font-bold">
-                Plangliederung: Blöcke (1 bis N)
+                Trainingsblöcke ({blocks.length})
               </Typography>
               <Button
-                startIcon={<AddIcon />}
-                variant="contained"
+                variant="outlined"
                 size="small"
+                startIcon={<AddIcon />}
                 onClick={handleAddBlock}
               >
-                Neuen Block Hinzufügen
+                Block Hinzufügen
               </Button>
             </div>
 
-            {blocks.length === 0 ? (
-              <Alert severity="info">
-                Füge mindestens einen Block hinzu (z. B. "Block 1: Warm-Up").
-              </Alert>
-            ) : (
-              blocks.map((block, bIdx) => (
-                <Paper
-                  key={block.id || bIdx}
-                  variant="outlined"
-                  className="p-4 flex flex-col gap-3 relative border-2 border-primary-main/20"
-                >
-                  <div className="flex justify-between items-center gap-2">
-                    <TextField
-                      label={`Block #${bIdx + 1} Name`}
-                      size="small"
-                      required
-                      className="font-bold min-w-[250px]"
-                      value={block.title}
-                      onChange={(e) =>
-                        handleUpdateBlockTitle(bIdx, e.target.value)
-                      }
-                    />
-                    <IconButton
-                      size="small"
-                      color="error"
-                      onClick={() => handleRemoveBlock(bIdx)}
-                    >
-                      <DeleteIcon fontSize="small" />
-                    </IconButton>
-                  </div>
-
+            {blocks.map((block, bIdx) => (
+              <Paper
+                key={block.id || bIdx}
+                variant="outlined"
+                className="p-4 flex flex-col gap-3 bg-gray-50 dark:bg-gray-800"
+              >
+                <div className="flex justify-between items-center gap-2">
                   <TextField
-                    label="Anmerkung für diesen Block"
+                    label="Block Name"
                     size="small"
-                    placeholder="z. B. Fokus auf Saubere Technik"
-                    value={block.coachNote || ""}
+                    variant="outlined"
+                    fullWidth
+                    value={block.title}
                     onChange={(e) =>
-                      handleUpdateBlockNote(bIdx, e.target.value)
+                      handleUpdateBlockTitle(bIdx, e.target.value)
                     }
                   />
-
-                  {/* Übungen innerhalb des Blocks */}
-                  <Typography
-                    variant="caption"
-                    className="font-bold block mt-2 text-primary-main"
+                  <IconButton
+                    color="error"
+                    onClick={() => handleRemoveBlock(bIdx)}
                   >
-                    Übungen in diesem Block:
-                  </Typography>
+                    <DeleteIcon />
+                  </IconButton>
+                </div>
 
-                  {block.exercises.length === 0 ? (
-                    <Typography
-                      variant="body2"
-                      color="textSecondary"
-                      className="italic py-2"
+                <TextField
+                  label="Notiz für diesen Block"
+                  size="small"
+                  variant="outlined"
+                  fullWidth
+                  value={block.coachNote || ""}
+                  onChange={(e) => handleUpdateBlockNote(bIdx, e.target.value)}
+                />
+
+                {/* Übungen im Block */}
+                <Typography variant="subtitle2" className="font-bold mt-2">
+                  Übungen im Block:
+                </Typography>
+
+                {block.exercises.map((ex, exIdx) => {
+                  const exObj = exercises.find((e) => e.id === ex.exerciseId);
+                  return (
+                    <div
+                      key={exIdx}
+                      className="flex flex-col gap-2 p-2 border rounded bg-white dark:bg-gray-900"
                     >
-                      Noch keine Übung aus der Bibliothek hinzugefügt.
-                    </Typography>
-                  ) : (
-                    block.exercises.map((exItem, exIdx) => {
-                      const matchedEx = exercises.find(
-                        (e) => e.id === exItem.exerciseId,
-                      );
-                      return (
-                        <Paper
-                          key={exIdx}
-                          variant="outlined"
-                          className="p-3 flex flex-col gap-2"
+                      <div className="flex justify-between items-center">
+                        <Typography variant="body2" className="font-bold">
+                          {exIdx + 1}.{" "}
+                          {exObj ? exObj.title : "Unbekannte Übung"}
+                        </Typography>
+                        <IconButton
+                          size="small"
+                          color="error"
+                          onClick={() =>
+                            handleRemoveExerciseFromBlock(bIdx, exIdx)
+                          }
                         >
-                          <div className="flex justify-between items-center">
-                            <Typography
-                              variant="subtitle2"
-                              className="font-bold flex items-center gap-2"
-                            >
-                              <FitnessCenterIcon
-                                fontSize="small"
-                                color="primary"
-                              />
-                              {matchedEx ? matchedEx.title : "Unbekannte Übung"}
-                            </Typography>
-                            <IconButton
-                              size="small"
-                              color="error"
-                              onClick={() =>
-                                handleRemoveExerciseFromBlock(bIdx, exIdx)
-                              }
-                            >
-                              <DeleteIcon fontSize="small" />
-                            </IconButton>
-                          </div>
+                          <DeleteIcon fontSize="small" />
+                        </IconButton>
+                      </div>
 
-                          <TextField
-                            label="Trainer-Notiz zu dieser Übung"
-                            size="small"
-                            placeholder="z. B. Mindestens 50 Punkte erzielen"
-                            value={exItem.coachNote || ""}
-                            onChange={(e) =>
-                              handleUpdateExerciseNote(
-                                bIdx,
-                                exIdx,
-                                e.target.value,
-                              )
-                            }
-                          />
-                        </Paper>
-                      );
-                    })
-                  )}
+                      <TextField
+                        label="Übungs-Hinweis für den Spieler"
+                        size="small"
+                        variant="outlined"
+                        fullWidth
+                        value={ex.coachNote || ""}
+                        onChange={(e) =>
+                          handleUpdateExerciseNote(bIdx, exIdx, e.target.value)
+                        }
+                      />
+                    </div>
+                  );
+                })}
 
-                  {/* Übung aus Bibliothek hinzufügen */}
-                  <FormControl size="small" fullWidth className="mt-2">
-                    <InputLabel>
-                      + Übung aus Bibliothek zu Block hinzufügen
-                    </InputLabel>
-                    <Select
-                      value=""
-                      label="+ Übung aus Bibliothek zu Block hinzufügen"
-                      onChange={(e) =>
-                        handleAddExerciseToBlock(bIdx, e.target.value)
-                      }
-                    >
-                      {exercises.map((ex) => (
-                        <MenuItem key={ex.id} value={ex.id}>
-                          {ex.title} ({ex.type})
-                        </MenuItem>
-                      ))}
-                    </Select>
-                  </FormControl>
-                </Paper>
-              ))
-            )}
+                <FormControl size="small" fullWidth className="mt-2">
+                  <InputLabel>Übung zu Block hinzufügen</InputLabel>
+                  <Select
+                    value=""
+                    label="Übung zu Block hinzufügen"
+                    onChange={(e) =>
+                      handleAddExerciseToBlock(bIdx, e.target.value)
+                    }
+                  >
+                    {exercises.map((e) => (
+                      <MenuItem key={e.id} value={e.id}>
+                        {e.title} ({e.type})
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+              </Paper>
+            ))}
           </DialogContent>
-
           <DialogActions className="p-4">
-            <Button
-              variant="contained"
-              onClick={() => setIsEditorModalOpen(false)}
-            >
+            <Button onClick={() => setIsEditorModalOpen(false)}>
               Abbrechen
             </Button>
             <Button
-              type="submit"
               variant="contained"
               color="primary"
-              disabled={submitting || blocks.length === 0}
+              type="submit"
+              disabled={submitting}
             >
-              {submitting ? "Speichert..." : "Plan Speichern"}
+              {submitting ? "Speichert..." : "Vorlage Speichern"}
             </Button>
           </DialogActions>
         </form>
       </Dialog>
 
-      {/* MODAL 2: Plan Zuweisen */}
+      {/* Modal: Plan zuweisen */}
       <Dialog
         open={isAssignModalOpen}
         onClose={() => setIsAssignModalOpen(false)}
@@ -779,14 +1005,8 @@ export const CoachPlanList: React.FC<CoachPlanListProps> = () => {
             </FormControl>
           )}
         </DialogContent>
-
         <DialogActions className="p-4">
-          <Button
-            variant="contained"
-            onClick={() => setIsAssignModalOpen(false)}
-          >
-            Abbrechen
-          </Button>
+          <Button onClick={() => setIsAssignModalOpen(false)}>Abbrechen</Button>
           <Button
             variant="contained"
             color="primary"

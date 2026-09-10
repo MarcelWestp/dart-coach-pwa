@@ -1,75 +1,121 @@
-import React, { useEffect, useState } from "react";
-import { collection, getDocs, deleteDoc, doc } from "firebase/firestore";
-import { db } from "../../firebase/config";
-import { useAuth } from "../../context/AuthContext";
-import type { PerformanceTest, Exercise } from "../../types/exercise";
-import { CreateTestModal } from "./CreateTestModal";
-import { RecordResultModal } from "./RecordResultModal";
+import React, { useEffect, useState } from 'react';
 import {
-  Card,
-  CardContent,
+  collection,
+  getDocs,
+  doc,
+  deleteDoc
+} from 'firebase/firestore';
+import { db } from '../../firebase/config';
+import { useAuth } from '../../context/AuthContext';
+import type { PerformanceTest, Exercise } from '../../types/exercise';
+import type { UserProfile } from '../../types/user';
+import { CreateTestModal } from './CreateTestModal';
+import { AssignTestModal } from './AssignTestModal';
+import { RecordResultModal } from './RecordResultModal';
+import {
+  Paper,
   Typography,
   Button,
+  Card,
+  CardContent,
+  CardActions,
   Chip,
+  IconButton,
   CircularProgress,
   Alert,
-  IconButton,
-  List,
-  ListItem,
-  ListItemText,
-  CardActions,
-} from "@mui/material";
-import AddIcon from "@mui/icons-material/Add";
-import DeleteIcon from "@mui/icons-material/Delete";
-import EditIcon from "@mui/icons-material/Edit";
-import AssignmentIcon from "@mui/icons-material/Assignment";
-import PlayArrowIcon from "@mui/icons-material/PlayArrow";
+  Tabs,
+  Tab,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
+  FormControlLabel,
+  Switch
+} from '@mui/material';
+import AddIcon from '@mui/icons-material/Add';
+import DeleteIcon from '@mui/icons-material/Delete';
+import EditIcon from '@mui/icons-material/Edit';
+import SendIcon from '@mui/icons-material/Send';
+import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 
 export const TestList: React.FC = () => {
   const { userProfile } = useAuth();
+  const isCoachOrAdmin =
+    userProfile?.roles.includes('admin') || userProfile?.roles.includes('coach');
+
+  const [activeTab, setActiveTab] = useState<number>(0); // 0 = Bibliothek, 1 = Zugewiesene Tests
+
   const [tests, setTests] = useState<PerformanceTest[]>([]);
+  const [assignedTests, setAssignedTests] = useState<any[]>([]);
   const [exercises, setExercises] = useState<Exercise[]>([]);
+  const [roster, setRoster] = useState<UserProfile[]>([]);
+
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
 
-  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
-  const [testToEdit, setTestToEdit] = useState<PerformanceTest | null>(null);
-  const [selectedTestForRecord, setSelectedTestForRecord] =
-    useState<PerformanceTest | null>(null);
+  // Filter-States für Tab 1
+  const [selectedPlayerFilter, setSelectedPlayerFilter] = useState<string>('all');
+  const [showCompleted, setShowCompleted] = useState<boolean>(true);
 
-  const canCreateTest =
-    userProfile?.roles.includes("coach") ||
-    userProfile?.roles.includes("admin");
+  // Modals
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState<boolean>(false);
+  const [testToEdit, setTestToEdit] = useState<PerformanceTest | null>(null);
+  const [testToAssign, setTestToAssign] = useState<PerformanceTest | null>(null);
+  const [testToRecord, setTestToRecord] = useState<PerformanceTest | null>(null);
 
   const fetchData = async () => {
     setLoading(true);
     try {
-      const [testsSnap, exercisesSnap] = await Promise.all([
-        getDocs(collection(db, "performanceTests")),
-        getDocs(collection(db, "exercises")),
+      const [testSnap, exSnap, assignedSnap, relSnap, userSnap] = await Promise.all([
+        getDocs(collection(db, 'performanceTests')),
+        getDocs(collection(db, 'exercises')),
+        getDocs(collection(db, 'assignedPerformanceTests')),
+        getDocs(collection(db, 'coachPlayerRelations')),
+        getDocs(collection(db, 'users'))
       ]);
 
       const fetchedTests: PerformanceTest[] = [];
-      testsSnap.forEach((docSnap) => {
-        fetchedTests.push({
-          id: docSnap.id,
-          ...docSnap.data(),
-        } as PerformanceTest);
+      testSnap.forEach((d) => {
+        const { id, ...data } = d.data();
+        fetchedTests.push({ id: d.id, ...data } as PerformanceTest);
       });
 
       const fetchedExercises: Exercise[] = [];
-      exercisesSnap.forEach((docSnap) => {
-        fetchedExercises.push({
-          id: docSnap.id,
-          ...docSnap.data(),
-        } as Exercise);
+      exSnap.forEach((d) => {
+        const { id, ...data } = d.data();
+        fetchedExercises.push({ id: d.id, ...data } as Exercise);
+      });
+
+      const fetchedAssigned: any[] = [];
+      assignedSnap.forEach((d) => {
+        const { id, ...data } = d.data();
+        if (data.coachId === userProfile?.uid) {
+          fetchedAssigned.push({ id: d.id, ...data });
+        }
+      });
+
+      // Kader ermitteln
+      const playerIds: string[] = [];
+      relSnap.forEach((d) => {
+        if (d.data().coachId === userProfile?.uid) {
+          playerIds.push(d.data().playerId);
+        }
+      });
+
+      const fetchedUsers: UserProfile[] = [];
+      userSnap.forEach((d) => {
+        if (playerIds.includes(d.id)) {
+          fetchedUsers.push({ uid: d.id, ...d.data() } as UserProfile);
+        }
       });
 
       setTests(fetchedTests);
       setExercises(fetchedExercises);
-    } catch (err: any) {
+      setAssignedTests(fetchedAssigned);
+      setRoster(fetchedUsers);
+    } catch (err) {
       console.error(err);
-      setError("Fehler beim Laden der Leistungstests.");
+      setError('Fehler beim Laden der Leistungstests.');
     } finally {
       setLoading(false);
     }
@@ -77,49 +123,37 @@ export const TestList: React.FC = () => {
 
   useEffect(() => {
     fetchData();
-  }, []);
+  }, [userProfile?.uid]);
 
   const handleDeleteTest = async (testId: string, title: string) => {
-    if (
-      !window.confirm(
-        `Möchtest du den Leistungstest "${title}" wirklich löschen?`,
-      )
-    )
-      return;
+    if (!window.confirm(`Möchtest du den Leistungstest "${title}" wirklich löschen?`)) return;
 
     try {
-      await deleteDoc(doc(db, "performanceTests", testId));
-      setTests((prev) => prev.filter((t) => t.id !== testId));
+      await deleteDoc(doc(db, 'performanceTests', testId));
+      fetchData();
     } catch (err) {
       console.error(err);
-      setError("Fehler beim Löschen des Leistungstests.");
+      setError('Fehler beim Löschen des Tests.');
     }
   };
 
-  const handleOpenEditModal = (test: PerformanceTest) => {
-    setTestToEdit(test);
-    setIsCreateModalOpen(true);
-  };
+  const handleDeleteAssignedTest = async (assignedId: string, title: string) => {
+    if (!window.confirm(`Möchtest du die Zuweisung für "${title}" wirklich löschen?`)) return;
 
-  const handleCloseCreateModal = () => {
-    setIsCreateModalOpen(false);
-    setTestToEdit(null);
-  };
-
-  const getTypeName = (type: string) => {
-    switch (type) {
-      case "scoring":
-        return "Scoring";
-      case "check":
-        return "Check";
-      case "rules":
-        return "Regeln/Sonstiges";
-      case "technique":
-        return "Technik";
-      default:
-        return type;
+    try {
+      await deleteDoc(doc(db, 'assignedPerformanceTests', assignedId));
+      fetchData();
+    } catch (err) {
+      console.error(err);
+      setError('Fehler beim Löschen der Zuweisung.');
     }
   };
+
+  const filteredAssignedTests = assignedTests.filter((t) => {
+    if (selectedPlayerFilter !== 'all' && t.playerId !== selectedPlayerFilter) return false;
+    if (!showCompleted && t.status === 'completed') return false;
+    return true;
+  });
 
   if (loading) {
     return (
@@ -130,23 +164,18 @@ export const TestList: React.FC = () => {
   }
 
   return (
-    <div className="p-6 max-w-6xl mx-auto">
-      <div className="flex justify-between items-center mb-6">
+    <div className="p-6 max-w-6xl mx-auto flex flex-col gap-6">
+      <div className="flex justify-between items-center flex-wrap gap-4">
         <div>
-          <Typography
-            variant="h4"
-            component="h1"
-            className="font-bold flex items-center gap-2"
-            color="text.primary"
-          >
-            <AssignmentIcon fontSize="large" color="primary" /> Leistungstests
+          <Typography variant="h4" className="font-bold" color="text.primary">
+            Leistungstests
           </Typography>
           <Typography variant="body2" color="textSecondary">
-            Zusammengestellte Tests für Leistungsmessungen.
+            Stelle mehrstufige Leistungstests zusammen und weise sie deinen Spielern zu.
           </Typography>
         </div>
 
-        {canCreateTest && (
+        {isCoachOrAdmin && activeTab === 0 && (
           <Button
             variant="contained"
             color="primary"
@@ -156,142 +185,221 @@ export const TestList: React.FC = () => {
               setIsCreateModalOpen(true);
             }}
           >
-            Neuen Leistungstest Erstellen
+            Neuen Leistungstest erstellen
           </Button>
         )}
       </div>
 
-      {error && (
-        <Alert severity="error" className="mb-4">
-          {error}
-        </Alert>
+      {error && <Alert severity="error" onClose={() => setError(null)}>{error}</Alert>}
+
+      {isCoachOrAdmin && (
+        <Paper className="shadow-sm">
+          <Tabs
+            value={activeTab}
+            onChange={(_, val) => setActiveTab(val)}
+            indicatorColor="primary"
+            textColor="primary"
+          >
+            <Tab label="Leistungstest-Bibliothek" />
+            <Tab label={`Zugewiesene Tests (${assignedTests.length})`} />
+          </Tabs>
+        </Paper>
       )}
 
-      {tests.length === 0 ? (
-        <Typography
-          variant="body1"
-          color="textSecondary"
-          className="text-center py-8"
-        >
-          Noch keine Leistungstests vorhanden.
-        </Typography>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {tests.map((test) => {
-            const isOwnerOrAdmin =
-              test.createdBy === userProfile?.uid ||
-              userProfile?.roles.includes("admin");
-
-            return (
-              <Card
-                key={test.id}
-                className="shadow-md flex flex-col justify-between"
-              >
-                <CardContent>
-                  <div className="flex justify-between items-start mb-2">
-                    <Typography
-                      variant="h6"
-                      className="font-bold"
-                      color="text.primary"
-                    >
-                      {test.title}
-                    </Typography>
-                    {isOwnerOrAdmin && (
-                      <div className="flex gap-1">
-                        <IconButton
-                          size="small"
-                          color="primary"
-                          onClick={() => handleOpenEditModal(test)}
-                        >
-                          <EditIcon fontSize="small" />
-                        </IconButton>
-                        <IconButton
-                          size="small"
-                          color="error"
-                          onClick={() => handleDeleteTest(test.id, test.title)}
-                        >
-                          <DeleteIcon fontSize="small" />
-                        </IconButton>
-                      </div>
-                    )}
-                  </div>
-
-                  <Chip
-                    label={getTypeName(test.exerciseType)}
-                    size="small"
-                    color="secondary"
-                    className="mb-3"
-                  />
-
-                  <Typography
-                    variant="body2"
-                    color="textSecondary"
-                    className="mb-4"
-                  >
-                    {test.description || "Keine Beschreibung vorhanden."}
+      {/* TAB 0: TEST-BIBLIOTHEK */}
+      {activeTab === 0 && (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {tests.map((test) => (
+            <Card key={test.id} className="shadow-md flex flex-col justify-between">
+              <CardContent>
+                <div className="flex justify-between items-start mb-2">
+                  <Typography variant="h6" className="font-bold" color="text.primary">
+                    {test.title}
                   </Typography>
+                  {isCoachOrAdmin && (
+                    <div className="flex gap-1">
+                      <IconButton
+                        size="small"
+                        color="primary"
+                        onClick={() => {
+                          setTestToEdit(test);
+                          setIsCreateModalOpen(true);
+                        }}
+                      >
+                        <EditIcon fontSize="small" />
+                      </IconButton>
+                      <IconButton
+                        size="small"
+                        color="error"
+                        onClick={() => handleDeleteTest(test.id, test.title)}
+                      >
+                        <DeleteIcon fontSize="small" />
+                      </IconButton>
+                    </div>
+                  )}
+                </div>
 
-                  <Typography
-                    variant="subtitle2"
-                    className="font-bold mb-1"
-                    color="text.primary"
-                  >
-                    Enthaltene Übungen ({test.exerciseIds.length}):
-                  </Typography>
+                <Chip
+                  label={`Typ: ${test.exerciseType.toUpperCase()}`}
+                  size="small"
+                  color="secondary"
+                  className="mb-3"
+                />
 
-                  <List className="bg-gray-50 dark:bg-gray-800 rounded">
-                    {test.exerciseIds.map((exId, idx) => {
-                      const ex = exercises.find((e) => e.id === exId);
-                      return (
-                        <ListItem
-                          key={`${exId}-${idx}`}
-                          divider={idx < test.exerciseIds.length - 1}
-                        >
-                          <ListItemText
-                            primary={`${idx + 1}. ${ex ? ex.title : "Unbekannte Übung"}`}
-                            slotProps={{
-                              primary: { variant: "body2" },
-                            }}
-                          />
-                        </ListItem>
-                      );
-                    })}
-                  </List>
-                </CardContent>
+                <Typography variant="body2" color="textSecondary" className="mb-3">
+                  {test.description || 'Keine Beschreibung vorhanden.'}
+                </Typography>
 
-                <CardActions className="p-4 pt-0">
+                <Typography variant="caption" className="font-bold block mb-1">
+                  Enthaltene Übungen ({test.exerciseIds.length}):
+                </Typography>
+                <div className="flex flex-col gap-1">
+                  {test.exerciseIds.map((exId, idx) => {
+                    const ex = exercises.find((e) => e.id === exId);
+                    return (
+                      <Paper key={`${exId}-${idx}`} variant="outlined" className="px-2 py-1 text-xs">
+                        {idx + 1}. {ex ? ex.title : 'Übung'}
+                      </Paper>
+                    );
+                  })}
+                </div>
+              </CardContent>
+
+              <CardActions className="p-4 pt-0 flex gap-2">
+                <Button
+                  variant="outlined"
+                  color="primary"
+                  fullWidth
+                  startIcon={<PlayArrowIcon />}
+                  onClick={() => setTestToRecord(test)}
+                >
+                  Absolvieren
+                </Button>
+                {isCoachOrAdmin && (
                   <Button
                     variant="contained"
                     color="primary"
                     fullWidth
-                    startIcon={<PlayArrowIcon />}
-                    onClick={() => setSelectedTestForRecord(test)}
+                    startIcon={<SendIcon />}
+                    onClick={() => setTestToAssign(test)}
                   >
-                    Test absolvieren
+                    Zuweisen
                   </Button>
-                </CardActions>
-              </Card>
-            );
-          })}
+                )}
+              </CardActions>
+            </Card>
+          ))}
         </div>
       )}
 
-      <CreateTestModal
-        open={isCreateModalOpen}
-        onClose={handleCloseCreateModal}
-        onTestCreated={fetchData}
-        testToEdit={testToEdit}
-      />
+      {/* TAB 1: ZUGEWIESENE TESTS */}
+      {activeTab === 1 && isCoachOrAdmin && (
+        <div className="flex flex-col gap-4">
+          <Paper className="p-4 flex flex-wrap justify-between items-center gap-4">
+            <FormControl size="small" className="min-w-[200px]">
+              <InputLabel>Nach Spieler filtern</InputLabel>
+              <Select
+                value={selectedPlayerFilter}
+                label="Nach Spieler filtern"
+                onChange={(e) => setSelectedPlayerFilter(e.target.value)}
+              >
+                <MenuItem value="all">Alle Spieler</MenuItem>
+                {roster.map((p) => (
+                  <MenuItem key={p.uid} value={p.uid}>
+                    {p.realName} ({p.nickname})
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
 
-      <RecordResultModal
-        open={!!selectedTestForRecord}
-        onClose={() => setSelectedTestForRecord(null)}
-        test={selectedTestForRecord}
-        allExercises={exercises}
-        onResultRecorded={() =>
-          alert("Leistungstest-Ergebnis erfolgreich gespeichert!")
-        }
-      />
+            <FormControlLabel
+              control={
+                <Switch
+                  checked={showCompleted}
+                  onChange={(e) => setShowCompleted(e.target.checked)}
+                  color="primary"
+                />
+              }
+              label="Abgeschlossene Tests anzeigen"
+            />
+          </Paper>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {filteredAssignedTests.map((assigned) => {
+              const player = roster.find((p) => p.uid === assigned.playerId);
+              return (
+                <Card key={assigned.id} className="shadow-md flex flex-col justify-between">
+                  <CardContent>
+                    <div className="flex justify-between items-start mb-2">
+                      <div>
+                        <Typography variant="h6" className="font-bold">
+                          {assigned.title}
+                        </Typography>
+                        <Typography variant="caption" color="textSecondary" className="block">
+                          Spieler: {player ? `${player.realName} (${player.nickname})` : assigned.playerId}
+                        </Typography>
+                        <Typography variant="caption" color="textSecondary" className="block">
+                          KW {assigned.calendarWeek} / {assigned.year}
+                        </Typography>
+                      </div>
+
+                      <IconButton
+                        size="small"
+                        color="error"
+                        onClick={() => handleDeleteAssignedTest(assigned.id, assigned.title)}
+                      >
+                        <DeleteIcon fontSize="small" />
+                      </IconButton>
+                    </div>
+
+                    <Chip
+                      label={assigned.status === 'completed' ? 'Erledigt' : 'Offen'}
+                      color={assigned.status === 'completed' ? 'success' : 'warning'}
+                      size="small"
+                      className="mb-2"
+                    />
+
+                    {assigned.coachNote && (
+                      <Typography variant="body2" color="textSecondary" className="italic mt-2">
+                        Notiz: "{assigned.coachNote}"
+                      </Typography>
+                    )}
+                  </CardContent>
+                </Card>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Modals */}
+      {isCreateModalOpen && (
+        <CreateTestModal
+          open={isCreateModalOpen}
+          onClose={() => setIsCreateModalOpen(false)}
+          testToEdit={testToEdit}
+          onTestCreated={fetchData}
+        />
+      )}
+
+      {testToAssign && (
+        <AssignTestModal
+          open={!!testToAssign}
+          onClose={() => setTestToAssign(null)}
+          testToAssign={testToAssign}
+          onAssigned={fetchData}
+        />
+      )}
+
+      {testToRecord && (
+        <RecordResultModal
+          open={!!testToRecord}
+          onClose={() => setTestToRecord(null)}
+          test={testToRecord}
+          allExercises={exercises}
+          onResultRecorded={fetchData}
+        />
+      )}
     </div>
   );
 };

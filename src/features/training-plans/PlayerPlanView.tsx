@@ -20,7 +20,6 @@ import {
   AccordionDetails,
   TextField,
   Divider,
-  Box,
   Card,
   CardContent,
   Dialog,
@@ -67,7 +66,7 @@ export const PlayerPlanView: React.FC = () => {
     setLoading(true);
     try {
       const [plansSnap, exSnap, testSnap] = await Promise.all([
-        getDocs(collection(db, "trainingPlans")),
+        getDocs(collection(db, "assignedPlans")),
         getDocs(collection(db, "exercises")),
         getDocs(collection(db, "performanceTests")),
       ]);
@@ -91,14 +90,16 @@ export const PlayerPlanView: React.FC = () => {
       });
 
       const fetchedExercises: Exercise[] = [];
-      exSnap.forEach((d) =>
-        fetchedExercises.push({ id: d.id, ...d.data() } as Exercise),
-      );
+      exSnap.forEach((d) => {
+        const { id, ...data } = d.data();
+        fetchedExercises.push({ id: d.id, ...data } as Exercise);
+      });
 
       const fetchedTests: PerformanceTest[] = [];
-      testSnap.forEach((d) =>
-        fetchedTests.push({ id: d.id, ...d.data() } as PerformanceTest),
-      );
+      testSnap.forEach((d) => {
+        const { id, ...data } = d.data();
+        fetchedTests.push({ id: d.id, ...data } as PerformanceTest);
+      });
 
       setPlans(fetchedPlans);
       setExercises(fetchedExercises);
@@ -114,7 +115,6 @@ export const PlayerPlanView: React.FC = () => {
           new Date().toISOString(),
         );
 
-        // Prüfen, ob für die aktuelle KW ein Plan existiert, der noch unberührt ("assigned") ist
         const currentWeekUnstartedPlan = fetchedPlans.find(
           (p) =>
             p.calendarWeek === calendarWeek &&
@@ -146,11 +146,11 @@ export const PlayerPlanView: React.FC = () => {
 
   // Hilfsfunktion: 48-Stunden-Sperrregel prüfen
   const canEditResult = (completedAt?: string) => {
-    if (!completedAt) return true; // Noch nicht erledigt -> Darf eingetragen werden
+    if (!completedAt) return true;
     const completedDate = new Date(completedAt).getTime();
     const now = new Date().getTime();
     const hoursDiff = (now - completedDate) / (1000 * 60 * 60);
-    return hoursDiff <= 48; // Max 48 Stunden nach Eintragung bearbeitbar
+    return hoursDiff <= 48;
   };
 
   // Spieler-Notiz/Feedback in Firestore speichern
@@ -164,7 +164,6 @@ export const PlayerPlanView: React.FC = () => {
         editingFeedbackTarget.blockId !== undefined &&
         editingFeedbackTarget.exIndex !== undefined
       ) {
-        // Feedback zu bestimmter Übung
         const blockIdx = updatedBlocks.findIndex(
           (b) => b.id === editingFeedbackTarget.blockId,
         );
@@ -174,7 +173,6 @@ export const PlayerPlanView: React.FC = () => {
           ].playerNote = feedbackNote.trim();
         }
       } else if (editingFeedbackTarget.blockId !== undefined) {
-        // Feedback zu Block
         const blockIdx = updatedBlocks.findIndex(
           (b) => b.id === editingFeedbackTarget.blockId,
         );
@@ -182,11 +180,10 @@ export const PlayerPlanView: React.FC = () => {
           updatedBlocks[blockIdx].playerNote = feedbackNote.trim();
         }
       } else {
-        // Feedback zu gesamtem Plan
         activePlan.playerNote = feedbackNote.trim();
       }
 
-      const planRef = doc(db, "trainingPlans", activePlan.id);
+      const planRef = doc(db, "assignedPlans", activePlan.id);
       await updateDoc(planRef, {
         blocks: updatedBlocks,
         playerNote: activePlan.playerNote || "",
@@ -219,7 +216,6 @@ export const PlayerPlanView: React.FC = () => {
       updatedBlocks[blockIdx].exercises[exIndex].completedAt = nowIso;
     }
 
-    // Status des Gesamtplans prüfen
     const allExercisesCompleted = updatedBlocks.every((b) =>
       b.exercises.every((e) => !!e.completedAt),
     );
@@ -229,7 +225,7 @@ export const PlayerPlanView: React.FC = () => {
       allExercisesCompleted && testCompleted ? "completed" : "in_progress";
 
     try {
-      const planRef = doc(db, "trainingPlans", activePlan.id);
+      const planRef = doc(db, "assignedPlans", activePlan.id);
       await updateDoc(planRef, {
         blocks: updatedBlocks,
         status: newStatus,
@@ -263,7 +259,7 @@ export const PlayerPlanView: React.FC = () => {
     const newStatus = allExercisesCompleted ? "completed" : "in_progress";
 
     try {
-      const planRef = doc(db, "trainingPlans", activePlan.id);
+      const planRef = doc(db, "assignedPlans", activePlan.id);
       await updateDoc(planRef, {
         performanceTestCompletedAt: nowIso,
         status: newStatus,
@@ -311,7 +307,6 @@ export const PlayerPlanView: React.FC = () => {
     );
   }
 
-  // Kennzahlen zur aktuellen Plan-Fortschrittsanzeige
   const totalExercises = activePlan
     ? activePlan.blocks.reduce((s, b) => s + b.exercises.length, 0)
     : 0;
@@ -354,7 +349,7 @@ export const PlayerPlanView: React.FC = () => {
         </Alert>
       )}
 
-      {/* Plansauswahl Tab-Leiste für vorgeplante Wochen */}
+      {/* Plansauswahl Tab-Leiste */}
       <div className="flex gap-2 overflow-x-auto pb-2">
         {plans.map((p) => (
           <Chip
@@ -402,14 +397,26 @@ export const PlayerPlanView: React.FC = () => {
             />
           </div>
 
-          {/* Fortschritts-Anzeige */}
-          <Box className="bg-gray-50 dark:bg-gray-800 p-4 rounded-lg flex flex-col gap-2">
+          {/* Fortschritts-Anzeige mit MUI sx-Styling für Theme-Kompatibilität */}
+          <Paper
+            variant="outlined"
+            sx={{
+              p: 2,
+              bgcolor: "action.hover",
+              borderRadius: 2,
+              display: "flex",
+              flexDirection: "column",
+              gap: 1,
+            }}
+          >
             <div className="flex justify-between items-center text-sm font-bold">
-              <span>
+              <Typography variant="body2" className="font-bold">
                 Gesamtfortschritt Übungen ({completedExercises} von{" "}
                 {totalExercises})
-              </span>
-              <span>{exerciseProgressPercent}%</span>
+              </Typography>
+              <Typography variant="body2" className="font-bold">
+                {exerciseProgressPercent}%
+              </Typography>
             </div>
             <LinearProgress
               variant="determinate"
@@ -417,23 +424,23 @@ export const PlayerPlanView: React.FC = () => {
               className="h-2 rounded"
             />
 
-            <div className="flex gap-4 mt-2 text-xs text-gray-500">
-              <span>
+            <div className="flex gap-4 mt-2 text-xs">
+              <Typography variant="caption" color="textSecondary">
                 <strong>Blöcke:</strong> {completedBlocks} von {totalBlocks}{" "}
                 erledigt
-              </span>
+              </Typography>
               {activePlan.performanceTestId && (
-                <span>
+                <Typography variant="caption" color="textSecondary">
                   <strong>Leistungstest:</strong>{" "}
                   {activePlan.performanceTestCompletedAt
                     ? "✓ Erledigt"
                     : "Offen"}
-                </span>
+                </Typography>
               )}
             </div>
-          </Box>
+          </Paper>
 
-          {/* Trainer Abschluss-Feedback falls vorhanden */}
+          {/* Trainer Abschluss-Feedback */}
           {activePlan.coachFeedback && (
             <Alert severity="info">
               <strong>Abschluss-Feedback deines Trainers:</strong>{" "}
@@ -441,7 +448,7 @@ export const PlayerPlanView: React.FC = () => {
             </Alert>
           )}
 
-          {/* Optionaler Leistungstest der Woche */}
+          {/* Optionaler Leistungstest */}
           {activePlan.performanceTestId &&
             (() => {
               const testObj = tests.find(
@@ -455,9 +462,12 @@ export const PlayerPlanView: React.FC = () => {
               return (
                 <Card
                   variant="outlined"
-                  className="border-amber-400 bg-amber-50/20"
+                  sx={{
+                    borderColor: "warning.main",
+                    bgcolor: "action.hover",
+                  }}
                 >
-                  <CardContent className="flex justify-between items-center">
+                  <CardContent className="flex justify-between items-center flex-wrap gap-2">
                     <div>
                       <Typography
                         variant="subtitle1"
@@ -469,7 +479,9 @@ export const PlayerPlanView: React.FC = () => {
                       </Typography>
                       <Typography variant="caption" color="textSecondary">
                         {isTestDone
-                          ? `Absolviert am ${new Date(activePlan.performanceTestCompletedAt!).toLocaleDateString("de-DE")}`
+                          ? `Absolviert am ${new Date(
+                              activePlan.performanceTestCompletedAt!,
+                            ).toLocaleDateString("de-DE")}`
                           : "Noch nicht absolviert"}
                       </Typography>
                     </div>
@@ -528,13 +540,18 @@ export const PlayerPlanView: React.FC = () => {
 
                   <AccordionDetails className="flex flex-col gap-3">
                     {block.coachNote && (
-                      <Typography
-                        variant="body2"
-                        color="textSecondary"
-                        className="italic bg-blue-50 dark:bg-gray-800 p-2 rounded"
+                      <Paper
+                        variant="outlined"
+                        sx={{ p: 1.5, bgcolor: "action.hover" }}
                       >
-                        Anmerkung Trainer: {block.coachNote}
-                      </Typography>
+                        <Typography
+                          variant="body2"
+                          color="textSecondary"
+                          className="italic"
+                        >
+                          Anmerkung Trainer: {block.coachNote}
+                        </Typography>
+                      </Paper>
                     )}
 
                     {/* Übungs-Liste des Blocks */}
@@ -579,7 +596,7 @@ export const PlayerPlanView: React.FC = () => {
                               <Typography
                                 variant="caption"
                                 color="primary"
-                                className="block"
+                                className="block font-medium"
                               >
                                 Dein Feedback: {bEx.playerNote}
                               </Typography>
@@ -617,24 +634,22 @@ export const PlayerPlanView: React.FC = () => {
 
                     {/* Block Spieler-Feedback Button */}
                     <div className="mt-2 text-right">
-                      <div className="mt-2 text-right">
-                        <Button
-                          size="small"
-                          startIcon={<CommentIcon />}
-                          onClick={() => {
-                            if (!activePlan?.id) return;
-                            setEditingFeedbackTarget({
-                              planId: activePlan.id,
-                              blockId: block.id,
-                            });
-                            setFeedbackNote(block.playerNote || "");
-                          }}
-                        >
-                          {block.playerNote
-                            ? "Block-Feedback bearbeiten"
-                            : "Feedback zum Block hinzufügen"}
-                        </Button>
-                      </div>
+                      <Button
+                        size="small"
+                        startIcon={<CommentIcon />}
+                        onClick={() => {
+                          if (!activePlan?.id) return;
+                          setEditingFeedbackTarget({
+                            planId: activePlan.id,
+                            blockId: block.id,
+                          });
+                          setFeedbackNote(block.playerNote || "");
+                        }}
+                      >
+                        {block.playerNote
+                          ? "Block-Feedback bearbeiten"
+                          : "Feedback zum Block hinzufügen"}
+                      </Button>
                     </div>
                   </AccordionDetails>
                 </Accordion>
@@ -645,7 +660,18 @@ export const PlayerPlanView: React.FC = () => {
           {/* Spieler Feedback für gesamten Plan */}
           <Divider className="my-2" />
 
-          <div className="bg-gray-50 dark:bg-gray-800 p-4 rounded-lg flex justify-between items-center">
+          <Paper
+            variant="outlined"
+            sx={{
+              p: 2,
+              bgcolor: "action.hover",
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              flexWrap: "wrap",
+              gap: 2,
+            }}
+          >
             <div>
               <Typography
                 variant="subtitle2"
@@ -664,14 +690,14 @@ export const PlayerPlanView: React.FC = () => {
               size="small"
               startIcon={<CommentIcon />}
               onClick={() => {
-                if (!activePlan?.id) return; // Sicherheitsprüfung gegen undefined/null
+                if (!activePlan?.id) return;
                 setEditingFeedbackTarget({ planId: activePlan.id });
                 setFeedbackNote(activePlan.playerNote || "");
               }}
             >
               {activePlan?.playerNote ? "Bearbeiten" : "Feedback hinterlassen"}
             </Button>
-          </div>
+          </Paper>
         </Paper>
       )}
 

@@ -31,6 +31,7 @@ import GroupsIcon from '@mui/icons-material/Groups';
 import CheckCircleOutlinedIcon from '@mui/icons-material/CheckCircleOutlined';
 import TrendingUpIcon from '@mui/icons-material/TrendingUp';
 import FitnessCenterIcon from '@mui/icons-material/FitnessCenter';
+import PersonIcon from '@mui/icons-material/Person';
 import { 
   ResponsiveContainer, 
   BarChart, 
@@ -55,6 +56,7 @@ export const CoachStatsView: React.FC = () => {
   const [dateRange, setDateRange] = useState<DateRangeOption>('30days');
   const [selectedGroupId, setSelectedGroupId] = useState<string>('all');
   const [selectedExerciseType, setSelectedExerciseType] = useState<string>('all');
+  const [selectedPlayerId, setSelectedPlayerId] = useState<string>('all'); // Neuer State für den Spieler-Filter
 
   const [players, setPlayers] = useState<UserProfile[]>([]);
   const [groups, setGroups] = useState<PlayerGroup[]>([]);
@@ -110,16 +112,26 @@ export const CoachStatsView: React.FC = () => {
     fetchData();
   }, []);
 
+  const getDisplayName = (u: UserProfile) => u.nickname || u.realName || u.email;
+
   // Unique Liste aller im System absolvierten Übungstypen
   const availableExerciseTypes = Array.from(
     new Set(allResults.map((r) => r.exerciseType || 'Allgemeine Übung'))
   );
 
-  // 1. Filtern nach Gruppe
+  // 1. Filtern nach Gruppe & Einzelspieler
   const activeGroup = groups.find((g) => g.id === selectedGroupId);
   const filteredPlayers = players.filter((p) => {
-    if (selectedGroupId === 'all') return true;
-    return activeGroup ? activeGroup.memberIds.includes(p.uid) : true;
+    // Gruppen-Filter
+    if (selectedGroupId !== 'all') {
+      const isMember = activeGroup ? activeGroup.memberIds.includes(p.uid) : true;
+      if (!isMember) return false;
+    }
+    // Spieler-Filter
+    if (selectedPlayerId !== 'all') {
+      if (p.uid !== selectedPlayerId) return false;
+    }
+    return true;
   });
 
   // 2. Filtern nach Datum & Übungstyp
@@ -171,7 +183,7 @@ export const CoachStatsView: React.FC = () => {
   const chartData = playerSummaries
     .filter((s) => s.totalCompleted > 0)
     .map((s) => ({
-      name: s.user.nickname || s.user.realName || 'Spieler',
+      name: getDisplayName(s.user),
       Übungen: s.totalCompleted,
       Durchschnitt: s.avgPoints,
     }));
@@ -183,8 +195,6 @@ export const CoachStatsView: React.FC = () => {
     ? Math.round(filteredResults.reduce((acc, r) => acc + r.totalPoints, 0) / totalRosterCompleted)
     : 0;
 
-  const getDisplayName = (u: UserProfile) => u.nickname || u.realName || u.email;
-
   if (loading) {
     return (
       <div className="flex justify-center items-center p-8">
@@ -193,20 +203,43 @@ export const CoachStatsView: React.FC = () => {
     );
   }
 
+  // Liste der Spieler, die im Dropdown zur Auswahl stehen (basierend auf der gewählten Gruppe)
+  const selectablePlayers = players.filter((p) => {
+    if (selectedGroupId === 'all') return true;
+    return activeGroup ? activeGroup.memberIds.includes(p.uid) : true;
+  });
+
   return (
     <div className="p-6 max-w-6xl mx-auto flex flex-col gap-6">
       {/* Header & Filter */}
       <div className="flex justify-between items-center flex-wrap gap-4">
         <div>
           <Typography variant="h4" component="h1" className="font-bold flex items-center gap-2">
-            <AssessmentIcon fontSize="large" color="primary" /> Kader- & Gruppen-Statistiken
+            <AssessmentIcon fontSize="large" color="primary" /> Kader- & Einzelstatistiken
           </Typography>
           <Typography variant="body2" color="textSecondary">
-            Analysiere Trainingsfleiß und Leistungsentwicklung deiner Mannschaften und Einzelübungen.
+            Analysiere Trainingsfleiß und Leistungsentwicklung deiner Mannschaften und Einzelspieler.
           </Typography>
         </div>
 
         <div className="flex gap-2 flex-wrap">
+          {/* Spieler-Filter */}
+          <FormControl size="small" className="min-w-[180px]">
+            <InputLabel>Spieler Filtern</InputLabel>
+            <Select
+              value={selectedPlayerId}
+              label="Spieler Filtern"
+              onChange={(e) => setSelectedPlayerId(e.target.value)}
+            >
+              <MenuItem value="all">Alle Spieler</MenuItem>
+              {selectablePlayers.map((p) => (
+                <MenuItem key={p.uid} value={p.uid}>
+                  {getDisplayName(p)}
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+
           {/* Übungs-Filter */}
           <FormControl size="small" className="min-w-[180px]">
             <InputLabel>Übung Filtern</InputLabel>
@@ -230,9 +263,13 @@ export const CoachStatsView: React.FC = () => {
             <Select
               value={selectedGroupId}
               label="Gruppe Filtern"
-              onChange={(e) => setSelectedGroupId(e.target.value)}
+              onChange={(e) => {
+                setSelectedGroupId(e.target.value);
+                // Zurücksetzen des Spielerfilters falls dieser nicht mehr in der Gruppe ist
+                setSelectedPlayerId('all');
+              }}
             >
-              <MenuItem value="all">Alle Spieler (Gesamtkader)</MenuItem>
+              <MenuItem value="all">Alle Gruppen (Gesamtkader)</MenuItem>
               {groups.map((g) => (
                 <MenuItem key={g.id} value={g.id}>
                   {g.name}
@@ -264,13 +301,20 @@ export const CoachStatsView: React.FC = () => {
       {/* KPI Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <Paper className="p-4 flex items-center gap-4 shadow-sm">
-          <GroupsIcon color="primary" sx={{ fontSize: 40 }} />
+          {selectedPlayerId === 'all' ? (
+            <GroupsIcon color="primary" sx={{ fontSize: 40 }} />
+          ) : (
+            <PersonIcon color="primary" sx={{ fontSize: 40 }} />
+          )}
           <div>
             <Typography variant="caption" color="textSecondary" className="font-bold block">
-              Aktive Spieler / Kader
+              {selectedPlayerId === 'all' ? 'Aktive Spieler / Auswahl' : 'Ausgewählter Spieler'}
             </Typography>
             <Typography variant="h5" className="font-bold">
-              {activePlayersCount} / {filteredPlayers.length}
+              {selectedPlayerId === 'all' 
+                ? `${activePlayersCount} / ${filteredPlayers.length}`
+                : getDisplayName(filteredPlayers[0])
+              }
             </Typography>
           </div>
         </Paper>
@@ -291,7 +335,7 @@ export const CoachStatsView: React.FC = () => {
           <TrendingUpIcon color="warning" sx={{ fontSize: 40 }} />
           <div>
             <Typography variant="caption" color="textSecondary" className="font-bold block">
-              Kader-Durchschnitt (Score)
+              {selectedPlayerId === 'all' ? 'Kader-Durchschnitt (Score)' : 'Spieler-Durchschnitt (Score)'}
             </Typography>
             <Typography variant="h5" className="font-bold">
               {rosterAvg} Pkt.
@@ -305,8 +349,8 @@ export const CoachStatsView: React.FC = () => {
         <Typography variant="h6" className="font-bold mb-4 flex items-center gap-2">
           <FitnessCenterIcon color="primary" />
           {selectedExerciseType === 'all'
-            ? 'Leistungs- & Aktivitätsvergleich im Kader'
-            : `Kader-Vergleich für: ${selectedExerciseType}`}
+            ? 'Leistungs- & Aktivitätsansicht'
+            : `Auswertung für: ${selectedExerciseType}`}
         </Typography>
         {chartData.length === 0 ? (
           <Typography variant="body2" color="textSecondary" className="italic text-center py-8">

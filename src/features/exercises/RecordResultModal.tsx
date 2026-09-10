@@ -218,7 +218,7 @@ export const RecordResultModal: React.FC<RecordResultModalProps> = ({
               <Typography
                 variant="body2"
                 color="textSecondary"
-                className="mb-3"
+                className="mb-2 dark:text-gray-200"
               >
                 {exercise.description ||
                   "Trage deine erreichte Punktzahl für diese Übung ein."}
@@ -226,24 +226,29 @@ export const RecordResultModal: React.FC<RecordResultModalProps> = ({
 
               {exercise.instructions && (
                 <Accordion
-                  defaultExpanded
                   elevation={0}
                   variant="outlined"
-                  className="mb-4"
+                  sx={{
+                    bgcolor: "action.hover",
+                    borderColor: "divider",
+                    mt: 2,
+                    mb: 3,
+                  }}
                 >
                   <AccordionSummary expandIcon={<ExpandMoreIcon />}>
                     <Typography
-                      variant="subtitle2"
+                      variant="caption"
                       className="font-bold flex items-center gap-1"
                     >
-                      <HelpIcon fontSize="small" color="primary" />{" "}
-                      Spielanleitung
+                      <HelpIcon fontSize="small" color="action" />{" "}
+                      Spielanleitung anzeigen
                     </Typography>
                   </AccordionSummary>
                   <AccordionDetails>
                     <Typography
                       variant="body2"
-                      className="whitespace-pre-line text-gray-700 dark:text-gray-300"
+                      color="text.primary"
+                      className="whitespace-pre-line dark:text-gray-100"
                     >
                       {exercise.instructions}
                     </Typography>
@@ -270,7 +275,7 @@ export const RecordResultModal: React.FC<RecordResultModalProps> = ({
         </DialogContent>
 
         <DialogActions className="p-4">
-          <Button onClick={onClose} disabled={loading}>
+          <Button onClick={onClose} disabled={loading} color="secondary">
             Abbrechen
           </Button>
           <Button

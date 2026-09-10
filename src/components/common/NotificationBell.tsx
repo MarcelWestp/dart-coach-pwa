@@ -9,7 +9,6 @@ import {
   deleteDoc,
   writeBatch,
 } from "firebase/firestore";
-import { useNavigate } from "react-router-dom";
 import { db } from "../../firebase/config";
 import { useAuth } from "../../context/AuthContext";
 import {
@@ -48,9 +47,12 @@ export interface AppNotification {
   createdAt: string;
 }
 
-export const NotificationBell: React.FC = () => {
+interface NotificationBellProps {
+  onNavigate?: (viewKey: string) => void;
+}
+
+export const NotificationBell: React.FC<NotificationBellProps> = ({ onNavigate }) => {
   const { userProfile } = useAuth();
-  const navigate = useNavigate();
 
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [anchorEl, setAnchorEl] = useState<HTMLButtonElement | null>(null);
@@ -148,7 +150,11 @@ export const NotificationBell: React.FC = () => {
       handleMarkAsRead(notif.id);
     }
     if (notif.link) {
-      navigate(notif.link);
+      if (onNavigate) {
+        onNavigate(notif.link);
+      } else if (notif.link.startsWith("http")) {
+        window.location.href = notif.link;
+      }
       handleClose();
     }
   };

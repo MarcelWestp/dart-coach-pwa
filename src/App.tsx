@@ -22,7 +22,8 @@ import {
   Box, 
   Button, 
   Menu, 
-  MenuItem 
+  MenuItem,
+  CircularProgress
 } from "@mui/material";
 import KeyboardArrowDownIcon from "@mui/icons-material/KeyboardArrowDown";
 import FitnessCenterIcon from "@mui/icons-material/FitnessCenter";
@@ -31,7 +32,7 @@ import SupervisorAccountIcon from "@mui/icons-material/SupervisorAccount";
 import AdminPanelSettingsIcon from "@mui/icons-material/AdminPanelSettings";
 
 const MainContent: React.FC = () => {
-  const { currentUser, userProfile } = useAuth();
+  const { currentUser, userProfile, loading } = useAuth();
   const { setThemeMode } = useThemeContext();
   const [isRegistering, setIsRegistering] = useState(false);
 
@@ -48,8 +49,26 @@ const MainContent: React.FC = () => {
     if (userProfile?.themePreference) {
       setThemeMode(userProfile.themePreference);
     }
-  }, [userProfile?.themePreference]);
+  }, [userProfile?.themePreference, setThemeMode]);
 
+  // 1. Lade-Zustand abfangen (Verhindert Render-Fehler solange Auth/Profil lädt)
+  if (loading) {
+    return (
+      <Box
+        sx={{
+          display: "flex",
+          justifyContent: "center",
+          alignItems: "center",
+          minHeight: "100vh",
+          bgcolor: "background.default",
+        }}
+      >
+        <CircularProgress />
+      </Box>
+    );
+  }
+
+  // 2. Nicht eingeloggt -> Login / Registrierung anzeigen
   if (!currentUser) {
     return (
       <Box
@@ -70,8 +89,10 @@ const MainContent: React.FC = () => {
     );
   }
 
-  const isAdmin = userProfile?.roles.includes("admin");
-  const isCoach = userProfile?.roles.includes("coach") || isAdmin;
+  // 3. Sichere Rollenprüfung (Schützt vor crashes bei undefined/null)
+  const userRoles = Array.isArray(userProfile?.roles) ? userProfile.roles : [];
+  const isAdmin = userRoles.includes("admin");
+  const isCoach = userRoles.includes("coach") || isAdmin;
 
   const handleSelectView = (viewKey: string) => {
     setActiveView(viewKey);

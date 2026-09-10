@@ -20,16 +20,20 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, allowe
   }
 
   if (!currentUser || !userProfile) {
-    return null; // Wird in der Hauptansicht abgefangen und zum Login geleitet
+    return null; // Wird in der Hauptansicht abgefangen
   }
 
-  // Nicht freigegebene User abfangen
-  if (!userProfile.isApproved) {
+  // Absicherung: Rollen immer als Array behandeln
+  const roles = Array.isArray(userProfile.roles) ? userProfile.roles : [];
+  const isAdmin = roles.includes("admin");
+
+  // Admins automatisch freigeben oder explizit auf isApproved prüfen
+  if (!userProfile.isApproved && !isAdmin) {
     return <PendingApproval />;
   }
 
-  // Optional: Rollenprüfung
-  if (allowedRoles && !allowedRoles.some(role => userProfile.roles.includes(role))) {
+  // Rollenprüfung mit Fallback-Array
+  if (allowedRoles && !allowedRoles.some(role => roles.includes(role))) {
     return (
       <div className="p-8 text-center text-red-600">
         Keine Berechtigung für diese Seite.

@@ -24,7 +24,6 @@ import {
   Typography,
   Button,
   Alert,
-  CircularProgress,
   Card,
   CardContent,
   Dialog,
@@ -47,6 +46,7 @@ import {
   Box,
   Chip,
   Divider,
+  CircularProgress,
 } from "@mui/material";
 import AssignmentIcon from "@mui/icons-material/Assignment";
 import AddIcon from "@mui/icons-material/Add";
@@ -345,6 +345,14 @@ export const CoachPlanList: React.FC<CoachPlanListProps> = () => {
       setError("Fehler beim Löschen des zugewiesenen Trainingsplans.");
     }
   };
+
+  if (loading) {
+    return (
+      <div className="flex justify-center items-center p-8">
+        <CircularProgress />
+      </div>
+    );
+  }
 
   // --- ZUWEISUNGS-HANDLING ---
   const handleOpenAssignModal = (template: TrainingPlan) => {

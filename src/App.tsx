@@ -112,7 +112,7 @@ const MainContent: React.FC = () => {
           transition: "background-color 0.3s ease, color 0.3s ease",
         }}
       >
-        <Navbar onOpenProfile={() => setActiveView("profile")} />
+        <Navbar onOpenProfile={() => setActiveView("profile")} onOpenPlayerPlan={() => setActiveView("player-plan")} />
 
         {/* Strukturierte Hauptnavigation */}
         <div className="max-w-6xl mx-auto px-6 mt-4">

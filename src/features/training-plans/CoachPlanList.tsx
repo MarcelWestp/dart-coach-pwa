@@ -273,6 +273,17 @@ export const CoachPlanList: React.FC<CoachPlanListProps> = () => {
     setBlocks(updated);
   };
 
+  const handleUpdateExerciseDuration = (
+    blockIndex: number,
+    exerciseIndex: number,
+    durationMinutes: number,
+  ) => {
+    const updated = [...blocks];
+    updated[blockIndex].exercises[exerciseIndex].durationMinutes =
+      durationMinutes;
+    setBlocks(updated);
+  };
+
   const handleRemoveExerciseFromBlock = (
     blockIndex: number,
     exerciseIndex: number,
@@ -1265,43 +1276,167 @@ export const CoachPlanList: React.FC<CoachPlanListProps> = () => {
                   Übungen im Block:
                 </Typography>
 
-                {block.exercises.map((ex, exIdx) => {
-                  const exObj = exercises.find((e) => e.id === ex.exerciseId);
-                  return (
-                    <div
-                      key={exIdx}
-                      className="flex flex-col gap-2 p-2 border rounded bg-white dark:bg-gray-900"
-                    >
-                      <div className="flex justify-between items-center">
-                        <Typography variant="body2" className="font-bold">
-                          {exIdx + 1}.{" "}
-                          {exObj ? exObj.title : "Unbekannte Übung"}
-                        </Typography>
-                        <IconButton
-                          size="small"
-                          color="error"
-                          onClick={() =>
-                            handleRemoveExerciseFromBlock(bIdx, exIdx)
-                          }
-                        >
-                          <DeleteIcon fontSize="small" />
-                        </IconButton>
-                      </div>
+                {/* Blöcke Verwalten */}
+                <div className="flex justify-between items-center">
+                  <Typography
+                    variant="h6"
+                    className="font-bold"
+                    color="text.primary"
+                  >
+                    Trainingsblöcke ({blocks.length})
+                  </Typography>
+                  <Button
+                    variant="outlined"
+                    size="small"
+                    startIcon={<AddIcon />}
+                    onClick={handleAddBlock}
+                  >
+                    Block Hinzufügen
+                  </Button>
+                </div>
 
+                {blocks.map((block, bIdx) => (
+                  <Paper
+                    key={block.id || bIdx}
+                    variant="outlined"
+                    sx={{
+                      p: 2,
+                      my: 1,
+                      bgcolor: "action.hover", // Nutzt Theme-Hintergrund (dunkel im Darkmode)
+                      borderColor: "divider",
+                    }}
+                    className="flex flex-col gap-3"
+                  >
+                    <div className="flex justify-between items-center gap-2">
                       <TextField
-                        label="Übungs-Hinweis für den Spieler"
+                        label="Block Name"
                         size="small"
                         variant="outlined"
                         fullWidth
-                        value={ex.coachNote || ""}
+                        value={block.title}
                         onChange={(e) =>
-                          handleUpdateExerciseNote(bIdx, exIdx, e.target.value)
+                          handleUpdateBlockTitle(bIdx, e.target.value)
                         }
                       />
+                      <IconButton
+                        color="error"
+                        onClick={() => handleRemoveBlock(bIdx)}
+                      >
+                        <DeleteIcon />
+                      </IconButton>
                     </div>
-                  );
-                })}
 
+                    <TextField
+                      label="Notiz für diesen Block"
+                      size="small"
+                      variant="outlined"
+                      fullWidth
+                      value={block.coachNote || ""}
+                      onChange={(e) =>
+                        handleUpdateBlockNote(bIdx, e.target.value)
+                      }
+                    />
+
+                    {/* Übungen im Block */}
+                    <Typography
+                      variant="subtitle2"
+                      className="font-bold mt-2"
+                      color="text.primary"
+                    >
+                      Übungen im Block:
+                    </Typography>
+
+                    {block.exercises.map((ex, exIdx) => {
+                      const exObj = exercises.find(
+                        (e) => e.id === ex.exerciseId,
+                      );
+                      return (
+                        <Paper
+                          key={exIdx}
+                          variant="outlined"
+                          sx={{
+                            p: 2,
+                            bgcolor: "background.paper", // Garantiert dunklen/hellen Kartentext-Kontrast
+                            borderColor: "divider",
+                          }}
+                          className="flex flex-col gap-2"
+                        >
+                          <div className="flex justify-between items-center">
+                            <Typography
+                              variant="body2"
+                              className="font-bold"
+                              color="text.primary"
+                            >
+                              {exIdx + 1}.{" "}
+                              {exObj ? exObj.title : "Unbekannte Übung"}
+                            </Typography>
+                            <IconButton
+                              size="small"
+                              color="error"
+                              onClick={() =>
+                                handleRemoveExerciseFromBlock(bIdx, exIdx)
+                              }
+                            >
+                              <DeleteIcon fontSize="small" />
+                            </IconButton>
+                          </div>
+
+                          {/* EINGABE ZEITVORGABE & TRAINERNOTE */}
+                          <div className="flex gap-2 items-center mt-2">
+                            <TextField
+                              label="Zeitvorgabe (Min.)"
+                              type="number"
+                              size="small"
+                              style={{ width: "140px" }}
+                              value={ex.durationMinutes || ""}
+                              onChange={(e) =>
+                                handleUpdateExerciseDuration(
+                                  bIdx,
+                                  exIdx,
+                                  parseInt(e.target.value, 10) || 0,
+                                )
+                              }
+                              slotProps={{
+                                htmlInput: { min: 0 },
+                              }}
+                            />
+                            <TextField
+                              label="Übungs-Hinweis für den Spieler"
+                              size="small"
+                              variant="outlined"
+                              fullWidth
+                              value={ex.coachNote || ""}
+                              onChange={(e) =>
+                                handleUpdateExerciseNote(
+                                  bIdx,
+                                  exIdx,
+                                  e.target.value,
+                                )
+                              }
+                            />
+                          </div>
+                        </Paper>
+                      );
+                    })}
+
+                    <FormControl size="small" fullWidth className="mt-2">
+                      <InputLabel>Übung zu Block hinzufügen</InputLabel>
+                      <Select
+                        value=""
+                        label="Übung zu Block hinzufügen"
+                        onChange={(e) =>
+                          handleAddExerciseToBlock(bIdx, e.target.value)
+                        }
+                      >
+                        {exercises.map((e) => (
+                          <MenuItem key={e.id} value={e.id}>
+                            {e.title} ({e.type})
+                          </MenuItem>
+                        ))}
+                      </Select>
+                    </FormControl>
+                  </Paper>
+                ))}
                 <FormControl size="small" fullWidth className="mt-2">
                   <InputLabel>Übung zu Block hinzufügen</InputLabel>
                   <Select

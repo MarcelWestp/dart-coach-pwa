@@ -2,11 +2,12 @@ import type { Exercise } from './exercise';
 
 export interface BlockExercise {
   exerciseId: string;      // ID der bestehenden Übung aus der Bibliothek
-  exercise?: Exercise;     // Optionales aufgelöstes Übungsobjekt für die UI
-  coachNote?: string;      // Spezifische Anmerkung des Trainers für diese Übung
-  playerNote?: string;     // Notiz/Feedback des Spielers
-  completedAt?: string;    // Zeitstempel der Erledigung (für die 48h-Sperrlogik)
-  scoreResultId?: string;  // Referenz zum gespeicherten TestResult
+  exercise?: Exercise;     // Optionales aufgelöstes Übungsobjekt für die UI[cite: 1]
+  coachNote?: string;      // Spezifische Anmerkung des Trainers für diese Übung[cite: 1]
+  playerNote?: string;     // Notiz/Feedback des Spielers[cite: 1]
+  durationMinutes?: number;// Neu: Zeitvorgabe des Trainers in Minuten (z. B. 15 für 15 Min)
+  completedAt?: string;    // Zeitstempel der Erledigung (für die 48h-Sperrlogik)[cite: 1]
+  scoreResultId?: string;  // Referenz zum gespeicherten TestResult[cite: 1]
 }
 
 export interface TrainingBlock {

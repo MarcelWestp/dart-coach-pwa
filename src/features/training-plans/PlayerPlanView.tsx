@@ -44,6 +44,7 @@ import EditIcon from "@mui/icons-material/Edit";
 import CommentIcon from "@mui/icons-material/Comment";
 import PlayArrowIcon from "@mui/icons-material/PlayArrow";
 import EmojiEventsIcon from "@mui/icons-material/EmojiEvents";
+import AccessTimeIcon from "@mui/icons-material/AccessTime";
 
 export const PlayerPlanView: React.FC = () => {
   const { userProfile } = useAuth();
@@ -593,31 +594,12 @@ export const PlayerPlanView: React.FC = () => {
                       const isDone = !!bEx.completedAt;
                       const isEditable = canEditResult(bEx.completedAt);
 
-                      // 1. Suche über scoreResultId
-                      // 2. Fallback: Suche über exerciseId / testId, userId & Erledigungsdatum
-                      const resultObj =
-                        testResults.find((r) => r.id === bEx.scoreResultId) ||
-                        testResults.find((r) => {
-                          const resExId = (r as any).exerciseId || r.testId;
-                          return (
-                            r.userId === userProfile?.uid &&
-                            resExId === bEx.exerciseId &&
-                            bEx.completedAt &&
-                            Math.abs(
-                              new Date(r.completedAt).getTime() -
-                                new Date(bEx.completedAt).getTime(),
-                            ) < 60000 // Innerhalb einer Minute Toleranz
-                          );
-                        });
-
-                      // Punkte aus dem TestResult auslesen (mit allen möglichen Eigenschaftsnamen)
+                      // Punkte aus dem Ergebnis ermitteln
                       const achievedScore =
-                        resultObj?.totalPoints ??
-                        (resultObj as any)?.points ??
-                        (resultObj as any)?.score ??
                         (bEx as any).score ??
                         (bEx as any).result ??
-                        (bEx as any).points;
+                        (bEx as any).points ??
+                        (bEx as any).totalPoints;
 
                       // Formatiertes Erledigungsdatum
                       const formattedDate = bEx.completedAt
@@ -635,10 +617,15 @@ export const PlayerPlanView: React.FC = () => {
                         <Paper
                           key={`${bEx.exerciseId}-${exIdx}`}
                           variant="outlined"
-                          className="p-3 flex justify-between items-center flex-wrap gap-2"
+                          sx={{
+                            p: 2,
+                            bgcolor: "background.paper", // Garantiert korrekte Farbe im Light- & Darkmode
+                            borderColor: "divider",
+                          }}
+                          className="flex justify-between items-center flex-wrap gap-2"
                         >
                           <div>
-                            <div className="flex items-center gap-2">
+                            <div className="flex items-center gap-2 flex-wrap">
                               {isDone && (
                                 <CheckCircleIcon
                                   color="success"
@@ -653,11 +640,23 @@ export const PlayerPlanView: React.FC = () => {
                                 {exIdx + 1}.{" "}
                                 {exerciseObj ? exerciseObj.title : "Übung"}
                               </Typography>
+
+                              {/* ZEITVORGABE DES TRAINERS ANZEIGEN (falls gesetzt) */}
+                              {bEx.durationMinutes &&
+                                bEx.durationMinutes > 0 && (
+                                  <Chip
+                                    icon={<AccessTimeIcon fontSize="small" />}
+                                    label={`Vorgabe: ${bEx.durationMinutes} Min.`}
+                                    size="small"
+                                    color="info"
+                                    variant="outlined"
+                                  />
+                                )}
                             </div>
 
                             {/* ANZEIGE DER ERREICHTEN PUNKTZAHL UND/ODER DES DATUMS */}
                             {isDone && (
-                              <div className="mt-1 flex items-center gap-1.5">
+                              <div className="mt-1 flex items-center gap-1.5 flex-wrap">
                                 <Chip
                                   icon={<EmojiEventsIcon fontSize="small" />}
                                   label={
@@ -723,7 +722,6 @@ export const PlayerPlanView: React.FC = () => {
                         </Paper>
                       );
                     })}
-
                     {/* Block Spieler-Feedback Button */}
                     <div className="mt-2 text-right">
                       <Button

@@ -594,12 +594,24 @@ export const PlayerPlanView: React.FC = () => {
                       const isDone = !!bEx.completedAt;
                       const isEditable = canEditResult(bEx.completedAt);
 
-                      // Punkte aus dem Ergebnis ermitteln
-                      const achievedScore =
-                        (bEx as any).score ??
-                        (bEx as any).result ??
-                        (bEx as any).points ??
-                        (bEx as any).totalPoints;
+                      const matchingResult = testResults.find((r) => {
+                              if (
+                                bEx.scoreResultId &&
+                                r.id === bEx.scoreResultId
+                              )
+                                return true;
+                              return (
+                                (r.exerciseId === bEx.exerciseId ||
+                                  r.testId === bEx.exerciseId)
+                              );
+                            });
+
+                      // // Punkte aus dem Ergebnis ermitteln
+                      // const achievedScore =
+                      //   (bEx as any).score ??
+                      //   (bEx as any).result ??
+                      //   (bEx as any).points ??
+                      //   (bEx as any).totalPoints;
 
                       // Formatiertes Erledigungsdatum
                       const formattedDate = bEx.completedAt
@@ -660,9 +672,8 @@ export const PlayerPlanView: React.FC = () => {
                                 <Chip
                                   icon={<EmojiEventsIcon fontSize="small" />}
                                   label={
-                                    achievedScore !== undefined &&
-                                    achievedScore !== null
-                                      ? `Ergebnis: ${achievedScore} Pkt. (${formattedDate})`
+                                    matchingResult
+                                      ? `Ergebnis: ${matchingResult.totalPoints} Pkt. (${formattedDate})`
                                       : `Absolviert am ${formattedDate}`
                                   }
                                   size="small"

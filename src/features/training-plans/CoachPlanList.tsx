@@ -546,13 +546,12 @@ export const CoachPlanList: React.FC<CoachPlanListProps> = () => {
       {activeTab === 0 && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {templates.length === 0 ? (
-            <Typography
-              variant="body2"
-              color="textSecondary"
-              className="py-4 col-span-2 text-center italic"
-            >
-              Keine Vorlagen vorhanden. Erstelle eine neue Vorlage.
-            </Typography>
+            <Paper className="p-8 text-center col-span-full">
+              <Typography variant="body1" color="textSecondary">
+                Keine Vorlagen vorhanden. Erstelle jetzt deinen ersten
+                Trainingsplan!
+              </Typography>
+            </Paper>
           ) : (
             templates.map((template) => (
               <Card
@@ -560,8 +559,8 @@ export const CoachPlanList: React.FC<CoachPlanListProps> = () => {
                 variant="outlined"
                 className="flex flex-col justify-between shadow-sm"
               >
-                <CardContent>
-                  <div className="flex justify-between items-start mb-2">
+                <CardContent className="flex flex-col gap-3">
+                  <div className="flex justify-between items-start">
                     <div>
                       <Typography
                         variant="h6"
@@ -597,22 +596,23 @@ export const CoachPlanList: React.FC<CoachPlanListProps> = () => {
                     <Typography
                       variant="body2"
                       color="textSecondary"
-                      className="mb-2 italic"
+                      className="italic"
                     >
                       "{template.coachNote}"
                     </Typography>
                   )}
 
-                  <div className="flex flex-col gap-2 my-3">
+                  {/* VORSCHAU DER BLÖCKE (EXAKT EINMAL RENDERN) */}
+                  <div className="flex flex-col gap-2 mt-2">
                     {template.blocks && template.blocks.length > 0 ? (
                       template.blocks.map((block, idx) => (
                         <Paper
                           key={block.id || idx}
                           variant="outlined"
                           sx={{
-                            borderRadius: 3,
+                            borderRadius: 2,
                             px: 2,
-                            py: 1.2,
+                            py: 1,
                             bgcolor: "action.hover",
                             borderColor: "divider",
                           }}
@@ -642,11 +642,12 @@ export const CoachPlanList: React.FC<CoachPlanListProps> = () => {
                   </div>
                 </CardContent>
 
-                <Box className="p-4 pt-0">
+                <Divider />
+
+                <Box className="p-3 flex justify-end">
                   <Button
                     variant="contained"
                     color="primary"
-                    fullWidth
                     startIcon={<SendIcon />}
                     onClick={() => handleOpenAssignModal(template)}
                   >
@@ -1222,9 +1223,13 @@ export const CoachPlanList: React.FC<CoachPlanListProps> = () => {
 
             <Divider className="my-2" />
 
-            {/* Blöcke Verwalten */}
+            {/* Blöcke Verwalten (EXAKT EINMAL) */}
             <div className="flex justify-between items-center">
-              <Typography variant="h6" className="font-bold">
+              <Typography
+                variant="h6"
+                className="font-bold"
+                color="text.primary"
+              >
                 Trainingsblöcke ({blocks.length})
               </Typography>
               <Button
@@ -1241,7 +1246,13 @@ export const CoachPlanList: React.FC<CoachPlanListProps> = () => {
               <Paper
                 key={block.id || bIdx}
                 variant="outlined"
-                className="p-4 flex flex-col gap-3 bg-gray-50 dark:bg-gray-800"
+                sx={{
+                  p: 2,
+                  my: 1,
+                  bgcolor: "action.hover",
+                  borderColor: "divider",
+                }}
+                className="flex flex-col gap-3"
               >
                 <div className="flex justify-between items-center gap-2">
                   <TextField
@@ -1272,171 +1283,85 @@ export const CoachPlanList: React.FC<CoachPlanListProps> = () => {
                 />
 
                 {/* Übungen im Block */}
-                <Typography variant="subtitle2" className="font-bold mt-2">
+                <Typography
+                  variant="subtitle2"
+                  className="font-bold mt-2"
+                  color="text.primary"
+                >
                   Übungen im Block:
                 </Typography>
 
-                {/* Blöcke Verwalten */}
-                <div className="flex justify-between items-center">
-                  <Typography
-                    variant="h6"
-                    className="font-bold"
-                    color="text.primary"
-                  >
-                    Trainingsblöcke ({blocks.length})
-                  </Typography>
-                  <Button
-                    variant="outlined"
-                    size="small"
-                    startIcon={<AddIcon />}
-                    onClick={handleAddBlock}
-                  >
-                    Block Hinzufügen
-                  </Button>
-                </div>
-
-                {blocks.map((block, bIdx) => (
-                  <Paper
-                    key={block.id || bIdx}
-                    variant="outlined"
-                    sx={{
-                      p: 2,
-                      my: 1,
-                      bgcolor: "action.hover", // Nutzt Theme-Hintergrund (dunkel im Darkmode)
-                      borderColor: "divider",
-                    }}
-                    className="flex flex-col gap-3"
-                  >
-                    <div className="flex justify-between items-center gap-2">
-                      <TextField
-                        label="Block Name"
-                        size="small"
-                        variant="outlined"
-                        fullWidth
-                        value={block.title}
-                        onChange={(e) =>
-                          handleUpdateBlockTitle(bIdx, e.target.value)
-                        }
-                      />
-                      <IconButton
-                        color="error"
-                        onClick={() => handleRemoveBlock(bIdx)}
-                      >
-                        <DeleteIcon />
-                      </IconButton>
-                    </div>
-
-                    <TextField
-                      label="Notiz für diesen Block"
-                      size="small"
+                {block.exercises.map((ex, exIdx) => {
+                  const exObj = exercises.find((e) => e.id === ex.exerciseId);
+                  return (
+                    <Paper
+                      key={exIdx}
                       variant="outlined"
-                      fullWidth
-                      value={block.coachNote || ""}
-                      onChange={(e) =>
-                        handleUpdateBlockNote(bIdx, e.target.value)
-                      }
-                    />
-
-                    {/* Übungen im Block */}
-                    <Typography
-                      variant="subtitle2"
-                      className="font-bold mt-2"
-                      color="text.primary"
+                      sx={{
+                        p: 2,
+                        bgcolor: "background.paper",
+                        borderColor: "divider",
+                      }}
+                      className="flex flex-col gap-2"
                     >
-                      Übungen im Block:
-                    </Typography>
-
-                    {block.exercises.map((ex, exIdx) => {
-                      const exObj = exercises.find(
-                        (e) => e.id === ex.exerciseId,
-                      );
-                      return (
-                        <Paper
-                          key={exIdx}
-                          variant="outlined"
-                          sx={{
-                            p: 2,
-                            bgcolor: "background.paper", // Garantiert dunklen/hellen Kartentext-Kontrast
-                            borderColor: "divider",
-                          }}
-                          className="flex flex-col gap-2"
+                      <div className="flex justify-between items-center">
+                        <Typography
+                          variant="body2"
+                          className="font-bold"
+                          color="text.primary"
                         >
-                          <div className="flex justify-between items-center">
-                            <Typography
-                              variant="body2"
-                              className="font-bold"
-                              color="text.primary"
-                            >
-                              {exIdx + 1}.{" "}
-                              {exObj ? exObj.title : "Unbekannte Übung"}
-                            </Typography>
-                            <IconButton
-                              size="small"
-                              color="error"
-                              onClick={() =>
-                                handleRemoveExerciseFromBlock(bIdx, exIdx)
-                              }
-                            >
-                              <DeleteIcon fontSize="small" />
-                            </IconButton>
-                          </div>
+                          {exIdx + 1}.{" "}
+                          {exObj ? exObj.title : "Unbekannte Übung"}
+                        </Typography>
+                        <IconButton
+                          size="small"
+                          color="error"
+                          onClick={() =>
+                            handleRemoveExerciseFromBlock(bIdx, exIdx)
+                          }
+                        >
+                          <DeleteIcon fontSize="small" />
+                        </IconButton>
+                      </div>
 
-                          {/* EINGABE ZEITVORGABE & TRAINERNOTE */}
-                          <div className="flex gap-2 items-center mt-2">
-                            <TextField
-                              label="Zeitvorgabe (Min.)"
-                              type="number"
-                              size="small"
-                              style={{ width: "140px" }}
-                              value={ex.durationMinutes || ""}
-                              onChange={(e) =>
-                                handleUpdateExerciseDuration(
-                                  bIdx,
-                                  exIdx,
-                                  parseInt(e.target.value, 10) || 0,
-                                )
-                              }
-                              slotProps={{
-                                htmlInput: { min: 0 },
-                              }}
-                            />
-                            <TextField
-                              label="Übungs-Hinweis für den Spieler"
-                              size="small"
-                              variant="outlined"
-                              fullWidth
-                              value={ex.coachNote || ""}
-                              onChange={(e) =>
-                                handleUpdateExerciseNote(
-                                  bIdx,
-                                  exIdx,
-                                  e.target.value,
-                                )
-                              }
-                            />
-                          </div>
-                        </Paper>
-                      );
-                    })}
+                      {/* EINGABE ZEITVORGABE & TRAINERNOTE */}
+                      <div className="flex gap-2 items-center mt-2">
+                        <TextField
+                          label="Zeitvorgabe (Min.)"
+                          type="number"
+                          size="small"
+                          style={{ width: "140px" }}
+                          value={ex.durationMinutes || ""}
+                          onChange={(e) =>
+                            handleUpdateExerciseDuration(
+                              bIdx,
+                              exIdx,
+                              parseInt(e.target.value, 10) || 0,
+                            )
+                          }
+                          slotProps={{
+                            htmlInput: { min: 0 },
+                          }}
+                        />
+                        <TextField
+                          label="Übungs-Hinweis für den Spieler"
+                          size="small"
+                          variant="outlined"
+                          fullWidth
+                          value={ex.coachNote || ""}
+                          onChange={(e) =>
+                            handleUpdateExerciseNote(
+                              bIdx,
+                              exIdx,
+                              e.target.value,
+                            )
+                          }
+                        />
+                      </div>
+                    </Paper>
+                  );
+                })}
 
-                    <FormControl size="small" fullWidth className="mt-2">
-                      <InputLabel>Übung zu Block hinzufügen</InputLabel>
-                      <Select
-                        value=""
-                        label="Übung zu Block hinzufügen"
-                        onChange={(e) =>
-                          handleAddExerciseToBlock(bIdx, e.target.value)
-                        }
-                      >
-                        {exercises.map((e) => (
-                          <MenuItem key={e.id} value={e.id}>
-                            {e.title} ({e.type})
-                          </MenuItem>
-                        ))}
-                      </Select>
-                    </FormControl>
-                  </Paper>
-                ))}
                 <FormControl size="small" fullWidth className="mt-2">
                   <InputLabel>Übung zu Block hinzufügen</InputLabel>
                   <Select
@@ -1471,7 +1396,6 @@ export const CoachPlanList: React.FC<CoachPlanListProps> = () => {
           </DialogActions>
         </form>
       </Dialog>
-
       {/* Modal: Plan zuweisen */}
       <Dialog
         open={isAssignModalOpen}

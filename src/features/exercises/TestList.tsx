@@ -1,17 +1,12 @@
-import React, { useEffect, useState } from 'react';
-import {
-  collection,
-  getDocs,
-  doc,
-  deleteDoc
-} from 'firebase/firestore';
-import { db } from '../../firebase/config';
-import { useAuth } from '../../context/AuthContext';
-import type { PerformanceTest, Exercise } from '../../types/exercise';
-import type { UserProfile } from '../../types/user';
-import { CreateTestModal } from './CreateTestModal';
-import { AssignTestModal } from './AssignTestModal';
-import { RecordResultModal } from './RecordResultModal';
+import React, { useEffect, useState } from "react";
+import { collection, getDocs, doc, deleteDoc } from "firebase/firestore";
+import { db } from "../../firebase/config";
+import { useAuth } from "../../context/AuthContext";
+import type { PerformanceTest, Exercise } from "../../types/exercise";
+import type { UserProfile } from "../../types/user";
+import { CreateTestModal } from "./CreateTestModal";
+import { AssignTestModal } from "./AssignTestModal";
+import { RecordResultModal } from "./RecordResultModal";
 import {
   Paper,
   Typography,
@@ -36,20 +31,21 @@ import {
   DialogContent,
   DialogActions,
   Divider,
-  LinearProgress
-} from '@mui/material';
-import AddIcon from '@mui/icons-material/Add';
-import DeleteIcon from '@mui/icons-material/Delete';
-import EditIcon from '@mui/icons-material/Edit';
-import SendIcon from '@mui/icons-material/Send';
-import PlayArrowIcon from '@mui/icons-material/PlayArrow';
-import VisibilityIcon from '@mui/icons-material/Visibility';
-import CheckCircleIcon from '@mui/icons-material/CheckCircle';
+  LinearProgress,
+} from "@mui/material";
+import AddIcon from "@mui/icons-material/Add";
+import DeleteIcon from "@mui/icons-material/Delete";
+import EditIcon from "@mui/icons-material/Edit";
+import SendIcon from "@mui/icons-material/Send";
+import PlayArrowIcon from "@mui/icons-material/PlayArrow";
+import VisibilityIcon from "@mui/icons-material/Visibility";
+import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 
 export const TestList: React.FC = () => {
   const { userProfile } = useAuth();
   const isCoachOrAdmin =
-    userProfile?.roles.includes('admin') || userProfile?.roles.includes('coach');
+    userProfile?.roles.includes("admin") ||
+    userProfile?.roles.includes("coach");
 
   const [activeTab, setActiveTab] = useState<number>(0); // 0 = Bibliothek, 1 = Zugewiesene Tests
 
@@ -62,28 +58,36 @@ export const TestList: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
 
   // Filter-States für Tab 1
-  const [selectedPlayerFilter, setSelectedPlayerFilter] = useState<string>('all');
+  const [selectedPlayerFilter, setSelectedPlayerFilter] =
+    useState<string>("all");
   const [showCompleted, setShowCompleted] = useState<boolean>(true);
 
   // Modals
   const [isCreateModalOpen, setIsCreateModalOpen] = useState<boolean>(false);
   const [testToEdit, setTestToEdit] = useState<PerformanceTest | null>(null);
-  const [testToAssign, setTestToAssign] = useState<PerformanceTest | null>(null);
-  const [testToRecord, setTestToRecord] = useState<PerformanceTest | null>(null);
+  const [testToAssign, setTestToAssign] = useState<PerformanceTest | null>(
+    null,
+  );
+  const [testToRecord, setTestToRecord] = useState<PerformanceTest | null>(
+    null,
+  );
 
   // Modal für Fortschrittsansicht (Coach-Ansicht)
-  const [selectedAssignedForView, setSelectedAssignedForView] = useState<any | null>(null);
+  const [selectedAssignedForView, setSelectedAssignedForView] = useState<
+    any | null
+  >(null);
 
   const fetchData = async () => {
     setLoading(true);
     try {
-      const [testSnap, exSnap, assignedSnap, relSnap, userSnap] = await Promise.all([
-        getDocs(collection(db, 'performanceTests')),
-        getDocs(collection(db, 'exercises')),
-        getDocs(collection(db, 'assignedPerformanceTests')),
-        getDocs(collection(db, 'coachPlayerRelations')),
-        getDocs(collection(db, 'users'))
-      ]);
+      const [testSnap, exSnap, assignedSnap, relSnap, userSnap] =
+        await Promise.all([
+          getDocs(collection(db, "performanceTests")),
+          getDocs(collection(db, "exercises")),
+          getDocs(collection(db, "assignedPerformanceTests")),
+          getDocs(collection(db, "coachPlayerRelations")),
+          getDocs(collection(db, "users")),
+        ]);
 
       const fetchedTests: PerformanceTest[] = [];
       testSnap.forEach((d) => {
@@ -115,8 +119,17 @@ export const TestList: React.FC = () => {
 
       const fetchedUsers: UserProfile[] = [];
       userSnap.forEach((d) => {
-        if (playerIds.includes(d.id)) {
-          fetchedUsers.push({ uid: d.id, ...d.data() } as UserProfile);
+        const data = d.data();
+        const userId = d.id; // Dokumenten-ID aus Firestore
+
+        if (
+          playerIds.includes(userId) ||
+          data.assignedCoachId === userProfile?.uid
+        ) {
+          fetchedUsers.push({
+            ...data,
+            uid: userId, // WICHTIG: Stellt sicher, dass 'uid' niemals undefined ist!
+          } as UserProfile);
         }
       });
 
@@ -126,7 +139,7 @@ export const TestList: React.FC = () => {
       setRoster(fetchedUsers);
     } catch (err) {
       console.error(err);
-      setError('Fehler beim Laden der Leistungstests.');
+      setError("Fehler beim Laden der Leistungstests.");
     } finally {
       setLoading(false);
     }
@@ -137,39 +150,75 @@ export const TestList: React.FC = () => {
   }, [userProfile?.uid]);
 
   const handleDeleteTest = async (testId: string, title: string) => {
-    if (!window.confirm(`Möchtest du den Leistungstest "${title}" wirklich löschen?`)) return;
+    if (
+      !window.confirm(
+        `Möchtest du den Leistungstest "${title}" wirklich löschen?`,
+      )
+    )
+      return;
 
     try {
-      await deleteDoc(doc(db, 'performanceTests', testId));
+      await deleteDoc(doc(db, "performanceTests", testId));
       fetchData();
     } catch (err) {
       console.error(err);
-      setError('Fehler beim Löschen des Tests.');
+      setError("Fehler beim Löschen des Tests.");
     }
   };
 
-  const handleDeleteAssignedTest = async (assignedId: string, title: string) => {
-    if (!window.confirm(`Möchtest du die Zuweisung für "${title}" wirklich löschen?`)) return;
+  const handleDeleteAssignedTest = async (
+    assignedId: string,
+    title: string,
+  ) => {
+    if (
+      !window.confirm(
+        `Möchtest du die Zuweisung für "${title}" wirklich löschen?`,
+      )
+    )
+      return;
 
     try {
-      await deleteDoc(doc(db, 'assignedPerformanceTests', assignedId));
+      await deleteDoc(doc(db, "assignedPerformanceTests", assignedId));
       fetchData();
     } catch (err) {
       console.error(err);
-      setError('Fehler beim Löschen der Zuweisung.');
+      setError("Fehler beim Löschen der Zuweisung.");
     }
   };
 
   const filteredAssignedTests = assignedTests.filter((t) => {
-    if (selectedPlayerFilter !== 'all' && t.playerId !== selectedPlayerFilter) return false;
-    if (!showCompleted && t.status === 'completed') return false;
+    if (selectedPlayerFilter !== "all" && t.playerId !== selectedPlayerFilter)
+      return false;
+    if (!showCompleted && t.status === "completed") return false;
     return true;
   });
+
+// Hilfsfunktion zur Formatierung des Spielernamens
+const getPlayerDisplayName = (player?: UserProfile, fallbackId?: string): string => {
+  if (!player) return fallbackId || 'Unbekannter Spieler';
+
+  const visibility = player.privacySettings?.leaderboardVisibility || 'nickname';
+  const realName = player.realName?.trim();
+  const nickname = player.nickname?.trim();
+
+  if (visibility === 'realName' && realName) {
+    return realName;
+  }
+  if (visibility === 'both' && realName && nickname) {
+    return `${realName} (${nickname})`;
+  }
+
+  return nickname || realName || player.email || fallbackId || 'Spieler';
+};
 
   // Hilfsfunktion zur Berechnung des Fortschritts
   const calculateProgress = (assigned: any) => {
     if (!assigned.exerciseResults || !assigned.exerciseIds) {
-      return { completedCount: 0, total: assigned.exerciseIds?.length || 0, percent: 0 };
+      return {
+        completedCount: 0,
+        total: assigned.exerciseIds?.length || 0,
+        percent: 0,
+      };
     }
     const total = assigned.exerciseIds.length;
     const completedCount = Object.keys(assigned.exerciseResults).length;
@@ -193,7 +242,8 @@ export const TestList: React.FC = () => {
             Leistungstests
           </Typography>
           <Typography variant="body2" color="textSecondary">
-            Stelle mehrstufige Leistungstests zusammen und weise sie deinen Spielern zu.
+            Stelle mehrstufige Leistungstests zusammen und weise sie deinen
+            Spielern zu.
           </Typography>
         </div>
 
@@ -212,7 +262,11 @@ export const TestList: React.FC = () => {
         )}
       </div>
 
-      {error && <Alert severity="error" onClose={() => setError(null)}>{error}</Alert>}
+      {error && (
+        <Alert severity="error" onClose={() => setError(null)}>
+          {error}
+        </Alert>
+      )}
 
       {isCoachOrAdmin && (
         <Paper className="shadow-sm">
@@ -232,10 +286,17 @@ export const TestList: React.FC = () => {
       {activeTab === 0 && (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {tests.map((test) => (
-            <Card key={test.id} className="shadow-md flex flex-col justify-between">
+            <Card
+              key={test.id}
+              className="shadow-md flex flex-col justify-between"
+            >
               <CardContent>
                 <div className="flex justify-between items-start mb-2">
-                  <Typography variant="h6" className="font-bold" color="text.primary">
+                  <Typography
+                    variant="h6"
+                    className="font-bold"
+                    color="text.primary"
+                  >
                     {test.title}
                   </Typography>
                   {isCoachOrAdmin && (
@@ -268,8 +329,12 @@ export const TestList: React.FC = () => {
                   className="mb-3"
                 />
 
-                <Typography variant="body2" color="textSecondary" className="mb-3">
-                  {test.description || 'Keine Beschreibung vorhanden.'}
+                <Typography
+                  variant="body2"
+                  color="textSecondary"
+                  className="mb-3"
+                >
+                  {test.description || "Keine Beschreibung vorhanden."}
                 </Typography>
 
                 <Typography variant="caption" className="font-bold block mb-1">
@@ -279,8 +344,12 @@ export const TestList: React.FC = () => {
                   {test.exerciseIds.map((exId, idx) => {
                     const ex = exercises.find((e) => e.id === exId);
                     return (
-                      <Paper key={`${exId}-${idx}`} variant="outlined" className="px-2 py-1 text-xs">
-                        {idx + 1}. {ex ? ex.title : 'Übung'}
+                      <Paper
+                        key={`${exId}-${idx}`}
+                        variant="outlined"
+                        className="px-2 py-1 text-xs"
+                      >
+                        {idx + 1}. {ex ? ex.title : "Übung"}
                       </Paper>
                     );
                   })}
@@ -328,7 +397,7 @@ export const TestList: React.FC = () => {
                 <MenuItem value="all">Alle Spieler</MenuItem>
                 {roster.map((p) => (
                   <MenuItem key={p.uid} value={p.uid}>
-                    {p.realName} ({p.nickname})
+                    {getPlayerDisplayName(p)}
                   </MenuItem>
                 ))}
               </Select>
@@ -349,20 +418,32 @@ export const TestList: React.FC = () => {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {filteredAssignedTests.map((assigned) => {
               const player = roster.find((p) => p.uid === assigned.playerId);
-              const { completedCount, total, percent } = calculateProgress(assigned);
+              const { completedCount, total, percent } =
+                calculateProgress(assigned);
 
               return (
-                <Card key={assigned.id} className="shadow-md flex flex-col justify-between">
+                <Card
+                  key={assigned.id}
+                  className="shadow-md flex flex-col justify-between"
+                >
                   <CardContent>
                     <div className="flex justify-between items-start mb-2">
                       <div>
                         <Typography variant="h6" className="font-bold">
                           {assigned.title}
                         </Typography>
-                        <Typography variant="caption" color="textSecondary" className="block">
-                          Spieler: {player ? `${player.realName} (${player.nickname})` : assigned.playerId}
+                        <Typography
+                          variant="caption"
+                          color="textSecondary"
+                          className="block"
+                        >
+                          Spieler: {getPlayerDisplayName(player, assigned.playerId)}
                         </Typography>
-                        <Typography variant="caption" color="textSecondary" className="block">
+                        <Typography
+                          variant="caption"
+                          color="textSecondary"
+                          className="block"
+                        >
                           KW {assigned.calendarWeek} / {assigned.year}
                         </Typography>
                       </div>
@@ -370,7 +451,9 @@ export const TestList: React.FC = () => {
                       <IconButton
                         size="small"
                         color="error"
-                        onClick={() => handleDeleteAssignedTest(assigned.id, assigned.title)}
+                        onClick={() =>
+                          handleDeleteAssignedTest(assigned.id, assigned.title)
+                        }
                       >
                         <DeleteIcon fontSize="small" />
                       </IconButton>
@@ -378,8 +461,14 @@ export const TestList: React.FC = () => {
 
                     <div className="flex justify-between items-center my-2">
                       <Chip
-                        label={assigned.status === 'completed' ? 'Erledigt' : 'Offen'}
-                        color={assigned.status === 'completed' ? 'success' : 'warning'}
+                        label={
+                          assigned.status === "completed" ? "Erledigt" : "Offen"
+                        }
+                        color={
+                          assigned.status === "completed"
+                            ? "success"
+                            : "warning"
+                        }
                         size="small"
                       />
                       <Typography variant="caption" className="font-semibold">
@@ -394,7 +483,11 @@ export const TestList: React.FC = () => {
                     />
 
                     {assigned.coachNote && (
-                      <Typography variant="body2" color="textSecondary" className="italic mt-2">
+                      <Typography
+                        variant="body2"
+                        color="textSecondary"
+                        className="italic mt-2"
+                      >
                         Notiz: "{assigned.coachNote}"
                       </Typography>
                     )}
@@ -425,113 +518,175 @@ export const TestList: React.FC = () => {
         maxWidth="md"
         fullWidth
       >
-        {selectedAssignedForView && (() => {
-          const player = roster.find((p) => p.uid === selectedAssignedForView.playerId);
-          const { completedCount, total, percent } = calculateProgress(selectedAssignedForView);
+        {selectedAssignedForView &&
+          (() => {
+            const player = roster.find(
+              (p) => p.uid === selectedAssignedForView.playerId,
+            );
+            const { completedCount, total, percent } = calculateProgress(
+              selectedAssignedForView,
+            );
 
-          return (
-            <>
-              <DialogTitle className="font-bold flex justify-between items-center">
-                <span>Test-Fortschritt: {selectedAssignedForView.title}</span>
-                <Chip
-                  label={selectedAssignedForView.status === 'completed' ? 'Erledigt' : 'In Bearbeitung'}
-                  color={selectedAssignedForView.status === 'completed' ? 'success' : 'warning'}
-                  size="small"
-                />
-              </DialogTitle>
+            return (
+              <>
+                <DialogTitle className="font-bold flex justify-between items-center">
+                  <span>Test-Fortschritt: {selectedAssignedForView.title}</span>
+                  <Chip
+                    label={
+                      selectedAssignedForView.status === "completed"
+                        ? "Erledigt"
+                        : "In Bearbeitung"
+                    }
+                    color={
+                      selectedAssignedForView.status === "completed"
+                        ? "success"
+                        : "warning"
+                    }
+                    size="small"
+                  />
+                </DialogTitle>
 
-              <DialogContent dividers className="flex flex-col gap-4">
-                <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-2">
-                  <Typography variant="subtitle2">
-                    <strong>Spieler:</strong> {player ? `${player.realName} (${player.nickname})` : selectedAssignedForView.playerId}
-                  </Typography>
-                  <Typography variant="subtitle2">
-                    <strong>Zeitraum:</strong> KW {selectedAssignedForView.calendarWeek} / {selectedAssignedForView.year}
-                  </Typography>
-                </div>
-
-                {selectedAssignedForView.coachNote && (
-                  <Typography variant="body2" className="italic bg-gray-50 dark:bg-gray-800 p-2 rounded">
-                    Trainer-Notiz: "{selectedAssignedForView.coachNote}"
-                  </Typography>
-                )}
-
-                <div>
-                  <div className="flex justify-between items-center mb-1">
-                    <Typography variant="caption" className="font-bold">
-                      Gesamtfortschritt ({completedCount} von {total} Übungen absolviert)
+                <DialogContent dividers className="flex flex-col gap-4">
+                  <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-2">
+                    <Typography variant="subtitle2">
+                      <strong>Spieler:</strong>{" "}
+                      {player
+                        ? `${player.realName} (${player.nickname})`
+                        : selectedAssignedForView.playerId}
                     </Typography>
-                    <Typography variant="caption" className="font-bold">
-                      {percent}%
+                    <Typography variant="subtitle2">
+                      <strong>Zeitraum:</strong> KW{" "}
+                      {selectedAssignedForView.calendarWeek} /{" "}
+                      {selectedAssignedForView.year}
                     </Typography>
                   </div>
-                  <LinearProgress variant="determinate" value={percent} className="h-2 rounded" />
-                </div>
 
-                <Divider />
+                  {selectedAssignedForView.coachNote && (
+                    <Typography
+                      variant="body2"
+                      className="italic bg-gray-50 dark:bg-gray-800 p-2 rounded"
+                    >
+                      Trainer-Notiz: "{selectedAssignedForView.coachNote}"
+                    </Typography>
+                  )}
 
-                <Typography variant="h6" className="font-bold">
-                  Übungsdetails & Ergebnisse
-                </Typography>
+                  <div>
+                    <div className="flex justify-between items-center mb-1">
+                      <Typography variant="caption" className="font-bold">
+                        Gesamtfortschritt ({completedCount} von {total} Übungen
+                        absolviert)
+                      </Typography>
+                      <Typography variant="caption" className="font-bold">
+                        {percent}%
+                      </Typography>
+                    </div>
+                    <LinearProgress
+                      variant="determinate"
+                      value={percent}
+                      className="h-2 rounded"
+                    />
+                  </div>
 
-                <div className="flex flex-col gap-3">
-                  {selectedAssignedForView.exerciseIds?.map((exId: string, idx: number) => {
-                    const ex = exercises.find((e) => e.id === exId);
-                    const result = selectedAssignedForView.exerciseResults?.[exId];
+                  <Divider />
 
-                    return (
-                      <Paper key={`${exId}-${idx}`} variant="outlined" className="p-3">
-                        <div className="flex justify-between items-start gap-2 mb-1">
-                          <Typography variant="subtitle2" className="font-bold">
-                            {idx + 1}. {ex ? ex.title : 'Übung'}
-                          </Typography>
-                          {result ? (
-                            <Chip
-                              icon={<CheckCircleIcon fontSize="small" />}
-                              label="Absolviert"
-                              color="success"
-                              size="small"
-                            />
-                          ) : (
-                            <Chip label="Offen" variant="outlined" size="small" />
-                          )}
-                        </div>
+                  <Typography variant="h6" className="font-bold">
+                    Übungsdetails & Ergebnisse
+                  </Typography>
 
-                        {result ? (
-                          <div className="mt-2 text-sm bg-green-50 dark:bg-gray-800/60 p-2 rounded">
-                            <Typography variant="body2" className="font-bold color-primary">
-                              Punkte: {result.totalPoints ?? result.points ?? '-'}
-                            </Typography>
-                            {result.completedAt && (
-                              <Typography variant="caption" color="textSecondary" className="block">
-                                Absolviert am: {new Date(result.completedAt).toLocaleString('de-DE')}
+                  <div className="flex flex-col gap-3">
+                    {selectedAssignedForView.exerciseIds?.map(
+                      (exId: string, idx: number) => {
+                        const ex = exercises.find((e) => e.id === exId);
+                        const result =
+                          selectedAssignedForView.exerciseResults?.[exId];
+
+                        return (
+                          <Paper
+                            key={`${exId}-${idx}`}
+                            variant="outlined"
+                            className="p-3"
+                          >
+                            <div className="flex justify-between items-start gap-2 mb-1">
+                              <Typography
+                                variant="subtitle2"
+                                className="font-bold"
+                              >
+                                {idx + 1}. {ex ? ex.title : "Übung"}
+                              </Typography>
+                              {result ? (
+                                <Chip
+                                  icon={<CheckCircleIcon fontSize="small" />}
+                                  label="Absolviert"
+                                  color="success"
+                                  size="small"
+                                />
+                              ) : (
+                                <Chip
+                                  label="Offen"
+                                  variant="outlined"
+                                  size="small"
+                                />
+                              )}
+                            </div>
+
+                            {result ? (
+                              <div className="mt-2 text-sm bg-green-50 dark:bg-gray-800/60 p-2 rounded">
+                                <Typography
+                                  variant="body2"
+                                  className="font-bold color-primary"
+                                >
+                                  Punkte:{" "}
+                                  {result.totalPoints ?? result.points ?? "-"}
+                                </Typography>
+                                {result.completedAt && (
+                                  <Typography
+                                    variant="caption"
+                                    color="textSecondary"
+                                    className="block"
+                                  >
+                                    Absolviert am:{" "}
+                                    {new Date(
+                                      result.completedAt,
+                                    ).toLocaleString("de-DE")}
+                                  </Typography>
+                                )}
+                                {result.note && (
+                                  <Typography
+                                    variant="caption"
+                                    className="italic block mt-1"
+                                  >
+                                    Spieler-Kommentar: "{result.note}"
+                                  </Typography>
+                                )}
+                              </div>
+                            ) : (
+                              <Typography
+                                variant="caption"
+                                color="textSecondary"
+                                className="italic"
+                              >
+                                Noch kein Ergebnis von diesem Spieler
+                                eingetragen.
                               </Typography>
                             )}
-                            {result.note && (
-                              <Typography variant="caption" className="italic block mt-1">
-                                Spieler-Kommentar: "{result.note}"
-                              </Typography>
-                            )}
-                          </div>
-                        ) : (
-                          <Typography variant="caption" color="textSecondary" className="italic">
-                            Noch kein Ergebnis von diesem Spieler eingetragen.
-                          </Typography>
-                        )}
-                      </Paper>
-                    );
-                  })}
-                </div>
-              </DialogContent>
+                          </Paper>
+                        );
+                      },
+                    )}
+                  </div>
+                </DialogContent>
 
-              <DialogActions className="p-4">
-                <Button onClick={() => setSelectedAssignedForView(null)} variant="contained">
-                  Schließen
-                </Button>
-              </DialogActions>
-            </>
-          );
-        })()}
+                <DialogActions className="p-4">
+                  <Button
+                    onClick={() => setSelectedAssignedForView(null)}
+                    variant="contained"
+                  >
+                    Schließen
+                  </Button>
+                </DialogActions>
+              </>
+            );
+          })()}
       </Dialog>
 
       {/* Modals */}

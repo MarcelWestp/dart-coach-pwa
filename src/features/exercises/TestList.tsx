@@ -30,13 +30,21 @@ import {
   Select,
   MenuItem,
   FormControlLabel,
-  Switch
+  Switch,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  Divider,
+  LinearProgress
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import DeleteIcon from '@mui/icons-material/Delete';
 import EditIcon from '@mui/icons-material/Edit';
 import SendIcon from '@mui/icons-material/Send';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
+import VisibilityIcon from '@mui/icons-material/Visibility';
+import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 
 export const TestList: React.FC = () => {
   const { userProfile } = useAuth();
@@ -62,6 +70,9 @@ export const TestList: React.FC = () => {
   const [testToEdit, setTestToEdit] = useState<PerformanceTest | null>(null);
   const [testToAssign, setTestToAssign] = useState<PerformanceTest | null>(null);
   const [testToRecord, setTestToRecord] = useState<PerformanceTest | null>(null);
+
+  // Modal für Fortschrittsansicht (Coach-Ansicht)
+  const [selectedAssignedForView, setSelectedAssignedForView] = useState<any | null>(null);
 
   const fetchData = async () => {
     setLoading(true);
@@ -154,6 +165,17 @@ export const TestList: React.FC = () => {
     if (!showCompleted && t.status === 'completed') return false;
     return true;
   });
+
+  // Hilfsfunktion zur Berechnung des Fortschritts
+  const calculateProgress = (assigned: any) => {
+    if (!assigned.exerciseResults || !assigned.exerciseIds) {
+      return { completedCount: 0, total: assigned.exerciseIds?.length || 0, percent: 0 };
+    }
+    const total = assigned.exerciseIds.length;
+    const completedCount = Object.keys(assigned.exerciseResults).length;
+    const percent = total > 0 ? Math.round((completedCount / total) * 100) : 0;
+    return { completedCount, total, percent };
+  };
 
   if (loading) {
     return (
@@ -327,6 +349,8 @@ export const TestList: React.FC = () => {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {filteredAssignedTests.map((assigned) => {
               const player = roster.find((p) => p.uid === assigned.playerId);
+              const { completedCount, total, percent } = calculateProgress(assigned);
+
               return (
                 <Card key={assigned.id} className="shadow-md flex flex-col justify-between">
                   <CardContent>
@@ -352,11 +376,21 @@ export const TestList: React.FC = () => {
                       </IconButton>
                     </div>
 
-                    <Chip
-                      label={assigned.status === 'completed' ? 'Erledigt' : 'Offen'}
-                      color={assigned.status === 'completed' ? 'success' : 'warning'}
-                      size="small"
-                      className="mb-2"
+                    <div className="flex justify-between items-center my-2">
+                      <Chip
+                        label={assigned.status === 'completed' ? 'Erledigt' : 'Offen'}
+                        color={assigned.status === 'completed' ? 'success' : 'warning'}
+                        size="small"
+                      />
+                      <Typography variant="caption" className="font-semibold">
+                        {completedCount} / {total} Übungen
+                      </Typography>
+                    </div>
+
+                    <LinearProgress
+                      variant="determinate"
+                      value={percent}
+                      className="rounded mb-3"
                     />
 
                     {assigned.coachNote && (
@@ -365,12 +399,140 @@ export const TestList: React.FC = () => {
                       </Typography>
                     )}
                   </CardContent>
+
+                  <CardActions className="p-4 pt-0">
+                    <Button
+                      variant="outlined"
+                      color="primary"
+                      fullWidth
+                      startIcon={<VisibilityIcon />}
+                      onClick={() => setSelectedAssignedForView(assigned)}
+                    >
+                      Fortschritt ansehen
+                    </Button>
+                  </CardActions>
                 </Card>
               );
             })}
           </div>
         </div>
       )}
+
+      {/* Modal: Fortschritt & Ergebnisse des zugewiesenen Tests anzeigen */}
+      <Dialog
+        open={Boolean(selectedAssignedForView)}
+        onClose={() => setSelectedAssignedForView(null)}
+        maxWidth="md"
+        fullWidth
+      >
+        {selectedAssignedForView && (() => {
+          const player = roster.find((p) => p.uid === selectedAssignedForView.playerId);
+          const { completedCount, total, percent } = calculateProgress(selectedAssignedForView);
+
+          return (
+            <>
+              <DialogTitle className="font-bold flex justify-between items-center">
+                <span>Test-Fortschritt: {selectedAssignedForView.title}</span>
+                <Chip
+                  label={selectedAssignedForView.status === 'completed' ? 'Erledigt' : 'In Bearbeitung'}
+                  color={selectedAssignedForView.status === 'completed' ? 'success' : 'warning'}
+                  size="small"
+                />
+              </DialogTitle>
+
+              <DialogContent dividers className="flex flex-col gap-4">
+                <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-2">
+                  <Typography variant="subtitle2">
+                    <strong>Spieler:</strong> {player ? `${player.realName} (${player.nickname})` : selectedAssignedForView.playerId}
+                  </Typography>
+                  <Typography variant="subtitle2">
+                    <strong>Zeitraum:</strong> KW {selectedAssignedForView.calendarWeek} / {selectedAssignedForView.year}
+                  </Typography>
+                </div>
+
+                {selectedAssignedForView.coachNote && (
+                  <Typography variant="body2" className="italic bg-gray-50 dark:bg-gray-800 p-2 rounded">
+                    Trainer-Notiz: "{selectedAssignedForView.coachNote}"
+                  </Typography>
+                )}
+
+                <div>
+                  <div className="flex justify-between items-center mb-1">
+                    <Typography variant="caption" className="font-bold">
+                      Gesamtfortschritt ({completedCount} von {total} Übungen absolviert)
+                    </Typography>
+                    <Typography variant="caption" className="font-bold">
+                      {percent}%
+                    </Typography>
+                  </div>
+                  <LinearProgress variant="determinate" value={percent} className="h-2 rounded" />
+                </div>
+
+                <Divider />
+
+                <Typography variant="h6" className="font-bold">
+                  Übungsdetails & Ergebnisse
+                </Typography>
+
+                <div className="flex flex-col gap-3">
+                  {selectedAssignedForView.exerciseIds?.map((exId: string, idx: number) => {
+                    const ex = exercises.find((e) => e.id === exId);
+                    const result = selectedAssignedForView.exerciseResults?.[exId];
+
+                    return (
+                      <Paper key={`${exId}-${idx}`} variant="outlined" className="p-3">
+                        <div className="flex justify-between items-start gap-2 mb-1">
+                          <Typography variant="subtitle2" className="font-bold">
+                            {idx + 1}. {ex ? ex.title : 'Übung'}
+                          </Typography>
+                          {result ? (
+                            <Chip
+                              icon={<CheckCircleIcon fontSize="small" />}
+                              label="Absolviert"
+                              color="success"
+                              size="small"
+                            />
+                          ) : (
+                            <Chip label="Offen" variant="outlined" size="small" />
+                          )}
+                        </div>
+
+                        {result ? (
+                          <div className="mt-2 text-sm bg-green-50 dark:bg-gray-800/60 p-2 rounded">
+                            <Typography variant="body2" className="font-bold color-primary">
+                              Punkte: {result.totalPoints ?? result.points ?? '-'}
+                            </Typography>
+                            {result.completedAt && (
+                              <Typography variant="caption" color="textSecondary" className="block">
+                                Absolviert am: {new Date(result.completedAt).toLocaleString('de-DE')}
+                              </Typography>
+                            )}
+                            {result.note && (
+                              <Typography variant="caption" className="italic block mt-1">
+                                Spieler-Kommentar: "{result.note}"
+                              </Typography>
+                            )}
+                          </div>
+                        ) : (
+                          <Typography variant="caption" color="textSecondary" className="italic">
+                            Noch kein Ergebnis von diesem Spieler eingetragen.
+                          </Typography>
+                        )}
+                      </Paper>
+                    );
+                  })}
+                </div>
+              </DialogContent>
+
+              <DialogActions className="p-4">
+                <Button onClick={() => setSelectedAssignedForView(null)} variant="contained">
+                  Schließen
+                </Button>
+              </DialogActions>
+            </>
+          );
+        })()}
+      </Dialog>
 
       {/* Modals */}
       {isCreateModalOpen && (

@@ -11,9 +11,9 @@ export default defineConfig({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'masked-icon.svg'],
       manifest: {
-        name: 'Dart Coach Professional',
-        short_name: 'DartCoach',
-        description: 'Professionelle Dart-Trainings-PWA für Spieler und Trainer',
+        name: 'Tuspo Dart Trainer',
+        short_name: 'TDT Dartapp',
+        description: 'Professionelle Dart-Trainings-App für Spieler und Trainer vom Tuspo',
         theme_color: '#1976d2',
         background_color: '#ffffff',
         display: 'standalone',

@@ -5,7 +5,11 @@ import { useAuth } from "../../context/AuthContext";
 import { sendNotificationIfEnabled } from "../../services/notificationService";
 import { getWeekAndYearFromDate } from "../../utils/calenderweek";
 import type { TrainingPlan } from "../../types/trainingPlan";
-import type { Exercise, PerformanceTest } from "../../types/exercise";
+import type {
+  Exercise,
+  PerformanceTest,
+  TestResult,
+} from "../../types/exercise";
 import { RecordResultModal } from "../exercises/RecordResultModal";
 import {
   Paper,
@@ -26,6 +30,12 @@ import {
   DialogTitle,
   DialogContent,
   DialogActions,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
+  FormControlLabel,
+  Switch,
 } from "@mui/material";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import CalendarTodayIcon from "@mui/icons-material/CalendarToday";
@@ -33,6 +43,7 @@ import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import EditIcon from "@mui/icons-material/Edit";
 import CommentIcon from "@mui/icons-material/Comment";
 import PlayArrowIcon from "@mui/icons-material/PlayArrow";
+import EmojiEventsIcon from "@mui/icons-material/EmojiEvents";
 
 export const PlayerPlanView: React.FC = () => {
   const { userProfile } = useAuth();
@@ -40,8 +51,13 @@ export const PlayerPlanView: React.FC = () => {
   const [plans, setPlans] = useState<TrainingPlan[]>([]);
   const [exercises, setExercises] = useState<Exercise[]>([]);
   const [tests, setTests] = useState<PerformanceTest[]>([]);
+  const [testResults, setTestResults] = useState<TestResult[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
+
+  // Status für Filter & Auswahl
+  const [showCompleted, setShowCompleted] = useState<boolean>(true);
+  const [activePlanId, setActivePlanId] = useState<string>("");
 
   // Status für Ergebniseingabe
   const [activePlan, setActivePlan] = useState<TrainingPlan | null>(null);
@@ -65,10 +81,11 @@ export const PlayerPlanView: React.FC = () => {
   const fetchData = async () => {
     setLoading(true);
     try {
-      const [plansSnap, exSnap, testSnap] = await Promise.all([
+      const [plansSnap, exSnap, testSnap, resultsSnap] = await Promise.all([
         getDocs(collection(db, "assignedPlans")),
         getDocs(collection(db, "exercises")),
         getDocs(collection(db, "performanceTests")),
+        getDocs(collection(db, "testResults")),
       ]);
 
       const fetchedPlans: TrainingPlan[] = [];
@@ -77,6 +94,13 @@ export const PlayerPlanView: React.FC = () => {
         if (data.playerId === userProfile?.uid && !data.isTemplate) {
           fetchedPlans.push({ id: d.id, ...data } as TrainingPlan);
         }
+      });
+
+      const fetchedResults: TestResult[] = [];
+      resultsSnap.forEach((d) => {
+        const data = d.data();
+        delete data.id;
+        fetchedResults.push({ id: d.id, ...data } as TestResult);
       });
 
       // Nach Kalenderwoche / Jahr absteigend sortieren
@@ -104,10 +128,7 @@ export const PlayerPlanView: React.FC = () => {
       setPlans(fetchedPlans);
       setExercises(fetchedExercises);
       setTests(fetchedTests);
-
-      if (fetchedPlans.length > 0 && !activePlan) {
-        setActivePlan(fetchedPlans[0]);
-      }
+      setTestResults(fetchedResults);
 
       // --- ERINNERUNG FÜR AKTUELLE WOCHE PRÜFEN ---
       if (userProfile?.uid && fetchedPlans.length > 0) {
@@ -143,6 +164,33 @@ export const PlayerPlanView: React.FC = () => {
   useEffect(() => {
     fetchData();
   }, [userProfile?.uid]);
+
+  // Gefilterte Liste anhand des Switch-Status (Completed anzeigen / verbergen)
+  const visiblePlans = plans.filter((p) => {
+    if (!showCompleted && p.status === "completed") {
+      return false;
+    }
+    return true;
+  });
+
+  // Synchronisieren des aktiven Plans bei Filteränderungen oder Datenupdates
+  useEffect(() => {
+    if (visiblePlans.length === 0) {
+      setActivePlan(null);
+      setActivePlanId("");
+      return;
+    }
+
+    const currentActiveInVisible = visiblePlans.find(
+      (p) => p.id === activePlanId,
+    );
+    if (currentActiveInVisible) {
+      setActivePlan(currentActiveInVisible);
+    } else {
+      setActivePlan(visiblePlans[0]);
+      setActivePlanId(visiblePlans[0]?.id ?? "");
+    }
+  }, [plans, showCompleted, activePlanId]);
 
   // Hilfsfunktion: 48-Stunden-Sperrregel prüfen
   const canEditResult = (completedAt?: string) => {
@@ -207,79 +255,16 @@ export const PlayerPlanView: React.FC = () => {
   const handleResultSaved = async () => {
     if (!selectedExerciseToRecord || !activePlan || !activePlan?.id) return;
 
-    const { blockId, exIndex } = selectedExerciseToRecord;
-    const nowIso = new Date().toISOString();
-
-    const updatedBlocks = [...activePlan.blocks];
-    const blockIdx = updatedBlocks.findIndex((b) => b.id === blockId);
-    if (blockIdx !== -1) {
-      updatedBlocks[blockIdx].exercises[exIndex].completedAt = nowIso;
-    }
-
-    const allExercisesCompleted = updatedBlocks.every((b) =>
-      b.exercises.every((e) => !!e.completedAt),
-    );
-    const testCompleted =
-      !activePlan.performanceTestId || !!activePlan.performanceTestCompletedAt;
-    const newStatus =
-      allExercisesCompleted && testCompleted ? "completed" : "in_progress";
-
-    try {
-      const planRef = doc(db, "assignedPlans", activePlan.id);
-      await updateDoc(planRef, {
-        blocks: updatedBlocks,
-        status: newStatus,
-        updatedAt: nowIso,
-      });
-
-      const updatedPlan = {
-        ...activePlan,
-        blocks: updatedBlocks,
-        status: newStatus as any,
-      };
-      setActivePlan(updatedPlan);
-      setPlans((prev) =>
-        prev.map((p) => (p.id === activePlan.id ? updatedPlan : p)),
-      );
-      setSelectedExerciseToRecord(null);
-    } catch (err) {
-      console.error(err);
-      setError("Fehler beim Aktualisieren des Plan-Fortschritts.");
-    }
+    await fetchData();
+    setSelectedExerciseToRecord(null);
   };
 
   // Nach Ergebniserfassung des Leistungstests
   const handleTestResultSaved = async () => {
     if (!activePlan || !activePlan?.id) return;
-    const nowIso = new Date().toISOString();
 
-    const allExercisesCompleted = activePlan.blocks.every((b) =>
-      b.exercises.every((e) => !!e.completedAt),
-    );
-    const newStatus = allExercisesCompleted ? "completed" : "in_progress";
-
-    try {
-      const planRef = doc(db, "assignedPlans", activePlan.id);
-      await updateDoc(planRef, {
-        performanceTestCompletedAt: nowIso,
-        status: newStatus,
-        updatedAt: nowIso,
-      });
-
-      const updatedPlan = {
-        ...activePlan,
-        performanceTestCompletedAt: nowIso,
-        status: newStatus as any,
-      };
-      setActivePlan(updatedPlan);
-      setPlans((prev) =>
-        prev.map((p) => (p.id === activePlan.id ? updatedPlan : p)),
-      );
-      setSelectedTestToRecord(null);
-    } catch (err) {
-      console.error(err);
-      setError("Fehler beim Aktualisieren des Leistungstest-Status.");
-    }
+    await fetchData();
+    setSelectedTestToRecord(null);
   };
 
   if (loading) {
@@ -349,21 +334,63 @@ export const PlayerPlanView: React.FC = () => {
         </Alert>
       )}
 
-      {/* Plansauswahl Tab-Leiste */}
-      <div className="flex gap-2 overflow-x-auto pb-2">
-        {plans.map((p) => (
-          <Chip
-            key={p.id}
-            label={`KW ${p.calendarWeek} / ${p.year}`}
-            color={activePlan?.id === p.id ? "primary" : "default"}
-            variant={activePlan?.id === p.id ? "filled" : "outlined"}
-            onClick={() => setActivePlan(p)}
-            className="cursor-pointer font-bold"
-          />
-        ))}
-      </div>
+      {/* Filterleiste: Select-Drop-down & Switch */}
+      <Paper
+        variant="outlined"
+        sx={{
+          p: 2,
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          flexWrap: "wrap",
+          gap: 2,
+        }}
+      >
+        <FormControl size="small" sx={{ minWidth: 260 }}>
+          <InputLabel id="select-plan-label">
+            Trainingsplan auswählen
+          </InputLabel>
+          <Select
+            labelId="select-plan-label"
+            value={activePlanId}
+            label="Trainingsplan auswählen"
+            onChange={(e) => setActivePlanId(e.target.value)}
+          >
+            {visiblePlans.map((p) => (
+              <MenuItem key={p.id} value={p.id}>
+                KW {p.calendarWeek} / {p.year} - {p.title}
+                {p.status === "completed" ? " (Abgeschlossen)" : ""}
+              </MenuItem>
+            ))}
+          </Select>
+        </FormControl>
 
-      {activePlan && (
+        <FormControlLabel
+          control={
+            <Switch
+              checked={showCompleted}
+              onChange={(e) => setShowCompleted(e.target.checked)}
+              color="primary"
+            />
+          }
+          label={
+            <Typography variant="body2" className="font-medium">
+              Abgeschlossene Pläne anzeigen
+            </Typography>
+          }
+        />
+      </Paper>
+
+      {visiblePlans.length === 0 && (
+        <Paper className="p-6 text-center">
+          <Typography variant="body1" color="textSecondary">
+            Keine aktiven Pläne vorhanden. Aktiviere den Schalter oben, um
+            bereits abgeschlossene Pläne anzuzeigen.
+          </Typography>
+        </Paper>
+      )}
+
+      {activePlan && visiblePlans.length > 0 && (
         <Paper className="p-6 shadow-md flex flex-col gap-6">
           {/* Header des aktiven Plans */}
           <div className="flex justify-between items-start flex-wrap gap-4">
@@ -397,7 +424,7 @@ export const PlayerPlanView: React.FC = () => {
             />
           </div>
 
-          {/* Fortschritts-Anzeige mit MUI sx-Styling für Theme-Kompatibilität */}
+          {/* Fortschritts-Anzeige */}
           <Paper
             variant="outlined"
             sx={{
@@ -477,7 +504,11 @@ export const PlayerPlanView: React.FC = () => {
                         Pflicht-Leistungstest der Woche:{" "}
                         {testObj ? testObj.title : "Leistungstest"}
                       </Typography>
-                      <Typography variant="caption" color="textSecondary">
+                      <Typography
+                        variant="caption"
+                        color="textSecondary"
+                        className="block"
+                      >
                         {isTestDone
                           ? `Absolviert am ${new Date(
                               activePlan.performanceTestCompletedAt!,
@@ -562,6 +593,44 @@ export const PlayerPlanView: React.FC = () => {
                       const isDone = !!bEx.completedAt;
                       const isEditable = canEditResult(bEx.completedAt);
 
+                      // 1. Suche über scoreResultId
+                      // 2. Fallback: Suche über exerciseId / testId, userId & Erledigungsdatum
+                      const resultObj =
+                        testResults.find((r) => r.id === bEx.scoreResultId) ||
+                        testResults.find((r) => {
+                          const resExId = (r as any).exerciseId || r.testId;
+                          return (
+                            r.userId === userProfile?.uid &&
+                            resExId === bEx.exerciseId &&
+                            bEx.completedAt &&
+                            Math.abs(
+                              new Date(r.completedAt).getTime() -
+                                new Date(bEx.completedAt).getTime(),
+                            ) < 60000 // Innerhalb einer Minute Toleranz
+                          );
+                        });
+
+                      // Punkte aus dem TestResult auslesen (mit allen möglichen Eigenschaftsnamen)
+                      const achievedScore =
+                        resultObj?.totalPoints ??
+                        (resultObj as any)?.points ??
+                        (resultObj as any)?.score ??
+                        (bEx as any).score ??
+                        (bEx as any).result ??
+                        (bEx as any).points;
+
+                      // Formatiertes Erledigungsdatum
+                      const formattedDate = bEx.completedAt
+                        ? new Date(bEx.completedAt).toLocaleDateString(
+                            "de-DE",
+                            {
+                              day: "2-digit",
+                              month: "2-digit",
+                              year: "numeric",
+                            },
+                          )
+                        : "";
+
                       return (
                         <Paper
                           key={`${bEx.exerciseId}-${exIdx}`}
@@ -576,17 +645,40 @@ export const PlayerPlanView: React.FC = () => {
                                   fontSize="small"
                                 />
                               )}
-                              <Typography variant="body1" className="font-bold">
+                              <Typography
+                                variant="body1"
+                                className="font-bold"
+                                color="text.primary"
+                              >
                                 {exIdx + 1}.{" "}
                                 {exerciseObj ? exerciseObj.title : "Übung"}
                               </Typography>
                             </div>
 
+                            {/* ANZEIGE DER ERREICHTEN PUNKTZAHL UND/ODER DES DATUMS */}
+                            {isDone && (
+                              <div className="mt-1 flex items-center gap-1.5">
+                                <Chip
+                                  icon={<EmojiEventsIcon fontSize="small" />}
+                                  label={
+                                    achievedScore !== undefined &&
+                                    achievedScore !== null
+                                      ? `Ergebnis: ${achievedScore} Pkt. (${formattedDate})`
+                                      : `Absolviert am ${formattedDate}`
+                                  }
+                                  size="small"
+                                  color="success"
+                                  variant="outlined"
+                                  className="font-bold"
+                                />
+                              </div>
+                            )}
+
                             {bEx.coachNote && (
                               <Typography
                                 variant="caption"
                                 color="textSecondary"
-                                className="block italic"
+                                className="block italic mt-1"
                               >
                                 Notiz Trainer: {bEx.coachNote}
                               </Typography>
@@ -596,7 +688,7 @@ export const PlayerPlanView: React.FC = () => {
                               <Typography
                                 variant="caption"
                                 color="primary"
-                                className="block font-medium"
+                                className="block font-medium mt-0.5"
                               >
                                 Dein Feedback: {bEx.playerNote}
                               </Typography>

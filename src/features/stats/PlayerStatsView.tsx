@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { collection, getDocs, query, where } from 'firebase/firestore';
 import { db } from '../../firebase/config';
 import { useAuth } from '../../context/AuthContext';
-import type { TestResult } from '../../types/exercise';
+import type { TestResult, Exercise } from '../../types/exercise';
 import type { DateRangeOption } from '../../types/stats';
 import { getDateRangeBounds } from '../../types/stats';
 import { TrendBadge } from '../../components/stats/TrendBadge';
@@ -21,7 +21,8 @@ import {
   TableCell,
   TableContainer,
   TableHead,
-  TableRow} from '@mui/material';
+  TableRow
+} from '@mui/material';
 import BarChartIcon from '@mui/icons-material/BarChart';
 import TrendingUpIcon from '@mui/icons-material/TrendingUp';
 import CheckCircleOutlinedIcon from '@mui/icons-material/CheckCircleOutlined';
@@ -41,8 +42,9 @@ export const PlayerStatsView: React.FC = () => {
   const { userProfile } = useAuth();
 
   const [dateRange, setDateRange] = useState<DateRangeOption>('30days');
-  const [selectedExerciseType, setSelectedExerciseType] = useState<string>('all');
+  const [selectedExerciseId, setSelectedExerciseId] = useState<string>('all');
   const [results, setResults] = useState<TestResult[]>([]);
+  const [exercises, setExercises] = useState<Exercise[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -57,15 +59,26 @@ export const PlayerStatsView: React.FC = () => {
         where('userId', '==', userProfile.uid)
       );
 
-      const snap = await getDocs(q);
-      const fetched: TestResult[] = [];
-      snap.forEach((d) => {
+      const [resSnap, exSnap] = await Promise.all([
+        getDocs(q),
+        getDocs(collection(db, 'exercises'))
+      ]);
+
+      const fetchedResults: TestResult[] = [];
+      resSnap.forEach((d) => {
         const data = d.data();
         delete data.id;
-        fetched.push({ id: d.id, ...data } as TestResult);
+        fetchedResults.push({ id: d.id, ...data } as TestResult);
       });
 
-      setResults(fetched);
+      const fetchedExercises: Exercise[] = [];
+      exSnap.forEach((d) => {
+        const data = d.data();
+        fetchedExercises.push({ id: d.id, ...data } as Exercise);
+      });
+
+      setResults(fetchedResults);
+      setExercises(fetchedExercises);
     } catch (err) {
       console.error(err);
       setError('Fehler beim Laden der Statistik-Daten.');
@@ -78,10 +91,31 @@ export const PlayerStatsView: React.FC = () => {
     fetchStats();
   }, [userProfile]);
 
-  // Unique Liste aller absolvierten Übungstypen für das Dropdown
-  const availableExerciseTypes = Array.from(
-    new Set(results.map((r) => r.exerciseType || 'Allgemeine Übung'))
-  );
+  // Hilfsfunktion zur Ermittlung des Übungsnamens
+  const getExerciseName = (exerciseId?: string, testId?: string, fallbackType?: string) => {
+    const idToFind = exerciseId || testId;
+    if (idToFind) {
+      const found = exercises.find((e) => e.id === idToFind);
+      if (found) return found.title;
+    }
+    return fallbackType || 'Allgemeine Übung';
+  };
+
+  // Hilfsfunktion zur Ermittlung der ID
+  const getResultExerciseId = (res: TestResult) => {
+    return (res as any).exerciseId || res.testId || 'unknown';
+  };
+
+  // Erstelle eindeutige Liste aller absolvierten Übungen für das Dropdown
+  const availableExercises = Array.from(
+    new Set(results.map((r) => getResultExerciseId(r)))
+  ).map((id) => {
+    const sampleRes = results.find((r) => getResultExerciseId(r) === id);
+    return {
+      id,
+      name: getExerciseName((sampleRes as any)?.exerciseId, sampleRes?.testId, sampleRes?.exerciseType)
+    };
+  });
 
   // 1. Gefilterte Ergebnisse nach Datum
   const dateFilteredResults = results.filter((res) => {
@@ -92,10 +126,10 @@ export const PlayerStatsView: React.FC = () => {
     return true;
   });
 
-  // 2. Gefilterte Ergebnisse nach ausgewählter Übung
+  // 2. Gefilterte Ergebnisse nach ausgewählter Übung ID
   const finalFilteredResults = dateFilteredResults.filter((res) => {
-    if (selectedExerciseType === 'all') return true;
-    return (res.exerciseType || 'Allgemeine Übung') === selectedExerciseType;
+    if (selectedExerciseId === 'all') return true;
+    return getResultExerciseId(res) === selectedExerciseId;
   });
 
   // Sortiert nach Datum aufsteigend für die Charts
@@ -107,7 +141,7 @@ export const PlayerStatsView: React.FC = () => {
   const chartData = sortedResults.map((r) => ({
     date: new Date(r.completedAt).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' }),
     points: r.totalPoints,
-    type: r.exerciseType || 'Übung',
+    name: getExerciseName((r as any).exerciseId, r.testId, r.exerciseType),
   }));
 
   // Kennzahlen berechnen
@@ -121,15 +155,17 @@ export const PlayerStatsView: React.FC = () => {
     ? Math.max(...finalFilteredResults.map((r) => r.totalPoints)) 
     : 0;
 
-  // Gruppierung nach Übungstyp für die zusammenfassende Übersichtstabelle
+  // Gruppierung nach Übungs-ID für die zusammenfassende Übersichtstabelle
   const exercisesGrouped = dateFilteredResults.reduce((acc, res) => {
-    const key = res.exerciseType || 'Allgemeine Übung';
+    const key = getResultExerciseId(res);
     if (!acc[key]) {
       acc[key] = [];
     }
     acc[key].push(res);
     return acc;
   }, {} as Record<string, TestResult[]>);
+
+  const selectedExerciseObj = availableExercises.find((e) => e.id === selectedExerciseId);
 
   if (loading) {
     return (
@@ -157,14 +193,14 @@ export const PlayerStatsView: React.FC = () => {
           <FormControl size="small" className="min-w-[200px]">
             <InputLabel>Übung Auswählen</InputLabel>
             <Select
-              value={selectedExerciseType}
+              value={selectedExerciseId}
               label="Übung Auswählen"
-              onChange={(e) => setSelectedExerciseType(e.target.value)}
+              onChange={(e) => setSelectedExerciseId(e.target.value)}
             >
               <MenuItem value="all">Alle Übungen</MenuItem>
-              {availableExerciseTypes.map((type) => (
-                <MenuItem key={type} value={type}>
-                  {type}
+              {availableExercises.map((ex) => (
+                <MenuItem key={ex.id} value={ex.id}>
+                  {ex.name}
                 </MenuItem>
               ))}
             </Select>
@@ -196,7 +232,7 @@ export const PlayerStatsView: React.FC = () => {
           <CheckCircleOutlinedIcon color="primary" sx={{ fontSize: 40 }} />
           <div>
             <Typography variant="caption" color="textSecondary" className="font-bold block">
-              {selectedExerciseType === 'all' ? 'Absolvierte Übungen' : 'Durchgänge der Übung'}
+              {selectedExerciseId === 'all' ? 'Absolvierte Übungen' : 'Durchgänge der Übung'}
             </Typography>
             <Typography variant="h5" className="font-bold">
               {totalCompleted}
@@ -245,9 +281,9 @@ export const PlayerStatsView: React.FC = () => {
           <Paper className="p-6 shadow-sm">
             <Typography variant="h6" className="font-bold mb-4 flex items-center gap-2">
               <FitnessCenterIcon color="primary" /> 
-              {selectedExerciseType === 'all' 
+              {selectedExerciseId === 'all' 
                 ? 'Gesamter Punkteverlauf' 
-                : `Verlauf: ${selectedExerciseType}`}
+                : `Verlauf: ${selectedExerciseObj?.name}`}
             </Typography>
             <Box className="h-72 w-full">
               <ResponsiveContainer width="100%" height="100%">
@@ -269,12 +305,12 @@ export const PlayerStatsView: React.FC = () => {
             </Box>
           </Paper>
 
-          {/* Anzeige-Wechsel: Bei Einzelelement-Auswahl die Durchgangs-Historie, sonst die Übungsübersicht */}
-          {selectedExerciseType !== 'all' ? (
+          {/* Anzeige-Wechsel */}
+          {selectedExerciseId !== 'all' ? (
             <Paper className="shadow-sm overflow-hidden">
               <Box className="p-4 border-b">
                 <Typography variant="h6" className="font-bold">
-                  Historie: {selectedExerciseType}
+                  Historie: {selectedExerciseObj?.name}
                 </Typography>
               </Box>
               <TableContainer>
@@ -325,7 +361,7 @@ export const PlayerStatsView: React.FC = () => {
                 <Table>
                   <TableHead>
                     <TableRow>
-                      <TableCell className="font-bold">Übungstyp</TableCell>
+                      <TableCell className="font-bold">Übung</TableCell>
                       <TableCell className="font-bold" align="center">Anzahl</TableCell>
                       <TableCell className="font-bold" align="center">Ø Punkte</TableCell>
                       <TableCell className="font-bold" align="center">Tendenz / Form</TableCell>
@@ -333,22 +369,24 @@ export const PlayerStatsView: React.FC = () => {
                     </TableRow>
                   </TableHead>
                   <TableBody>
-                    {Object.entries(exercisesGrouped).map(([type, list]) => {
+                    {Object.entries(exercisesGrouped).map(([exId, list]) => {
                       const typeScores = list
                         .sort((a, b) => new Date(a.completedAt).getTime() - new Date(b.completedAt).getTime())
                         .map((r) => r.totalPoints);
                       const typeAvg = Math.round(list.reduce((acc, r) => acc + r.totalPoints, 0) / list.length);
                       const typeMax = Math.max(...list.map((r) => r.totalPoints));
+                      const sampleRes = list[0];
+                      const exName = getExerciseName((sampleRes as any)?.exerciseId, sampleRes?.testId, sampleRes?.exerciseType);
 
                       return (
                         <TableRow 
-                          key={type} 
+                          key={exId} 
                           hover 
                           className="cursor-pointer"
-                          onClick={() => setSelectedExerciseType(type)}
+                          onClick={() => setSelectedExerciseId(exId)}
                         >
                           <TableCell className="font-semibold text-primary-main hover:underline">
-                            {type}
+                            {exName}
                           </TableCell>
                           <TableCell align="center">{list.length}</TableCell>
                           <TableCell align="center" className="font-semibold">{typeAvg} Pkt.</TableCell>

@@ -16,7 +16,7 @@ import type {
   TrainingBlock,
   BlockExercise,
 } from "../../types/trainingPlan";
-import type { Exercise } from "../../types/exercise";
+import type { Exercise, TestResult } from "../../types/exercise";
 import type { PlayerGroup } from "../../types/group";
 import { sendNotificationIfEnabled } from "../../services/notificationService";
 import {
@@ -24,8 +24,10 @@ import {
   Typography,
   Button,
   Alert,
+  CircularProgress,
   Card,
   CardContent,
+  CardActions,
   Dialog,
   DialogTitle,
   DialogContent,
@@ -33,7 +35,6 @@ import {
   FormControl,
   InputLabel,
   Select,
-  Switch,
   MenuItem,
   RadioGroup,
   Radio,
@@ -46,7 +47,8 @@ import {
   Box,
   Chip,
   Divider,
-  CircularProgress,
+  LinearProgress,
+  Switch,
 } from "@mui/material";
 import AssignmentIcon from "@mui/icons-material/Assignment";
 import AddIcon from "@mui/icons-material/Add";
@@ -54,6 +56,9 @@ import DeleteIcon from "@mui/icons-material/Delete";
 import EditIcon from "@mui/icons-material/Edit";
 import SendIcon from "@mui/icons-material/Send";
 import PersonIcon from "@mui/icons-material/Person";
+import VisibilityIcon from "@mui/icons-material/Visibility";
+import CheckCircleIcon from "@mui/icons-material/CheckCircle";
+import FitnessCenterIcon from "@mui/icons-material/FitnessCenter";
 
 interface CoachPlanListProps {
   myRoster?: UserProfile[];
@@ -64,11 +69,12 @@ export const CoachPlanList: React.FC<CoachPlanListProps> = () => {
 
   const [activeTab, setActiveTab] = useState<number>(0); // 0 = Vorlagen, 1 = Zugewiesene Pläne
   const [selectedPlayerFilter, setSelectedPlayerFilter] =
-    useState<string>("all"); // Neuer State für Spieler-Filter
+    useState<string>("all");
 
   const [templates, setTemplates] = useState<TrainingPlan[]>([]);
   const [assignedPlans, setAssignedPlans] = useState<TrainingPlan[]>([]);
   const [exercises, setExercises] = useState<Exercise[]>([]);
+  const [testResults, setTestResults] = useState<TestResult[]>([]);
   const [players, setPlayers] = useState<UserProfile[]>([]);
   const [groups, setGroups] = useState<PlayerGroup[]>([]);
   const [loading, setLoading] = useState(true);
@@ -98,6 +104,10 @@ export const CoachPlanList: React.FC<CoachPlanListProps> = () => {
   const [planCoachNote, setPlanCoachNote] = useState("");
   const [blocks, setBlocks] = useState<TrainingBlock[]>([]);
 
+  // Modal für Fortschrittsansicht des Zugewiesenen Plans (Coach-Ansicht)
+  const [selectedPlanForView, setSelectedPlanForView] =
+    useState<TrainingPlan | null>(null);
+
   const fetchData = async () => {
     setLoading(true);
     try {
@@ -107,12 +117,14 @@ export const CoachPlanList: React.FC<CoachPlanListProps> = () => {
         exercisesSnap,
         usersSnap,
         groupsSnap,
+        resultsSnap,
       ] = await Promise.all([
         getDocs(collection(db, "trainingPlans")),
         getDocs(collection(db, "assignedPlans")),
         getDocs(collection(db, "exercises")),
         getDocs(collection(db, "users")),
         getDocs(collection(db, "playerGroups")),
+        getDocs(collection(db, "testResults")),
       ]);
 
       // Vorlagen laden
@@ -165,11 +177,19 @@ export const CoachPlanList: React.FC<CoachPlanListProps> = () => {
         fetchedGroups.push({ id: d.id, ...data } as PlayerGroup);
       });
 
+      const fetchedResults: TestResult[] = [];
+      resultsSnap.forEach((d) => {
+        const data = d.data();
+        delete data.id;
+        fetchedResults.push({ id: d.id, ...data } as TestResult);
+      });
+
       setTemplates(fetchedTemplates);
       setAssignedPlans(fetchedAssigned);
       setExercises(fetchedExercises);
       setPlayers(fetchedPlayers);
       setGroups(fetchedGroups);
+      setTestResults(fetchedResults);
     } catch (err) {
       console.error(err);
       setError("Fehler beim Laden der Daten.");
@@ -346,14 +366,6 @@ export const CoachPlanList: React.FC<CoachPlanListProps> = () => {
     }
   };
 
-  if (loading) {
-    return (
-      <div className="flex justify-center items-center p-8">
-        <CircularProgress />
-      </div>
-    );
-  }
-
   // --- ZUWEISUNGS-HANDLING ---
   const handleOpenAssignModal = (template: TrainingPlan) => {
     setSelectedPlanTemplate(template);
@@ -427,21 +439,48 @@ export const CoachPlanList: React.FC<CoachPlanListProps> = () => {
     return p ? p.nickname || p.realName || p.email : "Unbekannter Spieler";
   };
 
+  // Hilfsfunktion zur Berechnung des Übungsfortschritts
+  const calculatePlanProgress = (plan: TrainingPlan) => {
+    let totalExercises = 0;
+    let completedExercises = 0;
+
+    plan.blocks?.forEach((b) => {
+      b.exercises?.forEach((ex) => {
+        totalExercises++;
+        if (ex.completedAt) {
+          completedExercises++;
+        }
+      });
+    });
+
+    const percent =
+      totalExercises > 0
+        ? Math.round((completedExercises / totalExercises) * 100)
+        : 0;
+    return { completedExercises, totalExercises, percent };
+  };
+
   // Gefilterte Liste zugewiesener Pläne
   const filteredAssignedPlans = assignedPlans.filter((plan) => {
-    // 1. Spieler-Filter
     if (
       selectedPlayerFilter !== "all" &&
       plan.playerId !== selectedPlayerFilter
     ) {
       return false;
     }
-    // 2. Abgeschlossen-Filter (falls Schalter deaktiviert ist)
     if (!showCompleted && plan.status === "completed") {
       return false;
     }
     return true;
   });
+
+  if (loading) {
+    return (
+      <div className="flex justify-center items-center p-8">
+        <CircularProgress />
+      </div>
+    );
+  }
 
   return (
     <div className="p-6 max-w-6xl mx-auto flex flex-col gap-6">
@@ -553,7 +592,6 @@ export const CoachPlanList: React.FC<CoachPlanListProps> = () => {
                     </Typography>
                   )}
 
-                  {/* Abgerundete Blöcke untereinander */}
                   <div className="flex flex-col gap-2 my-3">
                     {template.blocks && template.blocks.length > 0 ? (
                       template.blocks.map((block, idx) => (
@@ -616,7 +654,6 @@ export const CoachPlanList: React.FC<CoachPlanListProps> = () => {
           {/* Filter-Zeile: Spieler-Filter + Abgeschlossen-Switch */}
           <div className="flex justify-between items-center flex-wrap gap-4 bg-gray-50 dark:bg-gray-800 p-3 rounded-lg border border-gray-200 dark:border-gray-700">
             <div className="flex items-center gap-4 flex-wrap">
-              {/* Spieler-Filter Dropdown */}
               <FormControl size="small" className="min-w-[220px]">
                 <InputLabel>Nach Spieler filtern</InputLabel>
                 <Select
@@ -640,7 +677,6 @@ export const CoachPlanList: React.FC<CoachPlanListProps> = () => {
                 </Select>
               </FormControl>
 
-              {/* Schalter: Abgeschlossene Pläne ein-/ausblenden */}
               <FormControlLabel
                 control={
                   <Switch
@@ -675,84 +711,435 @@ export const CoachPlanList: React.FC<CoachPlanListProps> = () => {
                 gefunden.
               </Typography>
             ) : (
-              filteredAssignedPlans.map((plan) => (
-                <Card
-                  key={plan.id}
-                  variant="outlined"
-                  className="flex flex-col justify-between"
-                >
-                  <CardContent>
-                    <div className="flex justify-between items-start mb-2">
-                      <div>
-                        <Typography variant="h6" className="font-bold">
-                          {plan.title}
-                        </Typography>
-                        <Typography
-                          variant="subtitle2"
-                          color="primary"
-                          className="font-bold flex items-center gap-1"
+              filteredAssignedPlans.map((plan) => {
+                const { completedExercises, totalExercises, percent } =
+                  calculatePlanProgress(plan);
+
+                return (
+                  <Card
+                    key={plan.id}
+                    variant="outlined"
+                    className="flex flex-col justify-between shadow-sm"
+                  >
+                    <CardContent>
+                      <div className="flex justify-between items-start mb-2">
+                        <div>
+                          <Typography variant="h6" className="font-bold">
+                            {plan.title}
+                          </Typography>
+                          <Typography
+                            variant="subtitle2"
+                            color="primary"
+                            className="font-bold flex items-center gap-1"
+                          >
+                            <PersonIcon fontSize="small" />{" "}
+                            {getPlayerName(plan.playerId)}
+                          </Typography>
+                          <Typography variant="caption" color="textSecondary">
+                            Zugewiesen für KW {plan.calendarWeek} / {plan.year}
+                          </Typography>
+                        </div>
+
+                        <IconButton
+                          size="small"
+                          color="error"
+                          onClick={() =>
+                            handleDeleteAssignedPlan(plan.id, plan.title)
+                          }
+                          title="Zugewiesenen Plan löschen"
                         >
-                          <PersonIcon fontSize="small" />{" "}
-                          {getPlayerName(plan.playerId)}
-                        </Typography>
-                        <Typography variant="caption" color="textSecondary">
-                          Zugewiesen für KW {plan.calendarWeek} / {plan.year}
+                          <DeleteIcon fontSize="small" />
+                        </IconButton>
+                      </div>
+
+                      <div className="flex justify-between items-center my-2">
+                        <Chip
+                          label={
+                            plan.status === "completed"
+                              ? "Abgeschlossen"
+                              : plan.status === "in_progress"
+                                ? "In Bearbeitung"
+                                : "Zugewiesen"
+                          }
+                          color={
+                            plan.status === "completed"
+                              ? "success"
+                              : plan.status === "in_progress"
+                                ? "warning"
+                                : "default"
+                          }
+                          size="small"
+                        />
+                        <Typography variant="caption" className="font-semibold">
+                          {completedExercises} / {totalExercises} Übungen
                         </Typography>
                       </div>
 
-                      <IconButton
-                        size="small"
-                        color="error"
-                        onClick={() =>
-                          handleDeleteAssignedPlan(plan.id, plan.title)
-                        }
-                        title="Zugewiesenen Plan löschen"
-                      >
-                        <DeleteIcon fontSize="small" />
-                      </IconButton>
-                    </div>
-
-                    <div className="flex gap-2 my-2">
-                      <Chip
-                        label={
-                          plan.status === "completed"
-                            ? "Abgeschlossen"
-                            : plan.status === "in_progress"
-                              ? "In Bearbeitung"
-                              : "Zugewiesen"
-                        }
-                        color={
-                          plan.status === "completed"
-                            ? "success"
-                            : plan.status === "in_progress"
-                              ? "warning"
-                              : "default"
-                        }
-                        size="small"
+                      <LinearProgress
+                        variant="determinate"
+                        value={percent}
+                        className="rounded mb-3"
                       />
-                      <Chip
-                        label={`${plan.blocks?.length || 0} Blöcke`}
-                        size="small"
+
+                      {plan.coachNote && (
+                        <Typography
+                          variant="body2"
+                          color="textSecondary"
+                          className="mt-2 italic"
+                        >
+                          Hinweis: {plan.coachNote}
+                        </Typography>
+                      )}
+                    </CardContent>
+
+                    <CardActions className="p-4 pt-0">
+                      <Button
                         variant="outlined"
-                      />
-                    </div>
-
-                    {plan.coachNote && (
-                      <Typography
-                        variant="body2"
-                        color="textSecondary"
-                        className="mt-2 italic"
+                        color="primary"
+                        fullWidth
+                        startIcon={<VisibilityIcon />}
+                        onClick={() => setSelectedPlanForView(plan)}
                       >
-                        Hinweis: {plan.coachNote}
-                      </Typography>
-                    )}
-                  </CardContent>
-                </Card>
-              ))
+                        Fortschritt ansehen
+                      </Button>
+                    </CardActions>
+                  </Card>
+                );
+              })
             )}
           </div>
         </div>
       )}
+
+      {/* MODAL: Fortschritt & Auswertung des zugewiesenen Plans ansehen */}
+      <Dialog
+        open={Boolean(selectedPlanForView)}
+        onClose={() => setSelectedPlanForView(null)}
+        maxWidth="md"
+        fullWidth
+      >
+        {selectedPlanForView &&
+          (() => {
+            const { completedExercises, totalExercises, percent } =
+              calculatePlanProgress(selectedPlanForView);
+
+            return (
+              <>
+                <DialogTitle className="font-bold flex justify-between items-center">
+                  <span>Plan-Fortschritt: {selectedPlanForView.title}</span>
+                  <Chip
+                    label={
+                      selectedPlanForView.status === "completed"
+                        ? "Abgeschlossen"
+                        : selectedPlanForView.status === "in_progress"
+                          ? "In Bearbeitung"
+                          : "Zugewiesen"
+                    }
+                    color={
+                      selectedPlanForView.status === "completed"
+                        ? "success"
+                        : selectedPlanForView.status === "in_progress"
+                          ? "warning"
+                          : "default"
+                    }
+                    size="small"
+                  />
+                </DialogTitle>
+
+                <DialogContent dividers className="flex flex-col gap-4">
+                  <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-2">
+                    <Typography variant="subtitle2">
+                      <strong>Spieler:</strong>{" "}
+                      {getPlayerName(selectedPlanForView.playerId)}
+                    </Typography>
+                    <Typography variant="subtitle2">
+                      <strong>Zeitraum:</strong> KW{" "}
+                      {selectedPlanForView.calendarWeek} /{" "}
+                      {selectedPlanForView.year}
+                    </Typography>
+                  </div>
+
+                  {selectedPlanForView.coachNote && (
+                    <Typography
+                      variant="body2"
+                      sx={{
+                        bgcolor: "action.hover", // Passt sich im Darkmode automatisch dunkel an
+                        p: 1.5,
+                        borderRadius: 1,
+                        fontStyle: "italic",
+                        border: 1,
+                        borderColor: "divider",
+                      }}
+                    >
+                      Trainer-Hinweis: "{selectedPlanForView.coachNote}"
+                    </Typography>
+                  )}
+
+                  <div>
+                    <div className="flex justify-between items-center mb-1">
+                      <Typography variant="caption" className="font-bold">
+                        Gesamtfortschritt ({completedExercises} von{" "}
+                        {totalExercises} Übungen absolviert)
+                      </Typography>
+                      <Typography variant="caption" className="font-bold">
+                        {percent}%
+                      </Typography>
+                    </div>
+                    <LinearProgress
+                      variant="determinate"
+                      value={percent}
+                      className="h-2 rounded"
+                    />
+                  </div>
+
+                  {selectedPlanForView.playerNote && (
+                    <Paper
+                      variant="outlined"
+                      className="p-3 bg-blue-50 dark:bg-blue-900/20 border-blue-200"
+                    >
+                      <Typography
+                        variant="subtitle2"
+                        className="font-bold text-blue-800 dark:text-blue-300"
+                      >
+                        Gesamtrückmeldung des Spielers:
+                      </Typography>
+                      <Typography variant="body2" className="italic mt-1">
+                        "{selectedPlanForView.playerNote}"
+                      </Typography>
+                    </Paper>
+                  )}
+
+                  <Divider />
+
+                  <Typography variant="h6" className="font-bold">
+                    Trainingsblöcke & Übungsergebnisse
+                  </Typography>
+
+                  <div className="flex flex-col gap-4">
+                    {selectedPlanForView.blocks?.map((block, bIdx) => (
+                      <Paper
+                        key={block.id || bIdx}
+                        variant="outlined"
+                        className="p-4 flex flex-col gap-3 bg-gray-50/50 dark:bg-gray-800/40"
+                      >
+                        <div>
+                          <Typography
+                            variant="subtitle1"
+                            className="font-bold color-primary"
+                          >
+                            {block.title}
+                          </Typography>
+                          {block.coachNote && (
+                            <Typography
+                              variant="caption"
+                              color="textSecondary"
+                              className="italic block"
+                            >
+                              Block-Notiz: {block.coachNote}
+                            </Typography>
+                          )}
+                          {block.playerNote && (
+                            <Typography
+                              variant="caption"
+                              className="italic block text-blue-600 dark:text-blue-400 mt-1"
+                            >
+                              Spieler-Feedback zum Block: "{block.playerNote}"
+                            </Typography>
+                          )}
+                        </div>
+
+                        <div className="flex flex-col gap-2">
+                          {block.exercises?.map((exItem, exIdx) => {
+                            const exObj = exercises.find(
+                              (e) => e.id === exItem.exerciseId,
+                            );
+                            const isDone = Boolean(exItem.completedAt);
+
+                            // Matching des Testergebnisses aus der testResults-Collection
+                            const matchingResult = testResults.find((r) => {
+                              if (
+                                exItem.scoreResultId &&
+                                r.id === exItem.scoreResultId
+                              )
+                                return true;
+                              return (
+                                r.userId === selectedPlanForView.playerId &&
+                                (r.exerciseId === exItem.exerciseId ||
+                                  r.testId === exItem.exerciseId)
+                              );
+                            });
+
+                            return (
+                              <Paper
+                                key={exIdx}
+                                variant="outlined"
+                                sx={{
+                                  p: 2,
+                                  bgcolor: "background.paper", // Passt sich dynamisch an Light & Darkmode an
+                                  borderColor: "divider",
+                                }}
+                              >
+                                <div className="flex justify-between items-start gap-2">
+                                  <div className="flex items-center gap-2">
+                                    <FitnessCenterIcon
+                                      fontSize="small"
+                                      color="primary"
+                                    />
+                                    <Typography
+                                      variant="subtitle2"
+                                      className="font-bold"
+                                    >
+                                      {exIdx + 1}.{" "}
+                                      {exObj ? exObj.title : "Übung"}
+                                    </Typography>
+                                  </div>
+                                  {isDone ? (
+                                    <Chip
+                                      icon={
+                                        <CheckCircleIcon fontSize="small" />
+                                      }
+                                      label="Absolviert"
+                                      color="success"
+                                      size="small"
+                                    />
+                                  ) : (
+                                    <Chip
+                                      label="Offen"
+                                      variant="outlined"
+                                      size="small"
+                                    />
+                                  )}
+                                </div>
+
+                                {/* Trainer-Hinweis an den Spieler */}
+                                {exItem.coachNote && (
+                                  <Typography
+                                    variant="caption"
+                                    color="textSecondary"
+                                    className="block mt-1"
+                                  >
+                                    Hinweis: {exItem.coachNote}
+                                  </Typography>
+                                )}
+
+                                {/* Status & Ergebnisse nach Ausführung */}
+                                {isDone ? (
+                                  <Box
+                                    sx={{
+                                      mt: 2,
+                                      p: 1.5,
+                                      borderRadius: 1,
+                                      bgcolor: "action.hover", // Subtiler Theme-Hintergrund statt hartem Grün/Weiß
+                                      border: 1,
+                                      borderColor: "success.main",
+                                    }}
+                                    className="flex flex-col gap-1 text-sm"
+                                  >
+                                    {/* Erzielte Punkte anzeigen */}
+                                    {matchingResult ? (
+                                      <Typography
+                                        variant="body2"
+                                        className="font-bold"
+                                        color="success.main"
+                                      >
+                                        Erzielte Punkte:{" "}
+                                        {matchingResult.totalPoints} Pkt.
+                                      </Typography>
+                                    ) : (
+                                      <Typography
+                                        variant="caption"
+                                        color="textSecondary"
+                                        className="italic"
+                                      >
+                                        Punkte-Ergebnis konnte nicht geladen
+                                        werden.
+                                      </Typography>
+                                    )}
+
+                                    {/* Score Details anzeigen falls vorhanden */}
+                                    {matchingResult?.exerciseScores &&
+                                      matchingResult.exerciseScores.length >
+                                        0 && (
+                                        <div className="flex flex-wrap gap-1 my-1">
+                                          {matchingResult.exerciseScores.map(
+                                            (score, sIdx) => (
+                                              <Chip
+                                                key={sIdx}
+                                                label={`Runde ${sIdx + 1}: ${score.points} Pkt.`}
+                                                size="small"
+                                                variant="outlined"
+                                                sx={{
+                                                  bgcolor: "background.paper",
+                                                }}
+                                              />
+                                            ),
+                                          )}
+                                        </div>
+                                      )}
+
+                                    {exItem.completedAt && (
+                                      <Typography
+                                        variant="caption"
+                                        color="textSecondary"
+                                        className="block"
+                                      >
+                                        Absolviert am:{" "}
+                                        {new Date(
+                                          exItem.completedAt,
+                                        ).toLocaleString("de-DE")}
+                                      </Typography>
+                                    )}
+
+                                    {/* Spieler-Feedback direkt aus BlockExercise.playerNote */}
+                                    {exItem.playerNote ? (
+                                      <Typography
+                                        variant="caption"
+                                        className="italic block mt-1"
+                                        color="text.primary"
+                                      >
+                                        Spieler-Kommentar: "{exItem.playerNote}"
+                                      </Typography>
+                                    ) : (
+                                      <Typography
+                                        variant="caption"
+                                        color="textSecondary"
+                                        className="italic block mt-1"
+                                      >
+                                        Kein Kommentar vom Spieler hinterlassen.
+                                      </Typography>
+                                    )}
+                                  </Box>
+                                ) : (
+                                  <Typography
+                                    variant="caption"
+                                    color="textSecondary"
+                                    className="italic block mt-1"
+                                  >
+                                    Noch kein Ergebnis von diesem Spieler
+                                    eingetragen.
+                                  </Typography>
+                                )}
+                              </Paper>
+                            );
+                          })}
+                        </div>
+                      </Paper>
+                    ))}
+                  </div>
+                </DialogContent>
+
+                <DialogActions className="p-4">
+                  <Button
+                    onClick={() => setSelectedPlanForView(null)}
+                    variant="contained"
+                  >
+                    Schließen
+                  </Button>
+                </DialogActions>
+              </>
+            );
+          })()}
+      </Dialog>
 
       {/* Modal: Plan / Vorlage Erstellen & Bearbeiten */}
       <Dialog

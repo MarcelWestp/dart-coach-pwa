@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { doc, updateDoc, deleteDoc } from 'firebase/firestore';
+import { doc, updateDoc, deleteDoc, collection, addDoc } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
 import { updateProfile, deleteUser, EmailAuthProvider, reauthenticateWithCredential, updatePassword } from 'firebase/auth';
 import { db, storage, auth } from '../../firebase/config';
@@ -40,6 +40,8 @@ import SecurityIcon from '@mui/icons-material/Security';
 import PaletteIcon from '@mui/icons-material/Palette';
 import LockIcon from '@mui/icons-material/Lock';
 import NotificationsIcon from '@mui/icons-material/Notifications';
+import FeedbackIcon from '@mui/icons-material/Feedback';
+import SendIcon from '@mui/icons-material/Send';
 
 export const UserProfileView: React.FC = () => {
   const { userProfile, refreshUserProfile, logout } = useAuth();
@@ -66,6 +68,13 @@ export const UserProfileView: React.FC = () => {
   const [notifyHighscores, setNotifyHighscores] = useState(true);
   const [notifyPlanReminder, setNotifyPlanReminder] = useState(true);
   const [reminderDays, setReminderDays] = useState<number>(1);
+
+  // Feedback & Ideen States
+  const [feedbackType, setFeedbackType] = useState<'idea' | 'bug' | 'other'>('idea');
+  const [feedbackMessage, setFeedbackMessage] = useState('');
+  const [feedbackSubmitting, setFeedbackSubmitting] = useState(false);
+  const [feedbackSuccess, setFeedbackSuccess] = useState<string | null>(null);
+  const [feedbackError, setFeedbackError] = useState<string | null>(null);
 
   // Passwort Ändern States
   const [currentPassword, setCurrentPassword] = useState('');
@@ -199,6 +208,36 @@ export const UserProfileView: React.FC = () => {
       setError('Fehler beim Speichern der Profildaten.');
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Feedback / Idee einreichen
+  const handleSubmitFeedback = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!userProfile || !feedbackMessage.trim()) return;
+
+    setFeedbackSubmitting(true);
+    setFeedbackError(null);
+    setFeedbackSuccess(null);
+
+    try {
+      await addDoc(collection(db, 'feedback'), {
+        userId: userProfile.uid,
+        userEmail: userProfile.email,
+        userNickname: userProfile.nickname || userProfile.realName,
+        type: feedbackType,
+        message: feedbackMessage.trim(),
+        status: 'open',
+        createdAt: new Date().toISOString(),
+      });
+
+      setFeedbackSuccess('Vielen Dank! Dein Feedback wurde erfolgreich übermittelt.');
+      setFeedbackMessage('');
+    } catch (err) {
+      console.error(err);
+      setFeedbackError('Fehler beim Senden des Feedbacks. Bitte versuche es später erneut.');
+    } finally {
+      setFeedbackSubmitting(false);
     }
   };
 
@@ -367,7 +406,7 @@ export const UserProfileView: React.FC = () => {
           </FormControl>
         </Paper>
 
-        {/* 3. Benachrichtigungen (NEU) */}
+        {/* 3. Benachrichtigungen */}
         <Paper className="p-6 shadow-md flex flex-col gap-4">
           <Typography variant="h6" className="font-bold flex items-center gap-2" color="primary">
             <NotificationsIcon /> Benachrichtigungen
@@ -541,7 +580,58 @@ export const UserProfileView: React.FC = () => {
         </Paper>
       </form>
 
-      {/* 5. Passwort ändern Kachel */}
+      {/* 5. Feedback & Ideen einreichen */}
+      <Paper className="p-6 shadow-md flex flex-col gap-4">
+        <Typography variant="h6" className="font-bold flex items-center gap-2" color="primary">
+          <FeedbackIcon /> Feedback & Ideen mitteilen
+        </Typography>
+        <Typography variant="body2" color="textSecondary">
+          Hast du eine Idee für eine neue Funktion oder einen Fehler gefunden? Teile es uns gerne mit!
+        </Typography>
+
+        {feedbackError && <Alert severity="error" onClose={() => setFeedbackError(null)}>{feedbackError}</Alert>}
+        {feedbackSuccess && <Alert severity="success" onClose={() => setFeedbackSuccess(null)}>{feedbackSuccess}</Alert>}
+
+        <form onSubmit={handleSubmitFeedback} className="flex flex-col gap-4">
+          <FormControl fullWidth size="small">
+            <InputLabel>Kategorie</InputLabel>
+            <Select
+              value={feedbackType}
+              label="Kategorie"
+              onChange={(e) => setFeedbackType(e.target.value as 'idea' | 'bug' | 'other')}
+            >
+              <MenuItem value="idea">Idee / Feature-Wunsch</MenuItem>
+              <MenuItem value="bug">Fehler / Bug melden</MenuItem>
+              <MenuItem value="other">Sonstiges Feedback</MenuItem>
+            </Select>
+          </FormControl>
+
+          <TextField
+            label="Deine Nachricht / Idee"
+            multiline
+            rows={4}
+            fullWidth
+            required
+            placeholder="Beschreibe deine Idee oder das Feedback möglichst genau..."
+            value={feedbackMessage}
+            onChange={(e) => setFeedbackMessage(e.target.value)}
+          />
+
+          <Box>
+            <Button
+              type="submit"
+              variant="contained"
+              color="primary"
+              startIcon={<SendIcon />}
+              disabled={feedbackSubmitting || !feedbackMessage.trim()}
+            >
+              {feedbackSubmitting ? 'Wird gesendet...' : 'Feedback Absenden'}
+            </Button>
+          </Box>
+        </form>
+      </Paper>
+
+      {/* 6. Passwort ändern Kachel */}
       <Paper className="p-6 shadow-md flex flex-col gap-4">
         <Typography variant="h6" className="font-bold flex items-center gap-2" color="primary">
           <LockIcon /> Passwort ändern
@@ -587,7 +677,7 @@ export const UserProfileView: React.FC = () => {
         </form>
       </Paper>
 
-      {/* 6. DSGVO Datenschutz & Account Löschen */}
+      {/* 7. DSGVO Datenschutz & Account Löschen */}
       <Paper className="p-6 shadow-md border border-red-200">
         <Typography variant="h6" className="font-bold flex items-center gap-2 text-red-600 mb-2">
           <SecurityIcon /> DSGVO & Account löschen

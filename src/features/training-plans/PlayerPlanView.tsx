@@ -251,14 +251,54 @@ export const PlayerPlanView: React.FC = () => {
       setError("Fehler beim Speichern deiner Anmerkung.");
     }
   };
+// Nach Ergebniserfassung einer Übung
+const handleResultSaved = async () => {
+  if (!selectedExerciseToRecord || !activePlan || !activePlan?.id) return;
 
-  // Nach Ergebniserfassung einer Übung
-  const handleResultSaved = async () => {
-    if (!selectedExerciseToRecord || !activePlan || !activePlan?.id) return;
+  const { blockId, exIndex } = selectedExerciseToRecord;
+  const nowIso = new Date().toISOString();
 
-    await fetchData();
+  // 1. Blöcke im lokalen State kopieren und completedAt setzen
+  const updatedBlocks = [...activePlan.blocks];
+  const blockIdx = updatedBlocks.findIndex((b) => b.id === blockId);
+  if (blockIdx !== -1) {
+    updatedBlocks[blockIdx].exercises[exIndex].completedAt = nowIso;
+  }
+
+  // 2. Prüfen, ob der gesamte Plan nun abgeschlossen ist
+  const allExercisesCompleted = updatedBlocks.every((b) =>
+    b.exercises.every((e) => !!e.completedAt)
+  );
+  const testCompleted =
+    !activePlan.performanceTestId || !!activePlan.performanceTestCompletedAt;
+  const newStatus =
+    allExercisesCompleted && testCompleted ? "completed" : "in_progress";
+
+  try {
+    // 3. In Firestore aktualisieren (Collection: assignedPlans)
+    const planRef = doc(db, "assignedPlans", activePlan.id);
+    await updateDoc(planRef, {
+      blocks: updatedBlocks,
+      status: newStatus,
+      updatedAt: nowIso,
+    });
+
+    // 4. UI-States aktualisieren
+    const updatedPlan = {
+      ...activePlan,
+      blocks: updatedBlocks,
+      status: newStatus as any,
+    };
+    setActivePlan(updatedPlan);
+    setPlans((prev) =>
+      prev.map((p) => (p.id === activePlan.id ? updatedPlan : p)),
+    );
     setSelectedExerciseToRecord(null);
-  };
+  } catch (err) {
+    console.error(err);
+    setError("Fehler beim Aktualisieren des Plan-Fortschritts.");
+  }
+};
 
   // Nach Ergebniserfassung des Leistungstests
   const handleTestResultSaved = async () => {
@@ -605,13 +645,6 @@ export const PlayerPlanView: React.FC = () => {
                                   r.testId === bEx.exerciseId)
                               );
                             });
-
-                      // // Punkte aus dem Ergebnis ermitteln
-                      // const achievedScore =
-                      //   (bEx as any).score ??
-                      //   (bEx as any).result ??
-                      //   (bEx as any).points ??
-                      //   (bEx as any).totalPoints;
 
                       // Formatiertes Erledigungsdatum
                       const formattedDate = bEx.completedAt

@@ -365,6 +365,7 @@ export const LeagueView: React.FC = () => {
     }
   };
 
+  // Match bestätigen & Dynamische Ratings berechnen (+100 bis +10 & -100 bis -10)
   const handleConfirmMatch = async (match: MatchResult) => {
     try {
       const p1Id = match.player1Id;
@@ -380,19 +381,63 @@ export const LeagueView: React.FC = () => {
       const p1RatingBefore = p1RatingObj ? p1RatingObj.rating : 1000;
       const p2RatingBefore = p2RatingObj ? p2RatingObj.rating : 1000;
 
+      const p1Won = match.winnerId === p1Id;
+      const ratingDiff = Math.abs(p1RatingBefore - p2RatingBefore);
+
+      // Satz-/Leg-Differenz ermitteln (z.B. 3:2 ist knapper als 3:0)
+      // Je knapper das Ergebnis für den Verlierer, desto milder der Verlust / besser der Bonus.
+      const myScore =
+        match.player1Id === p1Id ? match.scorePlayer1 : match.scorePlayer2;
+      const opponentScore =
+        match.player1Id === p1Id ? match.scorePlayer2 : match.scorePlayer1;
+      const legDiff = Math.abs(myScore - opponentScore); // z.B. 3:2 -> Diff 1; 3:0 -> Diff 3
+
       let p1Change = 0;
       let p2Change = 0;
-      const p1Won = match.winnerId === p1Id;
 
-      if (p1RatingBefore === p2RatingBefore) {
-        p1Change = p1Won ? 50 : -50;
-        p2Change = p1Won ? -50 : 50;
-      } else if (p1RatingBefore < p2RatingBefore) {
-        p1Change = p1Won ? 100 : -25;
-        p2Change = p1Won ? -100 : 25;
+      if (ratingDiff <= 100) {
+        // Neutraler Bereich (+/- 100 Punkte Differenz) -> Standard +/- 50 Punkte, leicht modifiziert durch Knappheit
+        const baseChange = 50;
+        // Knappes Spiel (z.B. 3:2) belohnt den Verlierer etwas oder dämpft den Verlust
+        const adjustment = legDiff === 1 ? 10 : 0;
+
+        p1Change = p1Won
+          ? baseChange + (legDiff === 1 ? -10 : 0)
+          : -baseChange + adjustment;
+        p2Change = -p1Change;
       } else {
-        p1Change = p1Won ? 25 : -100;
-        p2Change = p1Won ? -25 : 100;
+        // Größere Differenz (> 100 Punkte)
+        const p1IsFavorite = p1RatingBefore > p2RatingBefore;
+
+        if ((p1Won && p1IsFavorite) || (!p1Won && !p1IsFavorite)) {
+          // Favoritensieg: Gewinner bekommt weniger, Verlierer verliert mehr (aber gedeckelt)
+          // Hat der Underdog ein 3:2 geholt, verliert der Favorit etwas weniger / Underdog profitiert
+          const baseWin = 25;
+          const baseLoss = -25;
+          p1Change = p1Won ? baseWin : baseLoss;
+        } else {
+          // Upset / Überraschungssieg (Schwächerer gewinnt gegen Stärkeren)
+          // Mehr Punkte für den Sieg des Schwächeren (max +100), weniger Abzug bei knappen Niederlagen (min -10)
+          if (p1Won) {
+            // P1 war schwächer und hat gewonnen -> starker Bonus (bis +100)
+            p1Change = Math.min(100, 50 + legDiff * 15);
+            p2Change = -p1Change;
+          } else {
+            // P1 war schwächer und hat verloren -> verliert weniger Punkte (mindestens -10 bei 3:2)
+            const lossAmount = legDiff === 1 ? 10 : legDiff === 2 ? 25 : 50;
+            p1Change = -lossAmount;
+            p2Change = -p1Change;
+          }
+        }
+      }
+
+      // Sorge dafür, dass die Grenzen (+100 bis +10 & -100 bis -10) eingehalten werden
+      p1Change = Math.max(-100, Math.min(100, p1Change));
+      p2Change = Math.max(-100, Math.min(100, p2Change));
+
+      // Falls P2 die andere Seite der Medaille ist
+      if (ratingDiff > 100) {
+        p2Change = -p1Change;
       }
 
       const p1RatingAfter = Math.max(0, p1RatingBefore + p1Change);

@@ -22,6 +22,13 @@ export interface NotificationSettings {
   reminderDaysBefore: number;            // Tage vor Ablauf (1, 2 oder 3)
 }
 
+export interface WidgetConfig {
+  id: string;
+  title: string;
+  enabled: boolean;
+  required?: boolean;
+}
+
 export interface UserProfile {
   uid: string;
   email: string;
@@ -41,4 +48,5 @@ export interface UserProfile {
   photoURL?: string;
   createdAt: string;
   updatedAt: string;
+  dashboardWidgets?: WidgetConfig[];
 }

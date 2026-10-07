@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from "react";
-import { collection, getDocs, doc, updateDoc } from "firebase/firestore";
+import { collection, getDocs, doc, updateDoc, query, where } from "firebase/firestore";
 import { db } from "../../firebase/config";
 import { useAuth } from "../../context/AuthContext";
+import { RecordResultModal } from "../exercises/RecordResultModal";
 import {
   Paper,
   Typography,
@@ -20,6 +21,9 @@ import {
   MenuItem,
   OutlinedInput,
   Chip,
+  Accordion,
+  AccordionSummary,
+  AccordionDetails,
 } from "@mui/material";
 import SettingsIcon from "@mui/icons-material/Settings";
 import ArrowUpwardIcon from "@mui/icons-material/ArrowUpward";
@@ -30,6 +34,9 @@ import EmojiEventsIcon from "@mui/icons-material/EmojiEvents";
 import BarChartIcon from "@mui/icons-material/BarChart";
 import SportsKabaddiIcon from "@mui/icons-material/SportsKabaddi";
 import TrendingUpIcon from "@mui/icons-material/TrendingUp";
+import PlayArrowIcon from "@mui/icons-material/PlayArrow";
+import HelpIcon from "@mui/icons-material/Help";
+import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 
 interface WidgetConfig {
   id: string;
@@ -71,6 +78,9 @@ export const DashboardLandingPage: React.FC<DashboardLandingPageProps> = ({ onNa
   // Vom Nutzer frei gewählte Lieblingsübungen (IDs, max. 3)
   const [selectedFavoriteIds, setSelectedFavoriteIds] = useState<string[]>([]);
 
+  // Modal-Zustand für Ergebniserfassung (Lieblingsübungen & Übung des Monats)
+  const [selectedExerciseToRecord, setSelectedExerciseToRecord] = useState<any | null>(null);
+
   // Lade Layout- und Lieblingsübungen-Einstellungen aus dem UserProfile
   useEffect(() => {
     if (userProfile?.dashboardWidgets && Array.isArray(userProfile.dashboardWidgets)) {
@@ -87,77 +97,105 @@ export const DashboardLandingPage: React.FC<DashboardLandingPageProps> = ({ onNa
   }, [userProfile]);
 
   // Echte Firestore-Daten abrufen
-  useEffect(() => {
-    const fetchDashboardData = async () => {
-      if (!userProfile?.uid) return;
+  const fetchDashboardData = async () => {
+    if (!userProfile?.uid) return;
+
+    try {
+      // 1. Benachrichtigungen
       try {
-        const [notifSnap, planSnap, testSnap, resSnap, exSnap, monthlySnap, userSnap] = await Promise.all([
-          getDocs(collection(db, "notifications")),
-          getDocs(collection(db, "assignedPlans")),
-          getDocs(collection(db, "assignedPerformanceTests")),
-          getDocs(collection(db, "testResults")),
-          getDocs(collection(db, "exercises")),
-          getDocs(collection(db, "monthlyExerciseConfigs")),
-          getDocs(collection(db, "users")),
-        ]);
-
+        const qNotif = query(
+          collection(db, "notifications"),
+          where("userId", "==", userProfile.uid),
+          where("read", "==", false)
+        );
+        const notifSnap = await getDocs(qNotif);
         const fetchedNotifs: any[] = [];
-        notifSnap.forEach((d) => {
-          const data = d.data();
-          if (data.userId === userProfile.uid && !data.read) {
-            fetchedNotifs.push({ id: d.id, ...data });
-          }
-        });
+        notifSnap.forEach((d) => fetchedNotifs.push({ id: d.id, ...d.data() }));
         setNotifications(fetchedNotifs);
-
-        const fetchedPlans: any[] = [];
-        planSnap.forEach((d) => {
-          const data = d.data();
-          if (data.playerId === userProfile.uid) {
-            fetchedPlans.push({ id: d.id, ...data });
-          }
-        });
-        setTrainingPlans(fetchedPlans);
-
-        const fetchedTests: any[] = [];
-        testSnap.forEach((d) => {
-          const data = d.data();
-          if (data.playerId === userProfile.uid) {
-            fetchedTests.push({ id: d.id, ...data });
-          }
-        });
-        setAssignedTests(fetchedTests);
-
-        const fetchedResults: any[] = [];
-        resSnap.forEach((d) => {
-          fetchedResults.push({ id: d.id, ...d.data() });
-        });
-        setTestResults(fetchedResults);
-
-        const fetchedEx: any[] = [];
-        exSnap.forEach((d) => {
-          fetchedEx.push({ id: d.id, ...d.data() });
-        });
-        setExercises(fetchedEx);
-
-        const fetchedMonthly: any[] = [];
-        monthlySnap.forEach((d) => {
-          fetchedMonthly.push({ id: d.id, ...d.data() });
-        });
-        setMonthlyConfigs(fetchedMonthly);
-
-        const fetchedUsers: any[] = [];
-        userSnap.forEach((d) => {
-          fetchedUsers.push({ uid: d.id, ...d.data() });
-        });
-        setUsers(fetchedUsers);
-      } catch (err) {
-        console.error("Fehler beim Laden der Dashboard-Daten:", err);
+      } catch (e) {
+        console.warn("Fehler beim Laden der Benachrichtigungen", e);
       }
-    };
 
+      // 2. Zugewiesene Trainingspläne
+      try {
+        const qPlans = query(
+          collection(db, "assignedPlans"),
+          where("playerId", "==", userProfile.uid)
+        );
+        const planSnap = await getDocs(qPlans);
+        const fetchedPlans: any[] = [];
+        planSnap.forEach((d) => fetchedPlans.push({ id: d.id, ...d.data() }));
+        setTrainingPlans(fetchedPlans);
+      } catch (e) {
+        console.warn("Fehler beim Laden der Trainingspläne", e);
+      }
+
+      // 3. Zugewiesene Tests
+      try {
+        const qTests = query(
+          collection(db, "assignedPerformanceTests"),
+          where("playerId", "==", userProfile.uid)
+        );
+        const testSnap = await getDocs(qTests);
+        const fetchedTests: any[] = [];
+        testSnap.forEach((d) => fetchedTests.push({ id: d.id, ...d.data() }));
+        setAssignedTests(fetchedTests);
+      } catch (e) {
+        console.warn("Fehler beim Laden der Leistungstests", e);
+      }
+
+      // 4. Testergebnisse
+      try {
+        const resSnap = await getDocs(collection(db, "testResults"));
+        const fetchedResults: any[] = [];
+        resSnap.forEach((d) => fetchedResults.push({ id: d.id, ...d.data() }));
+        setTestResults(fetchedResults);
+      } catch (e) {
+        console.warn("Fehler beim Laden der Testergebnisse", e);
+      }
+
+      // 5. Übungen
+      try {
+        const exSnap = await getDocs(collection(db, "exercises"));
+        const fetchedEx: any[] = [];
+        exSnap.forEach((d) => fetchedEx.push({ id: d.id, ...d.data() }));
+        setExercises(fetchedEx);
+      } catch (e) {
+        console.warn("Fehler beim Laden der Übungen", e);
+      }
+
+      // 6. Übung des Monats (Collection-Name: monthlyExercises)
+      try {
+        const monthlySnap = await getDocs(collection(db, "monthlyExercises"));
+        const fetchedMonthly: any[] = [];
+        monthlySnap.forEach((d) => fetchedMonthly.push({ id: d.id, ...d.data() }));
+        setMonthlyConfigs(fetchedMonthly);
+      } catch (e) {
+        console.warn("Fehler beim Laden der Monatskonfigurationen", e);
+      }
+
+      // 7. Nutzerliste
+      try {
+        const userSnap = await getDocs(collection(db, "users"));
+        const fetchedUsers: any[] = [];
+        userSnap.forEach((d) => fetchedUsers.push({ uid: d.id, id: d.id, ...d.data() }));
+        setUsers(fetchedUsers);
+      } catch (e) {
+        console.warn("Fehler beim Laden der Nutzerliste", e);
+      }
+    } catch (err) {
+      console.error("Genereller Fehler beim Laden der Dashboard-Daten:", err);
+    }
+  };
+
+  useEffect(() => {
     fetchDashboardData();
   }, [userProfile?.uid]);
+
+  const handleResultSaved = async () => {
+    setSelectedExerciseToRecord(null);
+    await fetchDashboardData();
+  };
 
   const saveWidgetsToFirestore = async (updatedWidgets: WidgetConfig[], updatedFavorites?: string[]) => {
     if (!userProfile) return;
@@ -210,7 +248,6 @@ export const DashboardLandingPage: React.FC<DashboardLandingPageProps> = ({ onNa
 
   const handleFavoriteChange = (event: any) => {
     const value = event.target.value;
-    // Erlaube maximal 3 Übungen
     if (value.length <= 3) {
       setSelectedFavoriteIds(value);
       saveWidgetsToFirestore(widgets, value);
@@ -229,7 +266,7 @@ export const DashboardLandingPage: React.FC<DashboardLandingPageProps> = ({ onNa
         const hasResult = testResults.some(
           (r) => r.userId === userProfile?.uid && (r.exerciseId === ex.exerciseId || r.testId === ex.exerciseId)
         );
-        if (hasResult || ex.completed) completedExercises++;
+        if (hasResult || ex.completed || ex.completedAt) completedExercises++;
       });
     });
     return totalExercises > 0 ? Math.round((completedExercises / totalExercises) * 100) : 0;
@@ -255,9 +292,10 @@ export const DashboardLandingPage: React.FC<DashboardLandingPageProps> = ({ onNa
       if (resExId === monthlyExercise.id) {
         const resDate = new Date(res.completedAt);
         if (resDate.getMonth() + 1 === currentMonth && resDate.getFullYear() === currentYear) {
+          const points = res.totalPoints || res.points || 0;
           const currentBest = scoresByUser[res.userId] || 0;
-          if (res.totalPoints > currentBest) {
-            scoresByUser[res.userId] = res.totalPoints;
+          if (points > currentBest) {
+            scoresByUser[res.userId] = points;
           }
         }
       }
@@ -265,13 +303,15 @@ export const DashboardLandingPage: React.FC<DashboardLandingPageProps> = ({ onNa
   }
   const monthlyLeaderboard = Object.keys(scoresByUser)
     .map((userId) => ({
-      user: users.find((u) => u.uid === userId),
+      user: users.find((u) => u.uid === userId || u.id === userId),
       score: scoresByUser[userId],
     }))
     .sort((a, b) => b.score - a.score);
 
   const top3Monthly = monthlyLeaderboard.slice(0, 3);
-  const userMonthlyIndex = monthlyLeaderboard.findIndex((item) => item.user?.uid === userProfile?.uid);
+  const userMonthlyIndex = monthlyLeaderboard.findIndex(
+    (item) => item.user?.uid === userProfile?.uid || item.user?.id === userProfile?.uid
+  );
   const userMonthlyEntry = userMonthlyIndex !== -1 ? monthlyLeaderboard[userMonthlyIndex] : null;
   const userMonthlyRank = userMonthlyIndex !== -1 ? userMonthlyIndex + 1 : null;
 
@@ -281,13 +321,13 @@ export const DashboardLandingPage: React.FC<DashboardLandingPageProps> = ({ onNa
   const recentResults = testResults.filter(
     (r) => r.userId === userProfile?.uid && new Date(r.completedAt) >= sevenDaysAgo
   );
-  const totalPoints7Days = recentResults.reduce((sum, r) => sum + (r.totalPoints || 0), 0);
+  const totalPoints7Days = recentResults.reduce((sum, r) => sum + (r.totalPoints || r.points || 0), 0);
   const avgHitRate7Days =
     recentResults.length > 0
       ? (recentResults.reduce((sum, r) => sum + (r.hitRate || r.accuracy || 0), 0) / recentResults.length).toFixed(1)
       : "0";
 
-  // 5. Vom Nutzer manuell ausgewählte Lieblingsübungen
+  // 5. Lieblingsübungen
   const userFavoriteExercisesList = selectedFavoriteIds
     .map((id) => exercises.find((e) => e.id === id))
     .filter(Boolean);
@@ -374,11 +414,11 @@ export const DashboardLandingPage: React.FC<DashboardLandingPageProps> = ({ onNa
               </Typography>
             </div>
             {nextTest ? (
-              <Typography variant="body2" color="text.primary" className="mb-2">
+              <Typography variant="body2" color="text.primary" className="mb-2 pb-2">
                 Zugewiesener Test: <strong>{nextTest.title}</strong> (Status: {nextTest.status === "completed" ? "Erledigt" : "Offen"})
               </Typography>
             ) : (
-              <Typography variant="body2" color="text.secondary" className="mb-2">
+              <Typography variant="body2" color="text.secondary" className="mb-2 pb-2">
                 Keine offenen Leistungstests zugewiesen.
               </Typography>
             )}
@@ -392,49 +432,111 @@ export const DashboardLandingPage: React.FC<DashboardLandingPageProps> = ({ onNa
         return (
           <Paper
             variant="outlined"
-            sx={{ p: 3, bgcolor: "background.paper", borderColor: "divider", cursor: "pointer" }}
-            onClick={() => onNavigate("league")}
-            className="shadow-sm hover:opacity-95 transition-opacity"
+            sx={{ p: 3, bgcolor: "background.paper", borderColor: "divider" }}
+            className="shadow-sm flex flex-col gap-4"
           >
-            <div className="flex items-center gap-2 mb-3">
-              <EmojiEventsIcon color="primary" />
-              <Typography variant="h6" className="font-bold" color="text.primary">
-                Übung des Monats: {monthlyExercise ? monthlyExercise.title : "Keine aktiv"}
-              </Typography>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <Typography variant="subtitle2" className="font-semibold mb-1" color="text.secondary">
-                  Top 3 Spieler
-                </Typography>
-                {top3Monthly.length === 0 ? (
-                  <Typography variant="body2" color="text.secondary">Bisher keine Ergebnisse diesen Monat.</Typography>
-                ) : (
-                  <ul className="space-y-1 text-sm" style={{ color: "inherit" }}>
-                    {top3Monthly.map((entry, idx) => {
-                      const medal = idx === 0 ? "🥇" : idx === 1 ? "🥈" : "🥉";
-                      const name = entry.user?.nickname || entry.user?.realName || "Spieler";
-                      return (
-                        <li key={idx}>
-                          {medal} {name} – {entry.score} Pkt.
-                        </li>
-                      );
-                    })}
-                  </ul>
-                )}
+            {/* Headerbereich der Übung des Monats */}
+            <div className="flex justify-between items-start flex-wrap gap-2">
+              <div className="flex items-center gap-2">
+                <EmojiEventsIcon color="primary" fontSize="large" />
+                <div>
+                  <Typography variant="h6" className="font-bold" color="text.primary">
+                    Übung des Monats: {monthlyExercise ? monthlyExercise.title : "Keine aktiv"}
+                  </Typography>
+                </div>
               </div>
-              <Box sx={{ p: 2, bgcolor: "action.hover", borderRadius: 1 }} className="flex flex-col justify-center">
-                <Typography variant="subtitle2" className="font-semibold text-primary-main">
-                  Dein Platz
-                </Typography>
-                <Typography variant="h5" className="font-bold" color="text.primary">
-                  {userMonthlyRank ? `Platz ${userMonthlyRank}` : "Nicht platziert"}
-                </Typography>
-                <Typography variant="caption" color="text.secondary">
-                  {userMonthlyEntry ? `Mit ${userMonthlyEntry.score} Punkten` : "Trage dein Ergebnis ein!"}
-                </Typography>
-              </Box>
+
+              <Button
+                variant="outlined"
+                size="small"
+                onClick={() => onNavigate("league")}
+              >
+                Zur Rangliste
+              </Button>
             </div>
+
+            {monthlyExercise ? (
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                {/* Spalte 1 & 2: Beschreibung, Anleitung & Direkt-Eintragen-Button */}
+                <div className="md:col-span-2 flex flex-col justify-between gap-3">
+                  <div>
+                    {/* Kurzbeschreibung */}
+                    <Typography variant="body2" color="text.secondary" className="mb-3 pb-2">
+                      {monthlyExercise.description || "Keine Kurzbeschreibung vorhanden."}
+                    </Typography>
+
+                    {/* Aufklappbare Spielanleitung */}
+                    {monthlyExercise.instructions && (
+                      <Accordion elevation={0} variant="outlined" sx={{ bgcolor: "action.hover" }} className="rounded">
+                        <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+                          <Typography variant="caption" className="font-bold flex items-center gap-1" color="text.primary">
+                            <HelpIcon fontSize="small" color="primary" /> Spielanleitung anzeigen
+                          </Typography>
+                        </AccordionSummary>
+                        <AccordionDetails>
+                          <Typography variant="body2" className="whitespace-pre-line text-xs" color="text.secondary">
+                            {monthlyExercise.instructions}
+                          </Typography>
+                        </AccordionDetails>
+                      </Accordion>
+                    )}
+                  </div>
+
+                  {/* Button zum direkten Ergebnis-Eintragen */}
+                  <div>
+                    <Button
+                      variant="contained"
+                      color="primary"
+                      startIcon={<PlayArrowIcon />}
+                      onClick={() => setSelectedExerciseToRecord(monthlyExercise)}
+                    >
+                      Ergebnis eintragen
+                    </Button>
+                  </div>
+                </div>
+
+                {/* Spalte 3: Leaderboard & Platzierung */}
+                <Paper variant="outlined" sx={{ p: 2, bgcolor: "action.hover" }} className="flex flex-col justify-between gap-3">
+                  <div>
+                    <Typography variant="subtitle2" className="font-bold mb-2" color="text.secondary">
+                      Top 3 Spieler
+                    </Typography>
+                    {top3Monthly.length === 0 ? (
+                      <Typography variant="body2" color="text.secondary">Bisher keine Ergebnisse diesen Monat.</Typography>
+                    ) : (
+                      <ul className="space-y-1 text-sm" style={{ color: "inherit" }}>
+                        {top3Monthly.map((entry, idx) => {
+                          const medal = idx === 0 ? "🥇" : idx === 1 ? "🥈" : "🥉";
+                          const name = entry.user?.nickname || entry.user?.realName || "Spieler";
+                          return (
+                            <li key={idx} className="flex justify-between items-center">
+                              <span>{medal} {name}</span>
+                              <strong className="text-xs">{entry.score} Pkt.</strong>
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    )}
+                  </div>
+
+                  <Box sx={{ pt: 1, borderTop: 1, borderColor: "divider" }}>
+                    <Typography variant="caption" className="font-bold" color="primary.main">
+                      Dein Platz
+                    </Typography>
+                    <Typography variant="h6" className="font-bold" color="text.primary">
+                      {userMonthlyRank ? `Platz ${userMonthlyRank}` : "Nicht platziert"}
+                    </Typography>
+                    <Typography variant="caption" color="text.secondary">
+                      {userMonthlyEntry ? `Mit ${userMonthlyEntry.score} Punkten` : "Trage dein Ergebnis ein!"}
+                    </Typography>
+                  </Box>
+                </Paper>
+              </div>
+            ) : (
+              <Typography variant="body2" color="text.secondary">
+                Für den aktuellen Monat wurde noch keine Übung des Monats vom Admin festgelegt.
+              </Typography>
+            )}
           </Paper>
         );
 
@@ -484,7 +586,7 @@ export const DashboardLandingPage: React.FC<DashboardLandingPageProps> = ({ onNa
             <div className="flex items-center gap-2 mb-2">
               <EmojiEventsIcon color="action" />
               <Typography variant="h6" className="font-bold" color="text.primary">
-                Performance League (Optional)
+                Performance League
               </Typography>
             </div>
             <Typography variant="body2" color="text.secondary">
@@ -504,7 +606,7 @@ export const DashboardLandingPage: React.FC<DashboardLandingPageProps> = ({ onNa
             <div className="flex items-center gap-2 mb-2">
               <SportsKabaddiIcon color="action" />
               <Typography variant="h6" className="font-bold" color="text.primary">
-                Match League – Direkter Vergleich (Optional)
+                Match League – Direkter Vergleich
               </Typography>
             </div>
             <Typography variant="body2" color="text.secondary">
@@ -517,28 +619,72 @@ export const DashboardLandingPage: React.FC<DashboardLandingPageProps> = ({ onNa
         return (
           <Paper
             variant="outlined"
-            sx={{ p: 3, bgcolor: "background.paper", borderColor: "divider", cursor: "pointer" }}
-            onClick={() => onNavigate("exercises")}
-            className="shadow-sm border-dashed hover:opacity-95 transition-opacity"
+            sx={{ p: 3, bgcolor: "background.paper", borderColor: "divider" }}
+            className="shadow-sm border-dashed"
           >
-            <div className="flex items-center gap-2 mb-2">
-              <FitnessCenterIcon color="action" />
+            <div className="flex items-center gap-2 mb-3">
               <Typography variant="h6" className="font-bold" color="text.primary">
-                Deine Lieblingsübungen (Frei wählbar)
+                Deine Lieblingsübungen
               </Typography>
             </div>
+
             {userFavoriteExercisesList.length === 0 ? (
               <Typography variant="body2" color="text.secondary">
                 Noch keine Lieblingsübungen ausgewählt. Klicke auf "Dashboard anpassen", um bis zu 3 Übungen auszuwählen.
               </Typography>
             ) : (
-              <ul className="list-disc list-inside text-sm space-y-1" style={{ color: "inherit" }}>
-                {userFavoriteExercisesList.map((ex: any, idx) => (
-                  <li key={idx}>
-                    <strong>{ex.title}</strong> ({ex.type})
-                  </li>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                {userFavoriteExercisesList.map((ex: any) => (
+                  <Paper
+                    key={ex.id}
+                    variant="outlined"
+                    sx={{ p: 2, bgcolor: "action.hover", borderColor: "divider" }}
+                    className="flex flex-col justify-between"
+                  >
+                    <div>
+                      <div className="flex justify-between items-center mb-1">
+                        <Typography variant="subtitle1" className="font-bold" color="text.primary">
+                          {ex.title}
+                        </Typography>
+                      </div>
+
+                      {/* Kurzbeschreibung */}
+                      <Typography variant="body2" color="text.secondary" className="mb-2 pb-2">
+                        {ex.description || "Keine Kurzbeschreibung vorhanden."}
+                      </Typography>
+
+                      {/* Aufklappbare Spielanleitung */}
+                      {ex.instructions && (
+                        <Accordion elevation={0} variant="outlined" sx={{ bgcolor: "background.paper" }} className="mb-3 rounded">
+                          <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+                            <Typography variant="caption" className="font-bold flex items-center gap-1" color="text.primary">
+                              <HelpIcon fontSize="small" color="primary" /> Spielanleitung
+                            </Typography>
+                          </AccordionSummary>
+                          <AccordionDetails>
+                            <Typography variant="body2" className="whitespace-pre-line text-xs" color="text.secondary">
+                              {ex.instructions}
+                            </Typography>
+                          </AccordionDetails>
+                        </Accordion>
+                      )}
+                    </div>
+
+                    {/* Button zum Ergebnis eintragen */}
+                    <Button
+                      variant="contained"
+                      color="primary"
+                      size="small"
+                      fullWidth
+                      startIcon={<PlayArrowIcon />}
+                      onClick={() => setSelectedExerciseToRecord(ex)}
+                      className="mt-2"
+                    >
+                      Ergebnis eintragen
+                    </Button>
+                  </Paper>
                 ))}
-              </ul>
+              </div>
             )}
           </Paper>
         );
@@ -588,7 +734,6 @@ export const DashboardLandingPage: React.FC<DashboardLandingPageProps> = ({ onNa
             Passe die Reihenfolge an, aktiviere optionale Widgets und wähle unten deine persönlichen Lieblingsübungen aus.
           </Typography>
 
-          {/* Sektion für freie Lieblingsübungen-Auswahl */}
           <Box sx={{ mb: 4, p: 2, bgcolor: "action.hover", borderRadius: 1 }} className="space-y-2">
             <Typography variant="subtitle2" className="font-bold" color="text.primary">
               Lieblingsübungen konfigurieren (1 bis 3 wählbar)
@@ -662,6 +807,17 @@ export const DashboardLandingPage: React.FC<DashboardLandingPageProps> = ({ onNa
           </Button>
         </DialogActions>
       </Dialog>
+
+      {/* Modal zum Eintragen eines Ergebnisses direkt vom Dashboard */}
+      {selectedExerciseToRecord && (
+        <RecordResultModal
+          open={!!selectedExerciseToRecord}
+          onClose={() => setSelectedExerciseToRecord(null)}
+          exercise={selectedExerciseToRecord}
+          allExercises={exercises}
+          onResultRecorded={handleResultSaved}
+        />
+      )}
     </Box>
   );
 };

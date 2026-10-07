@@ -18,6 +18,7 @@ import { GroupManager } from "./features/groups/GroupManager";
 import { PlayerStatsView } from "./features/stats/PlayerStatsView";
 import { CoachStatsView } from "./features/stats/CoachStatsView";
 import { CoachMessagesView } from "./features/coach/CoachMessagesView";
+import { DashboardLandingPage } from "./features/dashboard/DashboardLandingPage";
 import {
   Paper,
   Box,
@@ -117,7 +118,7 @@ const MainContent: React.FC = () => {
       >
         <Navbar
           onOpenProfile={() => setActiveView("profile")}
-          onOpenPlayerPlan={() => setActiveView("player-plan")}
+          onOpenDashboard={() => setActiveView("dashboard")}
         />
 
         {/* Strukturierte Hauptnavigation */}
@@ -141,6 +142,9 @@ const MainContent: React.FC = () => {
               open={Boolean(trainingAnchor)}
               onClose={() => setTrainingAnchor(null)}
             >
+              <MenuItem onClick={() => handleSelectView("dashboard")}>
+                Dashboard
+              </MenuItem>
               <MenuItem onClick={() => handleSelectView("player-plan")}>
                 Mein Trainingsplan
               </MenuItem>
@@ -253,6 +257,7 @@ const MainContent: React.FC = () => {
 
         {/* Hauptinhalt je nach ausgewählter Ansicht */}
         <main className="py-6">
+          {activeView === "dashboard" && <DashboardLandingPage />}
           {activeView === "player-plan" && <PlayerPlanView />}
           {activeView === "league" && <LeagueView />}
           {activeView === "player-stats" && <PlayerStatsView />}

@@ -14,10 +14,10 @@ import Logo from "../../assets/logo_Nav.jpg";
 
 interface NavbarProps {
   onOpenProfile?: () => void;
-  onOpenPlayerPlan?: () => void;
+  onOpenDashboard?: () => void;
 }
 
-export const Navbar: React.FC<NavbarProps> = ({ onOpenProfile, onOpenPlayerPlan }) => {
+export const Navbar: React.FC<NavbarProps> = ({ onOpenProfile, onOpenDashboard }) => {
   const { currentUser, userProfile, logout } = useAuth();
 
   return (
@@ -25,7 +25,7 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenProfile, onOpenPlayerPlan 
       <Toolbar className="justify-between">
         <div
           className="flex items-center gap-2 cursor-pointer"
-          onClick={onOpenPlayerPlan}
+          onClick={onOpenDashboard}
         >
           <img
             src={Logo}

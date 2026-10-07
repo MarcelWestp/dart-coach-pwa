@@ -14,6 +14,12 @@ import {
   Switch,
   Box,
   LinearProgress,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
+  OutlinedInput,
+  Chip,
 } from "@mui/material";
 import SettingsIcon from "@mui/icons-material/Settings";
 import ArrowUpwardIcon from "@mui/icons-material/ArrowUpward";
@@ -40,7 +46,7 @@ const DEFAULT_WIDGETS: WidgetConfig[] = [
   { id: "stats7Days", title: "Allgemeine Statistik (letzte 7 Tage)", enabled: true },
   { id: "performanceLeague", title: "Performance League (Optionale Top 3 / Platz)", enabled: false },
   { id: "matchLeague", title: "Match League (Statistik mit Nachbarn)", enabled: false },
-  { id: "favoriteExercises", title: "Bis zu 3 Lieblingsübungen", enabled: false },
+  { id: "favoriteExercises", title: "Lieblingsübungen (1-3 frei wählbar)", enabled: false },
 ];
 
 interface DashboardLandingPageProps {
@@ -62,7 +68,10 @@ export const DashboardLandingPage: React.FC<DashboardLandingPageProps> = ({ onNa
   const [monthlyConfigs, setMonthlyConfigs] = useState<any[]>([]);
   const [users, setUsers] = useState<any[]>([]);
 
-  // Lade Layout-Einstellungen aus dem UserProfile
+  // Vom Nutzer frei gewählte Lieblingsübungen (IDs, max. 3)
+  const [selectedFavoriteIds, setSelectedFavoriteIds] = useState<string[]>([]);
+
+  // Lade Layout- und Lieblingsübungen-Einstellungen aus dem UserProfile
   useEffect(() => {
     if (userProfile?.dashboardWidgets && Array.isArray(userProfile.dashboardWidgets)) {
       const savedWidgets = userProfile.dashboardWidgets;
@@ -70,7 +79,10 @@ export const DashboardLandingPage: React.FC<DashboardLandingPageProps> = ({ onNa
         const found = savedWidgets.find((s: WidgetConfig) => s.id === def.id);
         return found ? { ...def, enabled: found.enabled } : def;
       });
-      setWidgets(savedWidgets);
+      setWidgets(merged);
+    }
+    if (userProfile?.favoriteExerciseIds && Array.isArray(userProfile.favoriteExerciseIds)) {
+      setSelectedFavoriteIds(userProfile.favoriteExerciseIds);
     }
   }, [userProfile]);
 
@@ -89,7 +101,6 @@ export const DashboardLandingPage: React.FC<DashboardLandingPageProps> = ({ onNa
           getDocs(collection(db, "users")),
         ]);
 
-        // Benachrichtigungen des Nutzers filtern
         const fetchedNotifs: any[] = [];
         notifSnap.forEach((d) => {
           const data = d.data();
@@ -99,7 +110,6 @@ export const DashboardLandingPage: React.FC<DashboardLandingPageProps> = ({ onNa
         });
         setNotifications(fetchedNotifs);
 
-        // Zugewiesene Trainingspläne des Nutzers
         const fetchedPlans: any[] = [];
         planSnap.forEach((d) => {
           const data = d.data();
@@ -109,7 +119,6 @@ export const DashboardLandingPage: React.FC<DashboardLandingPageProps> = ({ onNa
         });
         setTrainingPlans(fetchedPlans);
 
-        // Zugewiesene Leistungstests
         const fetchedTests: any[] = [];
         testSnap.forEach((d) => {
           const data = d.data();
@@ -119,28 +128,24 @@ export const DashboardLandingPage: React.FC<DashboardLandingPageProps> = ({ onNa
         });
         setAssignedTests(fetchedTests);
 
-        // Testergebnisse
         const fetchedResults: any[] = [];
         resSnap.forEach((d) => {
           fetchedResults.push({ id: d.id, ...d.data() });
         });
         setTestResults(fetchedResults);
 
-        // Übungen
         const fetchedEx: any[] = [];
         exSnap.forEach((d) => {
           fetchedEx.push({ id: d.id, ...d.data() });
         });
         setExercises(fetchedEx);
 
-        // Monatswertungen / Übung des Monats
         const fetchedMonthly: any[] = [];
         monthlySnap.forEach((d) => {
           fetchedMonthly.push({ id: d.id, ...d.data() });
         });
         setMonthlyConfigs(fetchedMonthly);
 
-        // Nutzerliste
         const fetchedUsers: any[] = [];
         userSnap.forEach((d) => {
           fetchedUsers.push({ uid: d.id, ...d.data() });
@@ -154,15 +159,19 @@ export const DashboardLandingPage: React.FC<DashboardLandingPageProps> = ({ onNa
     fetchDashboardData();
   }, [userProfile?.uid]);
 
-  const saveWidgetsToFirestore = async (updatedWidgets: WidgetConfig[]) => {
+  const saveWidgetsToFirestore = async (updatedWidgets: WidgetConfig[], updatedFavorites?: string[]) => {
     if (!userProfile) return;
     setSaving(true);
     try {
       const userRef = doc(db, "users", userProfile.uid);
-      await updateDoc(userRef, {
+      const updatePayload: any = {
         dashboardWidgets: updatedWidgets,
         updatedAt: new Date().toISOString(),
-      });
+      };
+      if (updatedFavorites !== undefined) {
+        updatePayload.favoriteExerciseIds = updatedFavorites;
+      }
+      await updateDoc(userRef, updatePayload);
       await refreshUserProfile();
     } catch (err) {
       console.error("Fehler beim Speichern des Dashboards:", err);
@@ -199,9 +208,16 @@ export const DashboardLandingPage: React.FC<DashboardLandingPageProps> = ({ onNa
     saveWidgetsToFirestore(newWidgets);
   };
 
-  // ----------------------------------------------------------------data calculation helper----------------------------------------------------------------
+  const handleFavoriteChange = (event: any) => {
+    const value = event.target.value;
+    // Erlaube maximal 3 Übungen
+    if (value.length <= 3) {
+      setSelectedFavoriteIds(value);
+      saveWidgetsToFirestore(widgets, value);
+    }
+  };
 
-  // 1. Aktueller Trainingsplan Fortschritt
+  // 1. Trainingsplan Fortschritt
   const activePlan = trainingPlans.find((p) => p.status !== "completed") || trainingPlans[0];
   const calculatePlanProgress = (plan: any) => {
     if (!plan?.blocks) return 0;
@@ -210,7 +226,6 @@ export const DashboardLandingPage: React.FC<DashboardLandingPageProps> = ({ onNa
     plan.blocks.forEach((block: any) => {
       block.exercises?.forEach((ex: any) => {
         totalExercises++;
-        // Prüfen, ob für diese Übung ein Testergebnis vorliegt
         const hasResult = testResults.some(
           (r) => r.userId === userProfile?.uid && (r.exerciseId === ex.exerciseId || r.testId === ex.exerciseId)
         );
@@ -221,10 +236,10 @@ export const DashboardLandingPage: React.FC<DashboardLandingPageProps> = ({ onNa
   };
   const planProgressPercent = activePlan ? calculatePlanProgress(activePlan) : 0;
 
-  // 2. Nächster Leistungstest
+  // 2. Leistungstest
   const nextTest = assignedTests.find((t) => t.status !== "completed") || assignedTests[0];
 
-  // 3. Übung des Monats Daten berechnen
+  // 3. Übung des Monats
   const now = new Date();
   const currentMonth = now.getMonth() + 1;
   const currentYear = now.getFullYear();
@@ -233,7 +248,6 @@ export const DashboardLandingPage: React.FC<DashboardLandingPageProps> = ({ onNa
   );
   const monthlyExercise = exercises.find((e) => e.id === currentMonthlyConfig?.exerciseId);
 
-  // Highscores für Übung des Monats ermitteln
   const scoresByUser: { [userId: string]: number } = {};
   if (monthlyExercise) {
     testResults.forEach((res) => {
@@ -273,21 +287,12 @@ export const DashboardLandingPage: React.FC<DashboardLandingPageProps> = ({ onNa
       ? (recentResults.reduce((sum, r) => sum + (r.hitRate || r.accuracy || 0), 0) / recentResults.length).toFixed(1)
       : "0";
 
-  // 5. Lieblingsübungen (Bis zu 3 am häufigsten absolvierte Übungen des Nutzers)
-  const exerciseCounts: { [exId: string]: number } = {};
-  testResults
-    .filter((r) => r.userId === userProfile?.uid)
-    .forEach((r) => {
-      const id = r.exerciseId || r.testId;
-      if (id) exerciseCounts[id] = (exerciseCounts[id] || 0) + 1;
-    });
-  const favoriteExerciseIds = Object.keys(exerciseCounts)
-    .sort((a, b) => exerciseCounts[b] - exerciseCounts[a])
-    .slice(0, 3);
-  const favoriteExercisesList = favoriteExerciseIds.map((id) => exercises.find((e) => e.id === id)).filter(Boolean);
+  // 5. Vom Nutzer manuell ausgewählte Lieblingsübungen
+  const userFavoriteExercisesList = selectedFavoriteIds
+    .map((id) => exercises.find((e) => e.id === id))
+    .filter(Boolean);
 
-  // ----------------------------------------------------------------Widget Rendering----------------------------------------------------------------
-
+  // Widget Rendering
   const renderWidgetContent = (id: string) => {
     switch (id) {
       case "notifications":
@@ -295,7 +300,7 @@ export const DashboardLandingPage: React.FC<DashboardLandingPageProps> = ({ onNa
           <Paper
             variant="outlined"
             sx={{ p: 3, bgcolor: "background.paper", borderColor: "divider", borderLeft: 4, borderLeftColor: "primary.main", cursor: "pointer" }}
-            onClick={() => onNavigate("profile")} // Oder Benachrichtigungsbereich
+            onClick={() => onNavigate("profile")}
             className="shadow-sm hover:opacity-95 transition-opacity"
           >
             <div className="flex items-center gap-2 mb-3">
@@ -348,7 +353,7 @@ export const DashboardLandingPage: React.FC<DashboardLandingPageProps> = ({ onNa
               </>
             ) : (
               <Typography variant="body2" color="text.secondary">
-                Aktuell ist kein aktiver Trainingsplan zugewiesen. (Klicken zum Ansehen)
+                Aktuell ist kein aktiver Trainingsplan zugewiesen.
               </Typography>
             )}
           </Paper>
@@ -482,7 +487,7 @@ export const DashboardLandingPage: React.FC<DashboardLandingPageProps> = ({ onNa
                 Performance League (Optional)
               </Typography>
             </div>
-            <Typography variant="body2" color="text.secondary" className="mb-2">
+            <Typography variant="body2" color="text.secondary">
               Klicke hier, um zur Trainingsliga zu gelangen.
             </Typography>
           </Paper>
@@ -519,15 +524,19 @@ export const DashboardLandingPage: React.FC<DashboardLandingPageProps> = ({ onNa
             <div className="flex items-center gap-2 mb-2">
               <FitnessCenterIcon color="action" />
               <Typography variant="h6" className="font-bold" color="text.primary">
-                Deine Top Lieblingsübungen
+                Deine Lieblingsübungen (Frei wählbar)
               </Typography>
             </div>
-            {favoriteExercisesList.length === 0 ? (
-              <Typography variant="body2" color="text.secondary">Noch keine Übungen absolviert.</Typography>
+            {userFavoriteExercisesList.length === 0 ? (
+              <Typography variant="body2" color="text.secondary">
+                Noch keine Lieblingsübungen ausgewählt. Klicke auf "Dashboard anpassen", um bis zu 3 Übungen auszuwählen.
+              </Typography>
             ) : (
               <ul className="list-disc list-inside text-sm space-y-1" style={{ color: "inherit" }}>
-                {favoriteExercisesList.map((ex: any, idx) => (
-                  <li key={idx}>{ex.title} ({ex.type})</li>
+                {userFavoriteExercisesList.map((ex: any, idx) => (
+                  <li key={idx}>
+                    <strong>{ex.title}</strong> ({ex.type})
+                  </li>
                 ))}
               </ul>
             )}
@@ -548,7 +557,7 @@ export const DashboardLandingPage: React.FC<DashboardLandingPageProps> = ({ onNa
             Willkommen zurück, {userProfile?.nickname || userProfile?.realName || "Spieler"}!
           </Typography>
           <Typography variant="body2" color="text.secondary">
-            Dein persönlicher Trainingsüberblick aus der Datenbank. {saving && "(Speichere Layout...)"}
+            Dein persönlicher Trainingsüberblick. {saving && "(Speichere Layout...)"}
           </Typography>
         </div>
         <Button
@@ -576,7 +585,42 @@ export const DashboardLandingPage: React.FC<DashboardLandingPageProps> = ({ onNa
         <DialogTitle className="font-bold">Dashboard anpassen</DialogTitle>
         <DialogContent dividers>
           <Typography variant="body2" color="textSecondary" className="mb-4">
-            Passe die Reihenfolge an oder schalte optionale Widgets ein und aus. Deine Einstellungen werden automatisch im Profil gespeichert.
+            Passe die Reihenfolge an, aktiviere optionale Widgets und wähle unten deine persönlichen Lieblingsübungen aus.
+          </Typography>
+
+          {/* Sektion für freie Lieblingsübungen-Auswahl */}
+          <Box sx={{ mb: 4, p: 2, bgcolor: "action.hover", borderRadius: 1 }} className="space-y-2">
+            <Typography variant="subtitle2" className="font-bold" color="text.primary">
+              Lieblingsübungen konfigurieren (1 bis 3 wählbar)
+            </Typography>
+            <FormControl fullWidth size="small">
+              <InputLabel id="favorite-exercises-select-label">Übungen wählen</InputLabel>
+              <Select
+                labelId="favorite-exercises-select-label"
+                multiple
+                value={selectedFavoriteIds}
+                onChange={handleFavoriteChange}
+                input={<OutlinedInput label="Übungen wählen" />}
+                renderValue={(selected) => (
+                  <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                    {selected.map((id) => {
+                      const ex = exercises.find((e) => e.id === id);
+                      return <Chip key={id} label={ex ? ex.title : id} size="small" />;
+                    })}
+                  </Box>
+                )}
+              >
+                {exercises.map((ex) => (
+                  <MenuItem key={ex.id} value={ex.id}>
+                    {ex.title}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+          </Box>
+
+          <Typography variant="subtitle2" className="font-bold mb-2" color="text.primary">
+            Widget-Reihenfolge & Sichtbarkeit
           </Typography>
           <div className="space-y-3">
             {widgets.map((widget, index) => (

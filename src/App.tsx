@@ -39,7 +39,7 @@ const MainContent: React.FC = () => {
   const [isRegistering, setIsRegistering] = useState(false);
 
   // Navigations-State ('player-plan', 'league', 'player-stats', 'exercises', 'tests', 'coach-plans', 'roster', 'groups', 'coach-stats', 'admin-league', 'admin-dashboard', 'profile')
-  const [activeView, setActiveView] = useState<string>("player-plan");
+  const [activeView, setActiveView] = useState<string>("dashboard");
 
   // Dropdown Menü-Anchors
   const [trainingAnchor, setTrainingAnchor] = useState<null | HTMLElement>(

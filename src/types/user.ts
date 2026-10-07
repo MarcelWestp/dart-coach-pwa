@@ -49,4 +49,5 @@ export interface UserProfile {
   createdAt: string;
   updatedAt: string;
   dashboardWidgets?: WidgetConfig[];
+  favoriteExerciseIds?: string[]; // Liste der IDs der Lieblingsübungen
 }

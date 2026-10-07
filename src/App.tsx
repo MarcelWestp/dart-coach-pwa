@@ -257,13 +257,16 @@ const MainContent: React.FC = () => {
 
         {/* Hauptinhalt je nach ausgewählter Ansicht */}
         <main className="py-6">
-          {activeView === "dashboard" && <DashboardLandingPage />}
+          {activeView === "dashboard" && (
+            <DashboardLandingPage
+              onNavigate={(routeOrIndex) => {setActiveView(routeOrIndex);              }}
+            />
+          )}
           {activeView === "player-plan" && <PlayerPlanView />}
           {activeView === "league" && <LeagueView />}
           {activeView === "player-stats" && <PlayerStatsView />}
           {activeView === "exercises" && <ExerciseList />}
           {activeView === "tests" && <TestList />}
-
           {isCoach && activeView === "coach-plans" && (
             <CoachPlanList myRoster={[]} />
           )}
@@ -271,14 +274,12 @@ const MainContent: React.FC = () => {
           {isCoach && activeView === "groups" && <GroupManager />}
           {isCoach && activeView === "coach-stats" && <CoachStatsView />}
           {isCoach && activeView === "coach-messages" && <CoachMessagesView />}
-
           {isAdmin && activeView === "admin-league" && <AdminLeagueManager />}
           {isAdmin && activeView === "admin-dashboard" && (
             <ProtectedRoute allowedRoles={["admin"]}>
               <AdminDashboard />
             </ProtectedRoute>
           )}
-
           {activeView === "profile" && <UserProfileView />}
         </main>
       </Box>

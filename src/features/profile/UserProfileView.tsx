@@ -42,6 +42,7 @@ import LockIcon from '@mui/icons-material/Lock';
 import NotificationsIcon from '@mui/icons-material/Notifications';
 import FeedbackIcon from '@mui/icons-material/Feedback';
 import SendIcon from '@mui/icons-material/Send';
+import { SendCoachMessageModal } from './SendCoachMessageModal';
 
 export const UserProfileView: React.FC = () => {
   const { userProfile, refreshUserProfile, logout } = useAuth();
@@ -93,6 +94,9 @@ export const UserProfileView: React.FC = () => {
   // DSGVO Account Löschen Modal
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
+
+  // Messsage States
+  const [isMessageModalOpen, setIsMessageModalOpen] = useState(false);
 
   useEffect(() => {
     if (userProfile) {
@@ -383,7 +387,25 @@ export const UserProfileView: React.FC = () => {
           </FormControl>
         </Paper>
 
-        {/* 2. Design & Erscheinungsbild */}
+        {/* 2. Nachricht an Trainer */}
+        <Paper variant="outlined" className="p-4 flex flex-col gap-3">
+          <Typography variant="h6" className="font-bold flex items-center gap-2">
+            Trainer-Kommunikation
+          </Typography>
+          <Typography variant="body2" color="textSecondary">
+            Teile deinem Trainer Urlaube, Abwesenheiten oder Ergebnisse von Turnieren und Ligaspielen mit.
+          </Typography>
+          <Button
+            variant="outlined"
+            color="primary"
+            disabled={!userProfile?.assignedCoachId}
+            onClick={() => setIsMessageModalOpen(true)}
+          >
+            {userProfile?.assignedCoachId ? 'Nachricht an Trainer schreiben' : 'Kein Trainer zugewiesen'}
+          </Button>
+        </Paper>
+
+        {/* 3. Design & Erscheinungsbild */}
         <Paper className="p-6 shadow-md">
           <div className="flex items-center gap-2 mb-4">
             <PaletteIcon color="primary" />
@@ -406,7 +428,7 @@ export const UserProfileView: React.FC = () => {
           </FormControl>
         </Paper>
 
-        {/* 3. Benachrichtigungen */}
+        {/* 4. Benachrichtigungen */}
         <Paper className="p-6 shadow-md flex flex-col gap-4">
           <Typography variant="h6" className="font-bold flex items-center gap-2" color="primary">
             <NotificationsIcon /> Benachrichtigungen
@@ -495,7 +517,7 @@ export const UserProfileView: React.FC = () => {
           </div>
         </Paper>
 
-        {/* 4. Equipment & Dart Setup */}
+        {/* 5. Equipment & Dart Setup */}
         <Paper className="p-6 shadow-md flex flex-col gap-4">
           <Typography variant="h6" className="font-bold flex items-center gap-2" color="primary">
             <SportsMartsIcon /> Mein Equipment & Setup
@@ -580,7 +602,7 @@ export const UserProfileView: React.FC = () => {
         </Paper>
       </form>
 
-      {/* 5. Feedback & Ideen einreichen */}
+      {/* 6. Feedback & Ideen einreichen */}
       <Paper className="p-6 shadow-md flex flex-col gap-4">
         <Typography variant="h6" className="font-bold flex items-center gap-2" color="primary">
           <FeedbackIcon /> Feedback & Ideen mitteilen
@@ -631,7 +653,7 @@ export const UserProfileView: React.FC = () => {
         </form>
       </Paper>
 
-      {/* 6. Passwort ändern Kachel */}
+      {/* 7. Passwort ändern Kachel */}
       <Paper className="p-6 shadow-md flex flex-col gap-4">
         <Typography variant="h6" className="font-bold flex items-center gap-2" color="primary">
           <LockIcon /> Passwort ändern
@@ -677,7 +699,7 @@ export const UserProfileView: React.FC = () => {
         </form>
       </Paper>
 
-      {/* 7. DSGVO Datenschutz & Account Löschen */}
+      {/* 8. DSGVO Datenschutz & Account Löschen */}
       <Paper className="p-6 shadow-md border border-red-200">
         <Typography variant="h6" className="font-bold flex items-center gap-2 text-red-600 mb-2">
           <SecurityIcon /> DSGVO & Account löschen
@@ -695,6 +717,13 @@ export const UserProfileView: React.FC = () => {
           Konto Endgültig Löschen
         </Button>
       </Paper>
+      
+      {/* 3. Message Modal */}
+      <SendCoachMessageModal
+        open={isMessageModalOpen}
+        onClose={() => setIsMessageModalOpen(false)}
+        coachId={userProfile?.assignedCoachId}
+      />
 
       {/* Confirmation Modal für Account Löschung */}
       <Dialog open={isDeleteModalOpen} onClose={() => setIsDeleteModalOpen(false)}>

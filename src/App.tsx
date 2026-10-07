@@ -17,13 +17,14 @@ import { AdminLeagueManager } from "./features/league/AdminLeagueManager";
 import { GroupManager } from "./features/groups/GroupManager";
 import { PlayerStatsView } from "./features/stats/PlayerStatsView";
 import { CoachStatsView } from "./features/stats/CoachStatsView";
-import { 
-  Paper, 
-  Box, 
-  Button, 
-  Menu, 
+import { CoachMessagesView } from "./features/coach/CoachMessagesView";
+import {
+  Paper,
+  Box,
+  Button,
+  Menu,
   MenuItem,
-  CircularProgress
+  CircularProgress,
 } from "@mui/material";
 import KeyboardArrowDownIcon from "@mui/icons-material/KeyboardArrowDown";
 import FitnessCenterIcon from "@mui/icons-material/FitnessCenter";
@@ -40,7 +41,9 @@ const MainContent: React.FC = () => {
   const [activeView, setActiveView] = useState<string>("player-plan");
 
   // Dropdown Menü-Anchors
-  const [trainingAnchor, setTrainingAnchor] = useState<null | HTMLElement>(null);
+  const [trainingAnchor, setTrainingAnchor] = useState<null | HTMLElement>(
+    null,
+  );
   const [libraryAnchor, setLibraryAnchor] = useState<null | HTMLElement>(null);
   const [coachAnchor, setCoachAnchor] = useState<null | HTMLElement>(null);
   const [adminAnchor, setAdminAnchor] = useState<null | HTMLElement>(null);
@@ -112,17 +115,23 @@ const MainContent: React.FC = () => {
           transition: "background-color 0.3s ease, color 0.3s ease",
         }}
       >
-        <Navbar onOpenProfile={() => setActiveView("profile")} onOpenPlayerPlan={() => setActiveView("player-plan")} />
+        <Navbar
+          onOpenProfile={() => setActiveView("profile")}
+          onOpenPlayerPlan={() => setActiveView("player-plan")}
+        />
 
         {/* Strukturierte Hauptnavigation */}
         <div className="max-w-6xl mx-auto px-6 mt-4">
           <Paper className="shadow-sm p-2 flex items-center justify-start gap-2 flex-wrap">
-            
             {/* 1. KATEGORIE: Mein Training */}
             <Button
               startIcon={<FitnessCenterIcon />}
               endIcon={<KeyboardArrowDownIcon />}
-              variant={["player-plan", "league", "player-stats"].includes(activeView) ? "contained" : "text"}
+              variant={
+                ["player-plan", "league", "player-stats"].includes(activeView)
+                  ? "contained"
+                  : "text"
+              }
               onClick={(e) => setTrainingAnchor(e.currentTarget)}
             >
               Mein Training
@@ -147,7 +156,11 @@ const MainContent: React.FC = () => {
             <Button
               startIcon={<MenuBookIcon />}
               endIcon={<KeyboardArrowDownIcon />}
-              variant={["exercises", "tests"].includes(activeView) ? "contained" : "text"}
+              variant={
+                ["exercises", "tests"].includes(activeView)
+                  ? "contained"
+                  : "text"
+              }
               onClick={(e) => setLibraryAnchor(e.currentTarget)}
             >
               Bibliotheken
@@ -171,7 +184,13 @@ const MainContent: React.FC = () => {
                 <Button
                   startIcon={<SupervisorAccountIcon />}
                   endIcon={<KeyboardArrowDownIcon />}
-                  variant={["coach-plans", "roster", "groups", "coach-stats"].includes(activeView) ? "contained" : "text"}
+                  variant={
+                    ["coach-plans", "roster", "groups", "coach-stats"].includes(
+                      activeView,
+                    )
+                      ? "contained"
+                      : "text"
+                  }
                   onClick={(e) => setCoachAnchor(e.currentTarget)}
                 >
                   Trainer-Bereich
@@ -193,6 +212,9 @@ const MainContent: React.FC = () => {
                   <MenuItem onClick={() => handleSelectView("coach-stats")}>
                     Kader-Statistiken
                   </MenuItem>
+                  <MenuItem onClick={() => handleSelectView("coach-messages")}>
+                    Trainer-Postfach
+                  </MenuItem>
                 </Menu>
               </>
             )}
@@ -203,7 +225,11 @@ const MainContent: React.FC = () => {
                 <Button
                   startIcon={<AdminPanelSettingsIcon />}
                   endIcon={<KeyboardArrowDownIcon />}
-                  variant={["admin-league", "admin-dashboard"].includes(activeView) ? "contained" : "text"}
+                  variant={
+                    ["admin-league", "admin-dashboard"].includes(activeView)
+                      ? "contained"
+                      : "text"
+                  }
                   onClick={(e) => setAdminAnchor(e.currentTarget)}
                 >
                   Administration
@@ -222,7 +248,6 @@ const MainContent: React.FC = () => {
                 </Menu>
               </>
             )}
-
           </Paper>
         </div>
 
@@ -234,10 +259,13 @@ const MainContent: React.FC = () => {
           {activeView === "exercises" && <ExerciseList />}
           {activeView === "tests" && <TestList />}
 
-          {isCoach && activeView === "coach-plans" && <CoachPlanList myRoster={[]} />}
+          {isCoach && activeView === "coach-plans" && (
+            <CoachPlanList myRoster={[]} />
+          )}
           {isCoach && activeView === "roster" && <CoachRoster />}
           {isCoach && activeView === "groups" && <GroupManager />}
           {isCoach && activeView === "coach-stats" && <CoachStatsView />}
+          {isCoach && activeView === "coach-messages" && <CoachMessagesView />}
 
           {isAdmin && activeView === "admin-league" && <AdminLeagueManager />}
           {isAdmin && activeView === "admin-dashboard" && (

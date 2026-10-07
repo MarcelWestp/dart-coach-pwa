@@ -5,111 +5,119 @@ import {
   addDoc,
   doc,
   updateDoc,
+  deleteDoc,
 } from "firebase/firestore";
 import { db } from "../../firebase/config";
 import { useAuth } from "../../context/AuthContext";
+import type { LeagueConfig, MonthlyExerciseConfig, LeagueType } from "../../types/league";
 import type { Exercise } from "../../types/exercise";
-import type {
-  LeagueConfig,
-  MonthlyExerciseConfig,
-  LeagueType,
-} from "../../types/league";
 import {
   Paper,
   Typography,
   Button,
   TextField,
-  MenuItem,
   FormControl,
   InputLabel,
   Select,
+  MenuItem,
+  Checkbox,
+  ListItemText,
+  OutlinedInput,
   Alert,
   CircularProgress,
-  Switch,
-  FormControlLabel,
-  Card,
-  CardContent,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
   Chip,
-  Divider,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
-  OutlinedInput,
-  Box,
 } from "@mui/material";
-import AddIcon from "@mui/icons-material/Add";
-import EmojiEventsIcon from "@mui/icons-material/EmojiEvents";
+import EditIcon from "@mui/icons-material/Edit";
+import DeleteIcon from "@mui/icons-material/Delete";
+import StopIcon from "@mui/icons-material/Stop";
 import CalendarMonthIcon from "@mui/icons-material/CalendarMonth";
+import EmojiEventsIcon from "@mui/icons-material/EmojiEvents";
+
+const MONTHS = [
+  { value: 1, name: "Januar" },
+  { value: 2, name: "Februar" },
+  { value: 3, name: "März" },
+  { value: 4, name: "April" },
+  { value: 5, name: "Mai" },
+  { value: 6, name: "Juni" },
+  { value: 7, name: "Juli" },
+  { value: 8, name: "August" },
+  { value: 9, name: "September" },
+  { value: 10, name: "Oktober" },
+  { value: 11, name: "November" },
+  { value: 12, name: "Dezember" },
+];
 
 export const AdminLeagueManager: React.FC = () => {
   const { userProfile } = useAuth();
 
-  const [leagues, setLeagues] = useState<LeagueConfig[]>([]);
-  const [monthlyConfigs, setMonthlyConfigs] = useState<MonthlyExerciseConfig[]>(
-    [],
-  );
-  const [exercises, setExercises] = useState<Exercise[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
 
-  // Modals
-  const [isLeagueModalOpen, setIsLeagueModalOpen] = useState(false);
-  const [isMonthlyModalOpen, setIsMonthlyModalOpen] = useState(false);
+  const [leagues, setLeagues] = useState<LeagueConfig[]>([]);
+  const [exercises, setExercises] = useState<Exercise[]>([]);
+  const [monthlyConfigs, setMonthlyConfigs] = useState<MonthlyExerciseConfig[]>([]);
 
-  // Liga Formular State
-  const [leagueTitle, setLeagueTitle] = useState("");
-  const [leagueDescription, setLeagueDescription] = useState("");
-  const [leagueType, setLeagueType] = useState<LeagueType>("performance");
+  // Filter-State für Ligen (alle, laufend, pausiert, beendet)
+  const [leagueFilterStatus, setLeagueFilterStatus] = useState<string>("all");
+
+  // Formular State für Ligen
+  const [isEditingLeague, setIsEditingLeague] = useState<string | null>(null);
+  const [title, setTitle] = useState("");
+  const [description, setDescription] = useState("");
+  const [type, setType] = useState<LeagueType>("performance");
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
+  const [isActive, setIsActive] = useState<boolean>(true);
   const [selectedExerciseIds, setSelectedExerciseIds] = useState<string[]>([]);
 
-  // Übung des Monats Formular State
-  const [selectedMonthExerciseId, setSelectedMonthExerciseId] = useState("");
-  const [targetMonth, setTargetMonth] = useState<number>(
-    new Date().getMonth() + 1,
-  );
-  const [targetYear, setTargetYear] = useState<number>(
-    new Date().getFullYear(),
-  );
-  const [monthlyDescription, setMonthlyDescription] = useState("");
-
-  const [submitting, setSubmitting] = useState(false);
+  // Formular State für "Übung des Monats"
+  const currentDate = new Date();
+  const [monthlyExId, setMonthlyExId] = useState("");
+  const [monthlyYear, setMonthlyYear] = useState<number>(currentDate.getFullYear());
+  const [monthlyMonth, setMonthlyMonth] = useState<number>(currentDate.getMonth() + 1);
+  const [monthlyDesc, setMonthlyDesc] = useState("");
 
   const fetchData = async () => {
     setLoading(true);
     try {
-      const [leaguesSnap, monthlySnap, exSnap] = await Promise.all([
+      const [lSnap, exSnap, mSnap] = await Promise.all([
         getDocs(collection(db, "leagues")),
-        getDocs(collection(db, "monthlyExercises")),
         getDocs(collection(db, "exercises")),
+        getDocs(collection(db, "monthlyExercises")),
       ]);
 
       const fetchedLeagues: LeagueConfig[] = [];
-      leaguesSnap.forEach((d) => {
-        const { id, ...data } = d.data();
+      lSnap.forEach((d) => {
+        const data = d.data();
         fetchedLeagues.push({ id: d.id, ...data } as LeagueConfig);
       });
 
+      const fetchedEx: Exercise[] = [];
+      exSnap.forEach((d) => {
+        const data = d.data();
+        fetchedEx.push({ id: d.id, ...data } as Exercise);
+      });
+
       const fetchedMonthly: MonthlyExerciseConfig[] = [];
-      monthlySnap.forEach((d) => {
-        const { id, ...data } = d.data();
+      mSnap.forEach((d) => {
+        const data = d.data();
         fetchedMonthly.push({ id: d.id, ...data } as MonthlyExerciseConfig);
       });
 
-      const fetchedExercises: Exercise[] = [];
-      exSnap.forEach((d) => {
-        const { id, ...data } = d.data();
-        fetchedExercises.push({ id: d.id, ...data } as Exercise);
-      });
-
       setLeagues(fetchedLeagues);
+      setExercises(fetchedEx);
       setMonthlyConfigs(fetchedMonthly);
-      setExercises(fetchedExercises);
     } catch (err) {
       console.error(err);
-      setError("Fehler beim Laden der Liga-Konfigurationen.");
+      setError("Fehler beim Laden der Admin-Daten.");
     } finally {
       setLoading(false);
     }
@@ -119,89 +127,151 @@ export const AdminLeagueManager: React.FC = () => {
     fetchData();
   }, []);
 
-  const handleCreateLeague = async (e: React.FormEvent) => {
+  const handleSaveLeague = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!userProfile || !leagueTitle.trim() || !leagueDescription.trim()) {
-      setError("Bitte fülle Titel und Beschreibung aus.");
+    setError(null);
+    setSuccess(null);
+
+    if (!title.trim()) {
+      setError("Bitte gib einen Titel für die Liga an.");
       return;
     }
 
-    setSubmitting(true);
-    setError(null);
-
     try {
-      await addDoc(collection(db, "leagues"), {
-        title: leagueTitle.trim(),
-        description: leagueDescription.trim(),
-        type: leagueType,
-        startDate: startDate || null,
-        endDate: endDate || null,
-        isActive: true,
-        createdBy: userProfile.uid,
-        exerciseIds: leagueType === "performance" ? selectedExerciseIds : [],
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      });
+      if (isEditingLeague) {
+        const leagueRef = doc(db, "leagues", isEditingLeague);
+        await updateDoc(leagueRef, {
+          title,
+          description,
+          type,
+          startDate: startDate || null,
+          endDate: endDate || null,
+          isActive,
+          exerciseIds: type === "performance" ? selectedExerciseIds : [],
+          updatedAt: new Date().toISOString(),
+        });
+        setSuccess("Liga erfolgreich aktualisiert!");
+      } else {
+        await addDoc(collection(db, "leagues"), {
+          title,
+          description,
+          type,
+          startDate: startDate || null,
+          endDate: endDate || null,
+          isActive: true,
+          createdBy: userProfile?.uid || "",
+          exerciseIds: type === "performance" ? selectedExerciseIds : [],
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        });
+        setSuccess("Neue Liga erfolgreich erstellt!");
+      }
 
-      setIsLeagueModalOpen(false);
-      setLeagueTitle("");
-      setLeagueDescription("");
-      setSelectedExerciseIds([]);
+      resetLeagueForm();
       fetchData();
     } catch (err) {
       console.error(err);
-      setError("Fehler beim Erstellen der Liga.");
-    } finally {
-      setSubmitting(false);
+      setError("Fehler beim Speichern der Liga.");
     }
   };
 
-  const handleCreateMonthlyExercise = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!userProfile || !selectedMonthExerciseId) return;
-
-    setSubmitting(true);
-    setError(null);
-
-    try {
-      await addDoc(collection(db, "monthlyExercises"), {
-        exerciseId: selectedMonthExerciseId,
-        month: targetMonth,
-        year: targetYear,
-        description: monthlyDescription.trim(),
-        createdBy: userProfile.uid,
-        createdAt: new Date().toISOString(),
-      });
-
-      setIsMonthlyModalOpen(false);
-      setSelectedMonthExerciseId("");
-      setMonthlyDescription("");
-      fetchData();
-    } catch (err) {
-      console.error(err);
-      setError("Fehler beim Zuweisen der Übung des Monats.");
-    } finally {
-      setSubmitting(false);
-    }
+  const handleEditLeague = (league: LeagueConfig) => {
+    setIsEditingLeague(league.id);
+    setTitle(league.title);
+    setDescription(league.description || "");
+    setType(league.type);
+    setStartDate(league.startDate || "");
+    setEndDate(league.endDate || "");
+    setIsActive(league.isActive);
+    setSelectedExerciseIds(league.exerciseIds || []);
   };
 
-  const handleToggleLeagueStatus = async (league: LeagueConfig) => {
+  const resetLeagueForm = () => {
+    setIsEditingLeague(null);
+    setTitle("");
+    setDescription("");
+    setType("performance");
+    setStartDate("");
+    setEndDate("");
+    setIsActive(true);
+    setSelectedExerciseIds([]);
+  };
+
+  const handleTerminateLeague = async (leagueId: string) => {
+    if (!window.confirm("Möchtest du diese Liga wirklich endgültig beenden?")) return;
     try {
-      const leagueRef = doc(db, "leagues", league.id);
+      const leagueRef = doc(db, "leagues", leagueId);
       await updateDoc(leagueRef, {
-        isActive: !league.isActive,
+        isActive: false,
+        endDate: new Date().toISOString().split("T")[0],
         updatedAt: new Date().toISOString(),
       });
-      setLeagues((prev) =>
-        prev.map((l) =>
-          l.id === league.id ? { ...l, isActive: !l.isActive } : l,
-        ),
-      );
+      setSuccess("Liga wurde beendet.");
+      fetchData();
     } catch (err) {
       console.error(err);
-      setError("Fehler beim Ändern des Liga-Status.");
+      setError("Fehler beim Beenden der Liga.");
     }
   };
+
+  const handleDeleteLeague = async (leagueId: string) => {
+    if (!window.confirm("Möchtest du diese Liga unwiderruflich löschen?")) return;
+    try {
+      await deleteDoc(doc(db, "leagues", leagueId));
+      setSuccess("Liga gelöscht.");
+      fetchData();
+    } catch (err) {
+      console.error(err);
+      setError("Fehler beim Löschen der Liga.");
+    }
+  };
+
+  const handleSaveMonthlyExercise = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!monthlyExId) {
+      setError("Bitte wähle eine Übung aus.");
+      return;
+    }
+
+    try {
+      const existing = monthlyConfigs.find(
+        (m) => m.month === monthlyMonth && m.year === monthlyYear
+      );
+
+      if (existing) {
+        const ref = doc(db, "monthlyExercises", existing.id);
+        await updateDoc(ref, {
+          exerciseId: monthlyExId,
+          description: monthlyDesc,
+        });
+      } else {
+        await addDoc(collection(db, "monthlyExercises"), {
+          exerciseId: monthlyExId,
+          year: monthlyYear,
+          month: monthlyMonth,
+          description: monthlyDesc,
+          createdBy: userProfile?.uid || "",
+          createdAt: new Date().toISOString(),
+        });
+      }
+
+      setSuccess("Übung des Monats erfolgreich gespeichert!");
+      setMonthlyExId("");
+      setMonthlyDesc("");
+      fetchData();
+    } catch (err) {
+      console.error(err);
+      setError("Fehler beim Speichern der Monatsübung.");
+    }
+  };
+
+  const filteredLeagues = leagues.filter((l) => {
+    if (leagueFilterStatus === "all") return true;
+    if (leagueFilterStatus === "active") return l.isActive === true;
+    if (leagueFilterStatus === "paused") return l.isActive === false && (!l.endDate || new Date(l.endDate) > new Date());
+    if (leagueFilterStatus === "terminated") return l.isActive === false;
+    return true;
+  });
 
   if (loading) {
     return (
@@ -212,335 +282,245 @@ export const AdminLeagueManager: React.FC = () => {
   }
 
   return (
-    <div className="p-6 max-w-6xl mx-auto flex flex-col gap-8">
-      {error && (
-        <Alert severity="error" onClose={() => setError(null)}>
-          {error}
-        </Alert>
-      )}
+    <div className="p-6 max-w-6xl mx-auto flex flex-col gap-6">
+      <div>
+        <Typography variant="h4" className="font-bold flex items-center gap-2" color="text.primary">
+          <EmojiEventsIcon fontSize="large" color="primary" /> Liga-Verwaltung (Admin)
+        </Typography>
+        <Typography variant="body2" color="textSecondary">
+          Erstelle, bearbeite und verwalte Trainingsligen und die monatlichen Challenges.
+        </Typography>
+      </div>
 
-      {/* 1. Ligen-Verwaltung */}
-      <Paper className="p-6 shadow-md">
-        <div className="flex justify-between items-center mb-4 flex-wrap gap-2">
-          <div>
-            <Typography
-              variant="h5"
-              className="font-bold flex items-center gap-2"
-              color="text.primary"
-            >
-              <EmojiEventsIcon color="primary" /> Liga-Verwaltung
-            </Typography>
-            <Typography variant="body2" color="textSecondary">
-              Erstelle und steuere Solo-Performance Ligen oder Match-Ligen für
-              Spieler.
-            </Typography>
-          </div>
+      {error && <Alert severity="error" onClose={() => setError(null)}>{error}</Alert>}
+      {success && <Alert severity="success" onClose={() => setSuccess(null)}>{success}</Alert>}
 
-          <Button
-            variant="contained"
-            color="primary"
-            startIcon={<AddIcon />}
-            onClick={() => setIsLeagueModalOpen(true)}
-          >
-            Neue Liga Anlegen
-          </Button>
-        </div>
+      {/* Sektion 1: Ligen erstellen / bearbeiten */}
+      <Paper className="p-6 shadow-md flex flex-col gap-4">
+        <Typography variant="h6" className="font-bold">
+          {isEditingLeague ? "Liga bearbeiten" : "Neue Liga erstellen"}
+        </Typography>
 
-        <Divider className="mb-4" />
-
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {leagues.map((league) => (
-            <Card
-              key={league.id}
-              variant="outlined"
-              className="flex flex-col justify-between"
-            >
-              <CardContent>
-                <div className="flex justify-between items-start mb-2">
-                  <Typography variant="h6" className="font-bold">
-                    {league.title}
-                  </Typography>
-                  <Chip
-                    label={
-                      league.type === "performance"
-                        ? "Performance League"
-                        : "Match League (1v1)"
-                    }
-                    color={
-                      league.type === "performance" ? "primary" : "secondary"
-                    }
-                    size="small"
-                  />
-                </div>
-
-                <Typography
-                  variant="body2"
-                  className="text-gray-600 dark:text-gray-300 mb-3 whitespace-pre-line"
-                >
-                  {league.description}
-                </Typography>
-
-                {(league.startDate || league.endDate) && (
-                  <Typography
-                    variant="caption"
-                    color="textSecondary"
-                    className="block mb-2"
-                  >
-                    Laufzeit: {league.startDate || "Sofort"} bis{" "}
-                    {league.endDate || "Unbefristet"}
-                  </Typography>
-                )}
-
-                <FormControlLabel
-                  control={
-                    <Switch
-                      checked={league.isActive}
-                      onChange={() => handleToggleLeagueStatus(league)}
-                      color="primary"
-                    />
-                  }
-                  label={
-                    league.isActive ? "Liga Aktiv" : "Liga Pausiert/Beendet"
-                  }
-                />
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      </Paper>
-
-      {/* 2. Übung des Monats Verwaltung */}
-      <Paper className="p-6 shadow-md">
-        <div className="flex justify-between items-center mb-4 flex-wrap gap-2">
-          <div>
-            <Typography
-              variant="h5"
-              className="font-bold flex items-center gap-2"
-              color="text.primary"
-            >
-              <CalendarMonthIcon color="primary" /> Übung des Monats (Planung)
-            </Typography>
-            <Typography variant="body2" color="textSecondary">
-              Lege die Monatsübung im Voraus fest und hinterlege Erklärungen.
-            </Typography>
-          </div>
-
-          <Button
-            variant="contained"
-            color="primary"
-            startIcon={<AddIcon />}
-            onClick={() => setIsMonthlyModalOpen(true)}
-          >
-            Monatsübung Planen
-          </Button>
-        </div>
-
-        <Divider className="mb-4" />
-
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {monthlyConfigs.map((m) => {
-            const ex = exercises.find((e) => e.id === m.exerciseId);
-            return (
-              <Card key={m.id} variant="outlined">
-                <CardContent>
-                  <Typography
-                    variant="caption"
-                    color="primary"
-                    className="font-bold block"
-                  >
-                    Monat {m.month} / {m.year}
-                  </Typography>
-                  <Typography variant="h6" className="font-bold mt-1">
-                    {ex ? ex.title : "Übung"}
-                  </Typography>
-                  {m.description && (
-                    <Typography
-                      variant="body2"
-                      color="textSecondary"
-                      className="mt-2 italic"
-                    >
-                      "{m.description}"
-                    </Typography>
-                  )}
-                </CardContent>
-              </Card>
-            );
-          })}
-        </div>
-      </Paper>
-
-      {/* Modal: Neue Liga Anlegen */}
-      <Dialog
-        open={isLeagueModalOpen}
-        onClose={() => setIsLeagueModalOpen(false)}
-        maxWidth="sm"
-        fullWidth
-      >
-        <DialogTitle className="font-bold">Neue Liga Erstellen</DialogTitle>
-        <form onSubmit={handleCreateLeague}>
-          <DialogContent dividers className="flex flex-col gap-4">
+        <form onSubmit={handleSaveLeague} className="flex flex-col gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <TextField
               label="Titel der Liga"
               variant="outlined"
               fullWidth
               required
-              value={leagueTitle}
-              onChange={(e) => setLeagueTitle(e.target.value)}
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+            />
+
+            <FormControl fullWidth>
+              <InputLabel>Ligatyp</InputLabel>
+              <Select
+                value={type}
+                label="Ligatyp"
+                onChange={(e) => setType(e.target.value as LeagueType)}
+              >
+                <MenuItem value="performance">Performance League (Übungsbasiert)</MenuItem>
+                <MenuItem value="match">Match League (1v1 ELO-Duell)</MenuItem>
+              </Select>
+            </FormControl>
+          </div>
+
+          <TextField
+            label="Beschreibung (für Spieler sichtbar)"
+            variant="outlined"
+            multiline
+            rows={2}
+            fullWidth
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+          />
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <TextField
+              label="Startdatum"
+              type="date"
+              value={startDate}
+              onChange={(e) => setStartDate(e.target.value)}
             />
 
             <TextField
-              label="Beschreibung der Liga für Spieler"
-              variant="outlined"
-              fullWidth
-              required
-              multiline
-              rows={3}
-              value={leagueDescription}
-              onChange={(e) => setLeagueDescription(e.target.value)}
-              placeholder="Erkläre den Spielern kurz die Regeln und das Ziel dieser Liga..."
+              label="Enddatum"
+              type="date"
+              value={endDate}
+              onChange={(e) => setEndDate(e.target.value)}
             />
 
-            <FormControl fullWidth required>
-              <InputLabel>Liga-Typ</InputLabel>
+            <FormControl fullWidth>
+              <InputLabel>Status</InputLabel>
               <Select
-                value={leagueType}
-                label="Liga-Typ"
-                onChange={(e) => setLeagueType(e.target.value as LeagueType)}
+                value={isActive ? "active" : "inactive"}
+                label="Status"
+                onChange={(e) => setIsActive(e.target.value === "active")}
               >
-                <MenuItem value="performance">
-                  Performance League (Solo gegen eigenen Schnitt)
-                </MenuItem>
-                <MenuItem value="match">
-                  Match League (1v1 Duelle mit TTR/ELO-System)
-                </MenuItem>
+                <MenuItem value="active">Laufend / Aktiv</MenuItem>
+                <MenuItem value="inactive">Pausiert / Beendet</MenuItem>
               </Select>
             </FormControl>
+          </div>
 
-            {leagueType === "performance" && (
-              <FormControl fullWidth>
-                <InputLabel id="league-exercises-label">
-                  Gültige Übungen für diese Liga
-                </InputLabel>
-                <Select
-                  labelId="league-exercises-label"
-                  multiple
-                  value={selectedExerciseIds}
-                  onChange={(e) =>
-                    setSelectedExerciseIds(
-                      typeof e.target.value === "string"
-                        ? e.target.value.split(",")
-                        : e.target.value,
-                    )
-                  }
-                  input={
-                    <OutlinedInput label="Gültige Übungen für diese Liga" />
-                  }
-                  renderValue={(selected) => (
-                    <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.5 }}>
-                      {selected.map((exId) => {
-                        const ex = exercises.find((e) => e.id === exId);
-                        return (
-                          <Chip
-                            key={exId}
-                            label={ex ? ex.title : exId}
-                            size="small"
-                          />
-                        );
-                      })}
-                    </Box>
-                  )}
-                >
-                  {exercises.map((ex) => (
-                    <MenuItem key={ex.id} value={ex.id}>
-                      {ex.title} ({ex.type})
-                    </MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
+          {type === "performance" && (
+            <FormControl fullWidth>
+              <InputLabel>Gewertete Übungen für Performance League</InputLabel>
+              <Select
+                multiple
+                value={selectedExerciseIds}
+                onChange={(e) => setSelectedExerciseIds(e.target.value as string[])}
+                input={<OutlinedInput label="Gewertete Übungen für Performance League" />}
+                renderValue={(selected) =>
+                  selected
+                    .map((id) => exercises.find((ex) => ex.id === id)?.title)
+                    .filter(Boolean)
+                    .join(", ")
+                }
+              >
+                {exercises.map((ex) => (
+                  <MenuItem key={ex.id} value={ex.id}>
+                    <Checkbox checked={selectedExerciseIds.indexOf(ex.id) > -1} />
+                    <ListItemText primary={ex.title} />
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+          )}
+
+          <div className="flex gap-2 justify-end">
+            {isEditingLeague && (
+              <Button variant="outlined" color="inherit" onClick={resetLeagueForm}>
+                Abbrechen
+              </Button>
             )}
-
-            <div className="grid grid-cols-2 gap-2">
-              <TextField
-                label="Startdatum (Optional)"
-                type="date"
-                slotProps={{
-                  inputLabel: { shrink: true },
-                }}
-                value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
-              />
-              <TextField
-                label="Enddatum (Optional)"
-                type="date"
-                slotProps={{
-                  inputLabel: { shrink: true },
-                }}
-                value={endDate}
-                onChange={(e) => setEndDate(e.target.value)}
-              />
-            </div>
-          </DialogContent>
-
-          <DialogActions className="p-4">
-            <Button onClick={() => setIsLeagueModalOpen(false)}>
-              Abbrechen
+            <Button type="submit" variant="contained" color="primary">
+              {isEditingLeague ? "Änderungen speichern" : "Liga erstellen"}
             </Button>
-            <Button
-              type="submit"
-              variant="contained"
-              color="primary"
-              disabled={submitting}
-            >
-              {submitting ? "Speichert..." : "Liga Anlegen"}
-            </Button>
-          </DialogActions>
+          </div>
         </form>
-      </Dialog>
+      </Paper>
 
-      {/* Modal: Übung des Monats Planen */}
-      <Dialog
-        open={isMonthlyModalOpen}
-        onClose={() => setIsMonthlyModalOpen(false)}
-        maxWidth="sm"
-        fullWidth
-      >
-        <DialogTitle className="font-bold">
-          Übung des Monats Festlegen
-        </DialogTitle>
-        <form onSubmit={handleCreateMonthlyExercise}>
-          <DialogContent dividers className="flex flex-col gap-4">
-            <div className="grid grid-cols-2 gap-2">
-              <TextField
-                label="Monat (1-12)"
-                type="number"
-                required
-                slotProps={{
-                  htmlInput: { min: 1, max: 12 },
-                }}
-                value={targetMonth}
-                onChange={(e) =>
-                  setTargetMonth(parseInt(e.target.value, 10) || 1)
-                }
-              />
-              <TextField
-                label="Jahr"
-                type="number"
-                required
-                value={targetYear}
-                onChange={(e) =>
-                  setTargetYear(
-                    parseInt(e.target.value, 10) || new Date().getFullYear(),
-                  )
-                }
-              />
-            </div>
+      {/* Sektion 2: Bestehende Ligen verwalten & filtern */}
+      <Paper className="p-6 shadow-md flex flex-col gap-4">
+        <div className="flex justify-between items-center flex-wrap gap-4">
+          <Typography variant="h6" className="font-bold">
+            Bestehende Ligen
+          </Typography>
 
+          <FormControl size="small" className="w-48">
+            <InputLabel>Filter Status</InputLabel>
+            <Select
+              value={leagueFilterStatus}
+              label="Filter Status"
+              onChange={(e) => setLeagueFilterStatus(e.target.value)}
+            >
+              <MenuItem value="all">Alle Ligen</MenuItem>
+              <MenuItem value="active">Nur Laufende</MenuItem>
+              <MenuItem value="paused">Pausiert</MenuItem>
+              <MenuItem value="terminated">Beendet</MenuItem>
+            </Select>
+          </FormControl>
+        </div>
+
+        <TableContainer component={Paper} variant="outlined">
+          <Table>
+            <TableHead>
+              <TableRow>
+                <TableCell className="font-bold">Titel</TableCell>
+                <TableCell className="font-bold">Typ</TableCell>
+                <TableCell className="font-bold">Status</TableCell>
+                <TableCell className="font-bold">Laufzeit</TableCell>
+                <TableCell align="right" className="font-bold">Aktionen</TableCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {filteredLeagues.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={5} align="center" className="py-6 text-gray-500">
+                    Keine Ligen gefunden.
+                  </TableCell>
+                </TableRow>
+              ) : (
+                filteredLeagues.map((league) => (
+                  <TableRow key={league.id} hover>
+                    <TableCell className="font-semibold">
+                      <div className="font-bold text-base">{league.title}</div>
+                      {league.description && (
+                        <Typography variant="body2" color="textSecondary" className="mt-1">
+                          {league.description}
+                        </Typography>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      <Chip
+                        label={league.type === "performance" ? "Performance" : "1v1 Match"}
+                        size="small"
+                        color={league.type === "performance" ? "primary" : "secondary"}
+                        variant="outlined"
+                      />
+                    </TableCell>
+                    <TableCell>
+                      <Chip
+                        label={league.isActive ? "Laufend" : "Beendet/Pausiert"}
+                        size="small"
+                        color={league.isActive ? "success" : "default"}
+                      />
+                    </TableCell>
+                    <TableCell className="text-sm text-gray-600 dark:text-gray-300">
+                      {league.startDate || "Unbefristet"} bis {league.endDate || "Offen"}
+                    </TableCell>
+                    <TableCell align="right">
+                      <div className="flex gap-1 justify-end">
+                        <Button
+                          size="small"
+                          variant="outlined"
+                          startIcon={<EditIcon />}
+                          onClick={() => handleEditLeague(league)}
+                        />
+                        {league.isActive && (
+                          <Button
+                            size="small"
+                            color="warning"
+                            variant="outlined"
+                            startIcon={<StopIcon />}
+                            onClick={() => handleTerminateLeague(league.id)}
+                          />
+                        )}
+                        <Button
+                          size="small"
+                          color="error"
+                          variant="outlined"
+                          startIcon={<DeleteIcon />}
+                          onClick={() => handleDeleteLeague(league.id)}
+                        />
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
+        </TableContainer>
+      </Paper>
+
+      {/* Sektion 3: Übung des Monats im Voraus planen */}
+      <Paper className="p-6 shadow-md flex flex-col gap-4">
+        <Typography variant="h6" className="font-bold flex items-center gap-2">
+          <CalendarMonthIcon color="primary" /> Übung des Monats planen
+        </Typography>
+        <Typography variant="body2" color="textSecondary">
+          Lege fest, welche Übung in einem bestimmten Monat als offizielle Monats-Challenge gilt.
+        </Typography>
+
+        <form onSubmit={handleSaveMonthlyExercise} className="flex flex-col gap-4 mt-2">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <FormControl fullWidth required>
               <InputLabel>Übung auswählen</InputLabel>
               <Select
-                value={selectedMonthExerciseId}
+                value={monthlyExId}
                 label="Übung auswählen"
-                onChange={(e) => setSelectedMonthExerciseId(e.target.value)}
+                onChange={(e) => setMonthlyExId(e.target.value)}
               >
                 {exercises.map((ex) => (
                   <MenuItem key={ex.id} value={ex.id}>
@@ -550,32 +530,52 @@ export const AdminLeagueManager: React.FC = () => {
               </Select>
             </FormControl>
 
-            <TextField
-              label="Spezifische Anmerkung / Herausforderung für diesen Monat"
-              variant="outlined"
-              multiline
-              rows={2}
-              value={monthlyDescription}
-              onChange={(e) => setMonthlyDescription(e.target.value)}
-              placeholder="z. B. Wer knackt diesen Monat die 800 Punkte Marke?"
-            />
-          </DialogContent>
+            <FormControl fullWidth required>
+              <InputLabel>Monat</InputLabel>
+              <Select
+                value={monthlyMonth}
+                label="Monat"
+                onChange={(e) => setMonthlyMonth(Number(e.target.value))}
+              >
+                {MONTHS.map((m) => (
+                  <MenuItem key={m.value} value={m.value}>
+                    {m.name}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
 
-          <DialogActions className="p-4">
-            <Button onClick={() => setIsMonthlyModalOpen(false)}>
-              Abbrechen
+            <FormControl fullWidth required>
+              <InputLabel>Jahr</InputLabel>
+              <Select
+                value={monthlyYear}
+                label="Jahr"
+                onChange={(e) => setMonthlyYear(Number(e.target.value))}
+              >
+                {[2025, 2026, 2027, 2028].map((y) => (
+                  <MenuItem key={y} value={y}>
+                    {y}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+          </div>
+
+          <TextField
+            label="Monatsspezifische Beschreibung / Zielsetzung"
+            variant="outlined"
+            fullWidth
+            value={monthlyDesc}
+            onChange={(e) => setMonthlyDesc(e.target.value)}
+          />
+
+          <div className="flex justify-end">
+            <Button type="submit" variant="contained" color="primary">
+              Monatsübung speichern
             </Button>
-            <Button
-              type="submit"
-              variant="contained"
-              color="primary"
-              disabled={submitting}
-            >
-              {submitting ? "Speichert..." : "Monatsübung Speichern"}
-            </Button>
-          </DialogActions>
+          </div>
         </form>
-      </Dialog>
+      </Paper>
     </div>
   );
 };

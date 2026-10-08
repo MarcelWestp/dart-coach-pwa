@@ -23,6 +23,7 @@ import {
   Accordion,
   AccordionSummary,
   AccordionDetails,
+  Box,
 } from "@mui/material";
 import AddIcon from "@mui/icons-material/Add";
 import DeleteIcon from "@mui/icons-material/Delete";
@@ -49,8 +50,8 @@ export const ExerciseList: React.FC = () => {
     useState<Exercise | null>(null);
 
   const canCreateExercise =
-    userProfile?.roles.includes("coach") ||
-    userProfile?.roles.includes("admin");
+    userProfile?.roles?.includes("coach") ||
+    userProfile?.roles?.includes("admin");
 
   const fetchData = async () => {
     setLoading(true);
@@ -76,7 +77,7 @@ export const ExerciseList: React.FC = () => {
       setExercises(fetchedExercises);
       setTags(fetchedTags);
     } catch (err: any) {
-      console.error(err);
+      console.error("Fehler beim Laden der Übungen:", err);
       setError("Fehler beim Laden der Übungen.");
     } finally {
       setLoading(false);
@@ -95,7 +96,7 @@ export const ExerciseList: React.FC = () => {
       await deleteDoc(doc(db, "exercises", exerciseId));
       setExercises((prev) => prev.filter((e) => e.id !== exerciseId));
     } catch (err) {
-      console.error(err);
+      console.error("Fehler beim Löschen der Übung:", err);
       setError("Fehler beim Löschen der Übung.");
     }
   };
@@ -112,12 +113,14 @@ export const ExerciseList: React.FC = () => {
 
   const filteredExercises = exercises.filter((ex) => {
     const matchesTag =
-      selectedTagFilter === "all" || ex.tagIds.includes(selectedTagFilter);
+      selectedTagFilter === "all" ||
+      (ex.tagIds && ex.tagIds.includes(selectedTagFilter));
     const matchesType =
       selectedTypeFilter === "all" || ex.type === selectedTypeFilter;
     const matchesSearch =
       ex.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      ex.description.toLowerCase().includes(searchQuery.toLowerCase());
+      (ex.description &&
+        ex.description.toLowerCase().includes(searchQuery.toLowerCase()));
     return matchesTag && matchesType && matchesSearch;
   });
 
@@ -138,15 +141,15 @@ export const ExerciseList: React.FC = () => {
 
   if (loading) {
     return (
-      <div className="flex justify-center items-center p-8">
+      <Box className="flex justify-center items-center p-8">
         <CircularProgress />
-      </div>
+      </Box>
     );
   }
 
   return (
-    <div className="p-6 max-w-6xl mx-auto">
-      <div className="flex justify-between items-center mb-6">
+    <Box className="p-4 sm:p-6 max-w-6xl mx-auto space-y-6">
+      <div className="flex flex-wrap justify-between items-center gap-4">
         <div>
           <Typography
             variant="h4"
@@ -157,7 +160,7 @@ export const ExerciseList: React.FC = () => {
             <FitnessCenterIcon fontSize="large" color="primary" />{" "}
             Übungs-Bibliothek
           </Typography>
-          <Typography variant="body2" color="textSecondary">
+          <Typography variant="body2" color="text.secondary">
             Alle verfügbaren Trainingsübungen im Überblick.
           </Typography>
         </div>
@@ -178,23 +181,26 @@ export const ExerciseList: React.FC = () => {
       </div>
 
       {error && (
-        <Alert severity="error" className="mb-4">
+        <Alert severity="error" onClose={() => setError(null)}>
           {error}
         </Alert>
       )}
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+      {/* Filterbereich */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <TextField
           label="Suche"
           variant="outlined"
           size="small"
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
+          fullWidth
         />
 
-        <FormControl size="small">
-          <InputLabel>Filter nach Tag</InputLabel>
+        <FormControl size="small" fullWidth>
+          <InputLabel id="tag-filter-label">Filter nach Tag</InputLabel>
           <Select
+            labelId="tag-filter-label"
             value={selectedTagFilter}
             label="Filter nach Tag"
             onChange={(e) => setSelectedTagFilter(e.target.value)}
@@ -208,9 +214,10 @@ export const ExerciseList: React.FC = () => {
           </Select>
         </FormControl>
 
-        <FormControl size="small">
-          <InputLabel>Filter nach Typ</InputLabel>
+        <FormControl size="small" fullWidth>
+          <InputLabel id="type-filter-label">Filter nach Typ</InputLabel>
           <Select
+            labelId="type-filter-label"
             value={selectedTypeFilter}
             label="Filter nach Typ"
             onChange={(e) => setSelectedTypeFilter(e.target.value)}
@@ -224,10 +231,11 @@ export const ExerciseList: React.FC = () => {
         </FormControl>
       </div>
 
+      {/* Übungsliste */}
       {filteredExercises.length === 0 ? (
         <Typography
           variant="body1"
-          color="textSecondary"
+          color="text.secondary"
           className="text-center py-8"
         >
           Keine Übungen gefunden.
@@ -237,12 +245,17 @@ export const ExerciseList: React.FC = () => {
           {filteredExercises.map((exercise) => {
             const isOwnerOrAdmin =
               exercise.createdBy === userProfile?.uid ||
-              userProfile?.roles.includes("admin");
+              userProfile?.roles?.includes("admin");
 
             return (
               <Card
                 key={exercise.id}
+                variant="outlined"
                 className="shadow-md flex flex-col justify-between"
+                sx={{
+                  bgcolor: "background.paper",
+                  borderColor: "divider",
+                }}
               >
                 <CardContent className="pb-2">
                   <div className="flex justify-between items-start mb-2">
@@ -254,7 +267,7 @@ export const ExerciseList: React.FC = () => {
                       {exercise.title}
                     </Typography>
                     {isOwnerOrAdmin && (
-                      <div className="flex gap-1">
+                      <div className="flex gap-1 shrink-0">
                         <IconButton
                           size="small"
                           color="primary"
@@ -284,7 +297,7 @@ export const ExerciseList: React.FC = () => {
 
                   <Typography
                     variant="body2"
-                    color="textSecondary"
+                    color="text.secondary"
                     className="mb-3"
                   >
                     {exercise.description ||
@@ -295,44 +308,44 @@ export const ExerciseList: React.FC = () => {
                     <Accordion
                       elevation={0}
                       variant="outlined"
+                      sx={{ bgcolor: "action.hover" }}
                       className="mb-3 rounded"
                     >
                       <AccordionSummary expandIcon={<ExpandMoreIcon />}>
                         <Typography
                           variant="caption"
                           className="font-bold flex items-center gap-1"
+                          color="text.primary"
                         >
                           <HelpIcon fontSize="small" color="primary" />{" "}
                           Spielanleitung anzeigen
                         </Typography>
                       </AccordionSummary>
                       <AccordionDetails>
-                        <AccordionDetails>
-                          <AccordionDetails>
-                            <Typography
-                              variant="body2"
-                              className="whitespace-pre-line text-white-700 dark:text-white"
-                            >
-                              {exercise.instructions}
-                            </Typography>
-                          </AccordionDetails>
-                        </AccordionDetails>
+                        <Typography
+                          variant="body2"
+                          className="whitespace-pre-line text-xs sm:text-sm"
+                          color="text.secondary"
+                        >
+                          {exercise.instructions}
+                        </Typography>
                       </AccordionDetails>
                     </Accordion>
                   )}
 
                   <div className="flex flex-wrap gap-1 mt-auto">
-                    {exercise.tagIds.map((tagId) => {
-                      const tag = tags.find((t) => t.id === tagId);
-                      return tag ? (
-                        <Chip
-                          key={tagId}
-                          label={tag.name}
-                          size="small"
-                          variant="outlined"
-                        />
-                      ) : null;
-                    })}
+                    {exercise.tagIds &&
+                      exercise.tagIds.map((tagId) => {
+                        const tag = tags.find((t) => t.id === tagId);
+                        return tag ? (
+                          <Chip
+                            key={tagId}
+                            label={tag.name}
+                            size="small"
+                            variant="outlined"
+                          />
+                        ) : null;
+                      })}
                   </div>
                 </CardContent>
 
@@ -353,6 +366,7 @@ export const ExerciseList: React.FC = () => {
         </div>
       )}
 
+      {/* Modale zum Erstellen/Bearbeiten und Ergebniseintragen */}
       <CreateExerciseModal
         open={isCreateModalOpen}
         onClose={handleCloseCreateModal}
@@ -360,13 +374,18 @@ export const ExerciseList: React.FC = () => {
         exerciseToEdit={exerciseToEdit}
       />
 
-      <RecordResultModal
-        open={!!selectedExerciseForRecord}
-        onClose={() => setSelectedExerciseForRecord(null)}
-        exercise={selectedExerciseForRecord}
-        allExercises={exercises}
-        onResultRecorded={() => alert("Ergebnis erfolgreich gespeichert!")}
-      />
-    </div>
+      {selectedExerciseForRecord && (
+        <RecordResultModal
+          open={!!selectedExerciseForRecord}
+          onClose={() => setSelectedExerciseForRecord(null)}
+          exercise={selectedExerciseForRecord}
+          allExercises={exercises}
+          onResultRecorded={() => {
+            setSelectedExerciseForRecord(null);
+            fetchData();
+          }}
+        />
+      )}
+    </Box>
   );
 };

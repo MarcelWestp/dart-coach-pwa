@@ -22,6 +22,9 @@ import {
   Divider,
   IconButton,
   Tooltip,
+  useTheme,
+  useMediaQuery,
+  Box,
 } from '@mui/material';
 import MarkEmailReadIcon from '@mui/icons-material/MarkEmailRead';
 import DeleteIcon from '@mui/icons-material/Delete';
@@ -35,6 +38,9 @@ export const CoachMessagesView: React.FC = () => {
   const [messages, setMessages] = useState<CoachMessage[]>([]);
   const [players, setPlayers] = useState<UserProfile[]>([]);
   const [error, setError] = useState<string | null>(null);
+
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
 
   const fetchData = async () => {
     if (!userProfile?.uid) return;
@@ -105,15 +111,14 @@ export const CoachMessagesView: React.FC = () => {
         end.setHours(23, 59, 59, 999);
 
         if (now < start) {
-          status = 'upcoming'; // Bevorstehend (z. B. Urlaub in der Zukunft)
+          status = 'upcoming'; // Bevorstehend
         } else if (now > end) {
           status = 'expired'; // Abgelaufen
         } else {
           status = 'current'; // Aktuell im Zeitraum
         }
       } else {
-        // Nachrichten ohne genauen Zeitraum (z. B. Turnierergebnisse oder allgemeines)
-        // Nach 7 Tagen als abgelaufen betrachten, ansonsten aktuell
+        // Nachrichten ohne genauen Zeitraum (z. B. Turnierergebnisse)
         const created = new Date(msg.createdAt);
         const diffDays = (now.getTime() - created.getTime()) / (1000 * 3600 * 24);
         status = diffDays > 7 ? 'expired' : 'current';
@@ -134,19 +139,45 @@ export const CoachMessagesView: React.FC = () => {
   const activeList = getActiveList();
 
   return (
-    <div className="max-w-5xl mx-auto px-4 py-6 flex flex-col gap-6">
-      <Paper className="p-4 shadow-sm">
-        <Typography variant="h5" className="font-bold mb-2 flex items-center gap-2">
-          <MessageIcon color="primary" /> Trainer-Postfach & Spieler-Nachrichten
+    <div className="max-w-5xl mx-auto px-2 sm:px-4 py-4 sm:py-6 flex flex-col gap-4 sm:gap-6">
+      <Paper
+        variant="outlined"
+        sx={{
+          p: { xs: 2, sm: 3 },
+          bgcolor: 'background.paper',
+          borderColor: 'divider',
+        }}
+        className="shadow-sm"
+      >
+        <Typography variant="h5" className="font-bold mb-1 sm:mb-2 flex items-center gap-2 text-base sm:text-xl" color="text.primary">
+          <MessageIcon color="primary" fontSize={isMobile ? 'medium' : 'large'} /> Trainer-Postfach & Spieler-Nachrichten
         </Typography>
-        <Typography variant="body2" color="textSecondary" className="mb-4">
+        <Typography variant="body2" color="text.secondary" className="mb-3 sm:mb-4 text-xs sm:text-sm">
           Hier siehst du Abwesenheiten, Urlaube und Turnierergebnisse deiner zugewiesenen Spieler.
         </Typography>
 
-        <Tabs value={currentTab} onChange={(_, val) => setCurrentTab(val)} variant="fullWidth">
-          <Tab label={`Aktuell (${categorizedMessages.current.length})`} />
-          <Tab label={`Bevorstehend (${categorizedMessages.upcoming.length})`} />
-          <Tab label={`Abgelaufen (${categorizedMessages.expired.length})`} />
+        {/* Wischbare Tabs für Mobilgeräte (Option A) */}
+        <Tabs
+          value={currentTab}
+          onChange={(_, val) => setCurrentTab(val)}
+          variant="scrollable"
+          scrollButtons="auto"
+          allowScrollButtonsMobile
+          indicatorColor="primary"
+          textColor="primary"
+        >
+          <Tab
+            label={`Aktuell (${categorizedMessages.current.length})`}
+            className="text-xs sm:text-sm shrink-0 whitespace-nowrap"
+          />
+          <Tab
+            label={`Bevorstehend (${categorizedMessages.upcoming.length})`}
+            className="text-xs sm:text-sm shrink-0 whitespace-nowrap"
+          />
+          <Tab
+            label={`Abgelaufen (${categorizedMessages.expired.length})`}
+            className="text-xs sm:text-sm shrink-0 whitespace-nowrap"
+          />
         </Tabs>
       </Paper>
 
@@ -154,8 +185,11 @@ export const CoachMessagesView: React.FC = () => {
 
       <div className="flex flex-col gap-3">
         {activeList.length === 0 ? (
-          <Paper className="p-8 text-center">
-            <Typography variant="body1" color="textSecondary">
+          <Paper
+            variant="outlined"
+            sx={{ p: 6, textAlign: 'center', bgcolor: 'background.paper', borderColor: 'divider' }}
+          >
+            <Typography variant="body2" color="text.secondary">
               Keine Nachrichten in dieser Kategorie vorhanden.
             </Typography>
           </Paper>
@@ -164,14 +198,17 @@ export const CoachMessagesView: React.FC = () => {
             <Paper
               key={msg.id}
               variant="outlined"
-              className={`p-4 flex flex-col gap-3 transition-colors ${
-                !msg.isRead ? 'bg-primary-50/20 dark:bg-primary-900/10 border-primary-main' : ''
-              }`}
+              sx={{
+                p: { xs: 2, sm: 3 },
+                bgcolor: !msg.isRead ? 'action.selected' : 'background.paper',
+                borderColor: !msg.isRead ? 'primary.main' : 'divider',
+              }}
+              className="flex flex-col gap-2.5 sm:gap-3 transition-colors shadow-sm"
             >
-              <div className="flex justify-between items-start gap-4">
-                <div className="flex items-center gap-2">
+              <div className="flex justify-between items-start gap-2">
+                <div className="flex items-center gap-1.5 flex-wrap">
                   <Chip
-                    icon={msg.category === 'absence' ? <EventIcon /> : <SportsEsportsIcon />}
+                    icon={msg.category === 'absence' ? <EventIcon fontSize="small" /> : <SportsEsportsIcon fontSize="small" />}
                     label={
                       msg.category === 'absence'
                         ? 'Urlaub / Abwesenheit'
@@ -186,7 +223,7 @@ export const CoachMessagesView: React.FC = () => {
                   {!msg.isRead && <Chip label="Neu" color="error" size="small" />}
                 </div>
 
-                <div className="flex items-center gap-1">
+                <div className="flex items-center gap-1 shrink-0">
                   {!msg.isRead && (
                     <Tooltip title="Als gelesen markieren">
                       <IconButton size="small" color="primary" onClick={() => handleMarkAsRead(msg.id!)}>
@@ -203,10 +240,10 @@ export const CoachMessagesView: React.FC = () => {
               </div>
 
               <div>
-                <Typography variant="subtitle1" className="font-bold">
+                <Typography variant="subtitle1" className="font-bold text-sm sm:text-base leading-snug" color="text.primary">
                   {msg.subject}
                 </Typography>
-                <Typography variant="caption" color="textSecondary" className="block">
+                <Typography variant="caption" color="text.secondary" className="block mt-0.5">
                   Von: <b>{getPlayerName(msg.playerId)}</b> am{' '}
                   {new Date(msg.createdAt).toLocaleDateString('de-DE', {
                     day: '2-digit',
@@ -221,9 +258,20 @@ export const CoachMessagesView: React.FC = () => {
 
               <Divider />
 
-              <Typography variant="body2" className="whitespace-pre-wrap bg-gray-50 dark:bg-gray-800/50 p-3 rounded">
-                {msg.content}
-              </Typography>
+              {/* Nachrichten-Inhalt im Darkmode-sicheren Layout */}
+              <Box
+                sx={{
+                  p: { xs: 1.5, sm: 2 },
+                  bgcolor: 'action.hover',
+                  borderRadius: 1,
+                  border: 1,
+                  borderColor: 'divider',
+                }}
+              >
+                <Typography variant="body2" className="whitespace-pre-wrap text-xs sm:text-sm" color="text.primary">
+                  {msg.content}
+                </Typography>
+              </Box>
             </Paper>
           ))
         )}

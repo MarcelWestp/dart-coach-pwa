@@ -11,11 +11,13 @@ import {
   Divider,
   Chip,
   Paper,
+  Box,
 } from "@mui/material";
 import SportsMartsIcon from "@mui/icons-material/Sports";
 import PersonIcon from "@mui/icons-material/Person";
 import StarIcon from "@mui/icons-material/Star";
 import ComputerIcon from "@mui/icons-material/Computer";
+
 interface PublicProfileModalProps {
   open: boolean;
   onClose: () => void;
@@ -44,21 +46,31 @@ export const PublicProfileModal: React.FC<PublicProfileModalProps> = ({
         <PersonIcon color="primary" /> Spielerprofil
       </DialogTitle>
 
-      <DialogContent dividers className="flex flex-col gap-6">
+      <DialogContent dividers className="flex flex-col gap-6 p-4 sm:p-6">
         {/* Header mit Avatar & Name */}
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-4 flex-wrap sm:flex-nowrap">
           <Avatar
             src={user.photoURL}
-            sx={{ width: 80, height: 80, fontSize: "1.8rem" }}
-            className="shadow bg-primary-main"
+            sx={{
+              width: 80,
+              height: 80,
+              fontSize: "1.8rem",
+              bgcolor: "primary.main",
+              color: "primary.contrastText",
+            }}
+            className="shadow-md"
           >
             {user.nickname ? user.nickname.substring(0, 2).toUpperCase() : "U"}
           </Avatar>
           <div>
-            <Typography variant="h5" className="font-bold">
+            <Typography
+              variant="h5"
+              className="font-bold"
+              color="text.primary"
+            >
               {getDisplayName()}
             </Typography>
-            <div className="flex gap-1 mt-1">
+            <div className="flex flex-wrap gap-1 mt-1">
               {user.roles.map((role) => (
                 <Chip
                   key={role}
@@ -66,16 +78,16 @@ export const PublicProfileModal: React.FC<PublicProfileModalProps> = ({
                     role === "admin"
                       ? "Admin"
                       : role === "coach"
-                        ? "Trainer"
-                        : "Spieler"
+                      ? "Trainer"
+                      : "Spieler"
                   }
                   size="small"
                   color={
                     role === "admin"
                       ? "error"
                       : role === "coach"
-                        ? "secondary"
-                        : "default"
+                      ? "secondary"
+                      : "default"
                   }
                 />
               ))}
@@ -97,79 +109,117 @@ export const PublicProfileModal: React.FC<PublicProfileModalProps> = ({
             </Typography>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <Paper variant="outlined" className="p-3">
+              <Paper
+                variant="outlined"
+                sx={{ bgcolor: "background.paper", borderColor: "divider" }}
+                className="p-3"
+              >
                 <Typography
                   variant="caption"
-                  color="textSecondary"
+                  color="text.secondary"
                   className="font-bold block"
                 >
                   Darts / Barrels
                 </Typography>
-                <Typography variant="body2" className="font-medium">
+                <Typography
+                  variant="body2"
+                  className="font-medium"
+                  color="text.primary"
+                >
                   {user.equipment.dartBarrel || "Keine Angabe"}
                 </Typography>
               </Paper>
 
-              <Paper variant="outlined" className="p-3">
+              <Paper
+                variant="outlined"
+                sx={{ bgcolor: "background.paper", borderColor: "divider" }}
+                className="p-3"
+              >
                 <Typography
                   variant="caption"
-                  color="textSecondary"
+                  color="text.secondary"
                   className="font-bold block"
                 >
                   Shafts & Flights
                 </Typography>
-                <Typography variant="body2" className="font-medium">
+                <Typography
+                  variant="body2"
+                  className="font-medium"
+                  color="text.primary"
+                >
                   {user.equipment.dartShaft || "-"} /{" "}
                   {user.equipment.dartFlight || "-"}
                 </Typography>
               </Paper>
 
-              <Paper variant="outlined" className="p-3">
+              <Paper
+                variant="outlined"
+                sx={{ bgcolor: "background.paper", borderColor: "divider" }}
+                className="p-3"
+              >
                 <Typography
                   variant="caption"
-                  color="textSecondary"
+                  color="text.secondary"
                   className="font-bold block flex items-center gap-1"
                 >
                   <StarIcon fontSize="inherit" color="action" />{" "}
                   Lieblingsspieler
                 </Typography>
-                <Typography variant="body2" className="font-medium">
+                <Typography
+                  variant="body2"
+                  className="font-medium"
+                  color="text.primary"
+                >
                   {user.equipment.favoritePlayer || "Keine Angabe"}
                 </Typography>
               </Paper>
 
-              <Paper variant="outlined" className="p-3">
+              <Paper
+                variant="outlined"
+                sx={{ bgcolor: "background.paper", borderColor: "divider" }}
+                className="p-3"
+              >
                 <Typography
                   variant="caption"
-                  color="textSecondary"
+                  color="text.secondary"
                   className="font-bold block flex items-center gap-1"
                 >
                   <ComputerIcon fontSize="inherit" color="action" /> Automatic
                   Scoring System
                 </Typography>
-                <Typography variant="body2" className="font-medium">
+                <Typography
+                  variant="body2"
+                  className="font-medium"
+                  color="text.primary"
+                >
                   {user.equipment.scoringSystem &&
                   user.equipment.scoringSystem !== "none"
-                    ? `${user.equipment.scoringSystem.toUpperCase()} ${user.equipment.systemUsername ? `(${user.equipment.systemUsername})` : ""}`
+                    ? `${user.equipment.scoringSystem.toUpperCase()} ${
+                        user.equipment.systemUsername
+                          ? `(${user.equipment.systemUsername})`
+                          : ""
+                      }`
                     : "Kein automatisches System"}
                 </Typography>
               </Paper>
             </div>
           </div>
         ) : (
-          <Typography
-            variant="body2"
-            color="textSecondary"
-            className="italic text-center py-4"
-          >
-            Der Spieler hat keine öffentlichen Equipment-Informationen
-            hinterlegt.
-          </Typography>
+          <Box className="py-4 text-center">
+            <Typography
+              variant="body2"
+              color="text.secondary"
+              className="italic"
+            >
+              Der Spieler hat keine öffentlichen Equipment-Informationen
+              hinterlegt.
+            </Typography>
+          </Box>
         )}
       </DialogContent>
 
       <DialogActions className="p-4">
-        <Button onClick={onClose} variant="contained">
+        <Button onClick={onClose} variant="contained" color="primary">
           Schließen
         </Button>
       </DialogActions>

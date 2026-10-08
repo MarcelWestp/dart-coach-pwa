@@ -1,27 +1,49 @@
-import React, { useState, useEffect } from 'react';
-import { doc, updateDoc, deleteDoc, collection, addDoc } from 'firebase/firestore';
-import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
-import { updateProfile, deleteUser, EmailAuthProvider, reauthenticateWithCredential, updatePassword } from 'firebase/auth';
-import { db, storage, auth } from '../../firebase/config';
-import { useAuth } from '../../context/AuthContext';
-import { useThemeContext } from '../../context/ThemeContext';
-import type { VisibilitySetting, ThemePreference, EquipmentSettings, NotificationSettings } from '../../types/user';
-import { 
-  Paper, 
-  Typography, 
-  TextField, 
-  Button, 
-  RadioGroup, 
-  FormControlLabel, 
-  Radio, 
-  FormLabel, 
-  FormControl, 
-  Alert, 
-  Switch, 
-  Divider, 
-  Box, 
-  CircularProgress, 
-  Avatar, 
+import React, { useState, useEffect } from "react";
+import {
+  doc,
+  updateDoc,
+  deleteDoc,
+  collection,
+  addDoc,
+} from "firebase/firestore";
+import {
+  ref,
+  uploadBytes,
+  getDownloadURL,
+  deleteObject,
+} from "firebase/storage";
+import {
+  updateProfile,
+  deleteUser,
+  EmailAuthProvider,
+  reauthenticateWithCredential,
+  updatePassword,
+} from "firebase/auth";
+import { db, storage, auth } from "../../firebase/config";
+import { useAuth } from "../../context/AuthContext";
+import { useThemeContext } from "../../context/ThemeContext";
+import type {
+  VisibilitySetting,
+  ThemePreference,
+  EquipmentSettings,
+  NotificationSettings,
+} from "../../types/user";
+import {
+  Paper,
+  Typography,
+  TextField,
+  Button,
+  RadioGroup,
+  FormControlLabel,
+  Radio,
+  FormLabel,
+  FormControl,
+  Alert,
+  Switch,
+  Divider,
+  Box,
+  CircularProgress,
+  Avatar,
   IconButton,
   Select,
   MenuItem,
@@ -30,37 +52,38 @@ import {
   DialogTitle,
   DialogContent,
   DialogContentText,
-  DialogActions
-} from '@mui/material';
-import PersonIcon from '@mui/icons-material/Person';
-import SportsMartsIcon from '@mui/icons-material/Sports';
-import PhotoCameraIcon from '@mui/icons-material/PhotoCamera';
-import DeleteForeverIcon from '@mui/icons-material/DeleteForever';
-import SecurityIcon from '@mui/icons-material/Security';
-import PaletteIcon from '@mui/icons-material/Palette';
-import LockIcon from '@mui/icons-material/Lock';
-import NotificationsIcon from '@mui/icons-material/Notifications';
-import FeedbackIcon from '@mui/icons-material/Feedback';
-import SendIcon from '@mui/icons-material/Send';
-import { SendCoachMessageModal } from './SendCoachMessageModal';
+  DialogActions,
+} from "@mui/material";
+import PersonIcon from "@mui/icons-material/Person";
+import SportsMartsIcon from "@mui/icons-material/Sports";
+import PhotoCameraIcon from "@mui/icons-material/PhotoCamera";
+import DeleteForeverIcon from "@mui/icons-material/DeleteForever";
+import SecurityIcon from "@mui/icons-material/Security";
+import PaletteIcon from "@mui/icons-material/Palette";
+import LockIcon from "@mui/icons-material/Lock";
+import NotificationsIcon from "@mui/icons-material/Notifications";
+import FeedbackIcon from "@mui/icons-material/Feedback";
+import SendIcon from "@mui/icons-material/Send";
+import { SendCoachMessageModal } from "./SendCoachMessageModal";
 
 export const UserProfileView: React.FC = () => {
   const { userProfile, refreshUserProfile, logout } = useAuth();
   const { mode, toggleTheme } = useThemeContext();
 
   // Stammdaten
-  const [realName, setRealName] = useState('');
-  const [nickname, setNickname] = useState('');
-  const [visibility, setVisibility] = useState<VisibilitySetting>('nickname');
+  const [realName, setRealName] = useState("");
+  const [nickname, setNickname] = useState("");
+  const [visibility, setVisibility] = useState<VisibilitySetting>("nickname");
   const [showEquipmentPublicly, setShowEquipmentPublicly] = useState(true);
 
   // Equipment States
-  const [dartBarrel, setDartBarrel] = useState('');
-  const [dartShaft, setDartShaft] = useState('');
-  const [dartFlight, setDartFlight] = useState('');
-  const [favoritePlayer, setFavoritePlayer] = useState('');
-  const [scoringSystem, setScoringSystem] = useState<EquipmentSettings['scoringSystem']>('none');
-  const [systemUsername, setSystemUsername] = useState('');
+  const [dartBarrel, setDartBarrel] = useState("");
+  const [dartShaft, setDartShaft] = useState("");
+  const [dartFlight, setDartFlight] = useState("");
+  const [favoritePlayer, setFavoritePlayer] = useState("");
+  const [scoringSystem, setScoringSystem] =
+    useState<EquipmentSettings["scoringSystem"]>("none");
+  const [systemUsername, setSystemUsername] = useState("");
 
   // Benachrichtigungen States
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
@@ -71,16 +94,18 @@ export const UserProfileView: React.FC = () => {
   const [reminderDays, setReminderDays] = useState<number>(1);
 
   // Feedback & Ideen States
-  const [feedbackType, setFeedbackType] = useState<'idea' | 'bug' | 'other'>('idea');
-  const [feedbackMessage, setFeedbackMessage] = useState('');
+  const [feedbackType, setFeedbackType] = useState<"idea" | "bug" | "other">(
+    "idea"
+  );
+  const [feedbackMessage, setFeedbackMessage] = useState("");
   const [feedbackSubmitting, setFeedbackSubmitting] = useState(false);
   const [feedbackSuccess, setFeedbackSuccess] = useState<string | null>(null);
   const [feedbackError, setFeedbackError] = useState<string | null>(null);
 
   // Passwort Ändern States
-  const [currentPassword, setCurrentPassword] = useState('');
-  const [newPassword, setNewPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [passwordLoading, setPasswordLoading] = useState(false);
   const [passwordSuccess, setPasswordSuccess] = useState<string | null>(null);
   const [passwordError, setPasswordError] = useState<string | null>(null);
@@ -95,23 +120,27 @@ export const UserProfileView: React.FC = () => {
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
-  // Messsage States
+  // Message States
   const [isMessageModalOpen, setIsMessageModalOpen] = useState(false);
 
   useEffect(() => {
     if (userProfile) {
-      setRealName(userProfile.realName || '');
-      setNickname(userProfile.nickname || '');
-      setVisibility(userProfile.privacySettings?.leaderboardVisibility || 'nickname');
-      setShowEquipmentPublicly(userProfile.privacySettings?.showEquipmentPublicly !== false);
+      setRealName(userProfile.realName || "");
+      setNickname(userProfile.nickname || "");
+      setVisibility(
+        userProfile.privacySettings?.leaderboardVisibility || "nickname"
+      );
+      setShowEquipmentPublicly(
+        userProfile.privacySettings?.showEquipmentPublicly !== false
+      );
 
       if (userProfile.equipment) {
-        setDartBarrel(userProfile.equipment.dartBarrel || '');
-        setDartShaft(userProfile.equipment.dartShaft || '');
-        setDartFlight(userProfile.equipment.dartFlight || '');
-        setFavoritePlayer(userProfile.equipment.favoritePlayer || '');
-        setScoringSystem(userProfile.equipment.scoringSystem || 'none');
-        setSystemUsername(userProfile.equipment.systemUsername || '');
+        setDartBarrel(userProfile.equipment.dartBarrel || "");
+        setDartShaft(userProfile.equipment.dartShaft || "");
+        setDartFlight(userProfile.equipment.dartFlight || "");
+        setFavoritePlayer(userProfile.equipment.favoritePlayer || "");
+        setScoringSystem(userProfile.equipment.scoringSystem || "none");
+        setSystemUsername(userProfile.equipment.systemUsername || "");
       }
 
       if (userProfile.notificationSettings) {
@@ -126,7 +155,9 @@ export const UserProfileView: React.FC = () => {
     }
   }, [userProfile]);
 
-  const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleAvatarChange = async (
+    e: React.ChangeEvent<HTMLInputElement>
+  ) => {
     const file = e.target.files?.[0];
     if (!file || !userProfile || !auth.currentUser) return;
 
@@ -137,15 +168,15 @@ export const UserProfileView: React.FC = () => {
       const downloadURL = await getDownloadURL(storageRef);
 
       await updateProfile(auth.currentUser, { photoURL: downloadURL });
-      await updateDoc(doc(db, 'users', userProfile.uid), {
+      await updateDoc(doc(db, "users", userProfile.uid), {
         photoURL: downloadURL,
         updatedAt: new Date().toISOString(),
       });
 
       await refreshUserProfile();
-      setSuccess('Profilbild erfolgreich aktualisiert.');
+      setSuccess("Profilbild erfolgreich aktualisiert.");
     } catch (err) {
-      setError('Fehler beim Hochladen des Profilbilds.');
+      setError("Fehler beim Hochladen des Profilbilds.");
     } finally {
       setUploading(false);
     }
@@ -158,13 +189,13 @@ export const UserProfileView: React.FC = () => {
 
     if (userProfile) {
       try {
-        await updateDoc(doc(db, 'users', userProfile.uid), {
+        await updateDoc(doc(db, "users", userProfile.uid), {
           themePreference: newMode,
           updatedAt: new Date().toISOString(),
         });
         await refreshUserProfile();
       } catch (err) {
-        console.error('Fehler beim Speichern des Themes:', err);
+        console.error("Fehler beim Speichern des Themes:", err);
       }
     }
   };
@@ -196,20 +227,20 @@ export const UserProfileView: React.FC = () => {
         reminderDaysBefore: reminderDays,
       };
 
-      await updateDoc(doc(db, 'users', userProfile.uid), {
+      await updateDoc(doc(db, "users", userProfile.uid), {
         realName,
         nickname,
-        'privacySettings.leaderboardVisibility': visibility,
-        'privacySettings.showEquipmentPublicly': showEquipmentPublicly,
+        "privacySettings.leaderboardVisibility": visibility,
+        "privacySettings.showEquipmentPublicly": showEquipmentPublicly,
         equipment: equipmentData,
         notificationSettings: notificationData,
         updatedAt: new Date().toISOString(),
       });
 
       await refreshUserProfile();
-      setSuccess('Profil und Einstellungen erfolgreich gespeichert.');
+      setSuccess("Profil und Einstellungen erfolgreich gespeichert.");
     } catch (err) {
-      setError('Fehler beim Speichern der Profildaten.');
+      setError("Fehler beim Speichern der Profildaten.");
     } finally {
       setLoading(false);
     }
@@ -225,21 +256,25 @@ export const UserProfileView: React.FC = () => {
     setFeedbackSuccess(null);
 
     try {
-      await addDoc(collection(db, 'feedback'), {
+      await addDoc(collection(db, "feedback"), {
         userId: userProfile.uid,
         userEmail: userProfile.email,
         userNickname: userProfile.nickname || userProfile.realName,
         type: feedbackType,
         message: feedbackMessage.trim(),
-        status: 'open',
+        status: "open",
         createdAt: new Date().toISOString(),
       });
 
-      setFeedbackSuccess('Vielen Dank! Dein Feedback wurde erfolgreich übermittelt.');
-      setFeedbackMessage('');
+      setFeedbackSuccess(
+        "Vielen Dank! Dein Feedback wurde erfolgreich übermittelt."
+      );
+      setFeedbackMessage("");
     } catch (err) {
       console.error(err);
-      setFeedbackError('Fehler beim Senden des Feedbacks. Bitte versuche es später erneut.');
+      setFeedbackError(
+        "Fehler beim Senden des Feedbacks. Bitte versuche es später erneut."
+      );
     } finally {
       setFeedbackSubmitting(false);
     }
@@ -251,40 +286,50 @@ export const UserProfileView: React.FC = () => {
     setPasswordSuccess(null);
 
     if (!auth.currentUser || !auth.currentUser.email) {
-      setPasswordError('Benutzer ist nicht authentifiziert.');
+      setPasswordError("Benutzer ist nicht authentifiziert.");
       return;
     }
 
     if (newPassword.length < 6) {
-      setPasswordError('Das neue Passwort muss mindestens 6 Zeichen lang sein.');
+      setPasswordError(
+        "Das neue Passwort muss mindestens 6 Zeichen lang sein."
+      );
       return;
     }
 
     if (newPassword !== confirmPassword) {
-      setPasswordError('Die neuen Passwörter stimmen nicht überein.');
+      setPasswordError("Die neuen Passwörter stimmen nicht überein.");
       return;
     }
 
     setPasswordLoading(true);
 
     try {
-      const credential = EmailAuthProvider.credential(auth.currentUser.email, currentPassword);
+      const credential = EmailAuthProvider.credential(
+        auth.currentUser.email,
+        currentPassword
+      );
       await reauthenticateWithCredential(auth.currentUser, credential);
 
       await updatePassword(auth.currentUser, newPassword);
 
-      setPasswordSuccess('Dein Passwort wurde erfolgreich geändert.');
-      setCurrentPassword('');
-      setNewPassword('');
-      setConfirmPassword('');
+      setPasswordSuccess("Dein Passwort wurde erfolgreich geändert.");
+      setCurrentPassword("");
+      setNewPassword("");
+      setConfirmPassword("");
     } catch (err: any) {
       console.error(err);
-      if (err.code === 'auth/wrong-password' || err.code === 'auth/invalid-credential') {
-        setPasswordError('Das eingegebene aktuelle Passwort ist falsch.');
-      } else if (err.code === 'auth/weak-password') {
-        setPasswordError('Das neue Passwort ist zu schwach.');
+      if (
+        err.code === "auth/wrong-password" ||
+        err.code === "auth/invalid-credential"
+      ) {
+        setPasswordError("Das eingegebene aktuelle Passwort ist falsch.");
+      } else if (err.code === "auth/weak-password") {
+        setPasswordError("Das neue Passwort ist zu schwach.");
       } else {
-        setPasswordError('Fehler beim Ändern des Passworts. Bitte versuche es später erneut.');
+        setPasswordError(
+          "Fehler beim Ändern des Passworts. Bitte versuche es später erneut."
+        );
       }
     } finally {
       setPasswordLoading(false);
@@ -305,16 +350,18 @@ export const UserProfileView: React.FC = () => {
         // Ignorieren falls kein Bild existiert
       }
 
-      await deleteDoc(doc(db, 'users', userProfile.uid));
+      await deleteDoc(doc(db, "users", userProfile.uid));
       await deleteUser(auth.currentUser);
 
       await logout();
     } catch (err: any) {
       console.error(err);
-      if (err.code === 'auth/requires-recent-login') {
-        setError('Sicherheits-Hinweis: Bitte melde dich erneut an, bevor du deinen Account löschen kannst.');
+      if (err.code === "auth/requires-recent-login") {
+        setError(
+          "Sicherheits-Hinweis: Bitte melde dich erneut an, bevor du deinen Account löschen kannst."
+        );
       } else {
-        setError('Fehler beim Löschen des Accounts.');
+        setError("Fehler beim Löschen des Accounts.");
       }
     } finally {
       setDeleting(false);
@@ -322,39 +369,88 @@ export const UserProfileView: React.FC = () => {
     }
   };
 
-  if (!userProfile) return <CircularProgress />;
+  if (!userProfile) {
+    return (
+      <Box className="flex justify-center items-center p-8">
+        <CircularProgress />
+      </Box>
+    );
+  }
 
   return (
-    <div className="p-6 max-w-4xl mx-auto flex flex-col gap-6">
-      <Typography variant="h4" component="h1" className="font-bold flex items-center gap-2">
-        <PersonIcon fontSize="large" color="primary" /> Mein Profil & Einstellungen
+    <Box className="p-4 sm:p-6 max-w-4xl mx-auto space-y-6">
+      <Typography
+        variant="h4"
+        component="h1"
+        className="font-bold flex items-center gap-2"
+        color="text.primary"
+      >
+        <PersonIcon fontSize="large" color="primary" /> Mein Profil &
+        Einstellungen
       </Typography>
 
-      {error && <Alert severity="error" onClose={() => setError(null)}>{error}</Alert>}
-      {success && <Alert severity="success" onClose={() => setSuccess(null)}>{success}</Alert>}
+      {error && (
+        <Alert severity="error" onClose={() => setError(null)}>
+          {error}
+        </Alert>
+      )}
+      {success && (
+        <Alert severity="success" onClose={() => setSuccess(null)}>
+          {success}
+        </Alert>
+      )}
 
       <form onSubmit={handleSaveProfile} className="flex flex-col gap-6">
         {/* 1. Profilbild & Stammdaten */}
-        <Paper className="p-6 shadow-md flex flex-col gap-6">
-          <div className="flex items-center gap-6">
+        <Paper
+          variant="outlined"
+          sx={{ bgcolor: "background.paper", borderColor: "divider" }}
+          className="p-4 sm:p-6 shadow-md flex flex-col gap-6"
+        >
+          <div className="flex items-center gap-6 flex-wrap sm:flex-nowrap">
             <div className="relative">
-              <Avatar src={userProfile.photoURL} sx={{ width: 96, height: 96 }} className="bg-primary-main">
-                {userProfile.nickname ? userProfile.nickname.substring(0, 2).toUpperCase() : 'U'}
+              <Avatar
+                src={userProfile.photoURL}
+                sx={{
+                  width: 96,
+                  height: 96,
+                  bgcolor: "primary.main",
+                  color: "primary.contrastText",
+                }}
+                className="shadow-md"
+              >
+                {userProfile.nickname
+                  ? userProfile.nickname.substring(0, 2).toUpperCase()
+                  : "U"}
               </Avatar>
               <IconButton
                 color="primary"
                 component="label"
-                className="absolute bottom-0 right-0 bg-white shadow"
+                sx={{ bgcolor: "background.paper" }}
+                className="absolute bottom-0 right-0 shadow"
                 size="small"
                 disabled={uploading}
               >
-                <input hidden accept="image/*" type="file" onChange={handleAvatarChange} />
+                <input
+                  hidden
+                  accept="image/*"
+                  type="file"
+                  onChange={handleAvatarChange}
+                />
                 <PhotoCameraIcon fontSize="small" />
               </IconButton>
             </div>
             <div>
-              <Typography variant="h6" className="font-bold">{userProfile.nickname}</Typography>
-              <Typography variant="body2" color="textSecondary">{userProfile.email}</Typography>
+              <Typography
+                variant="h6"
+                className="font-bold"
+                color="text.primary"
+              >
+                {userProfile.nickname}
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                {userProfile.email}
+              </Typography>
             </div>
           </div>
 
@@ -378,38 +474,78 @@ export const UserProfileView: React.FC = () => {
           </div>
 
           <FormControl component="fieldset">
-            <FormLabel component="legend">Anzeige in öffentlichen Ranglisten:</FormLabel>
-            <RadioGroup value={visibility} onChange={(e) => setVisibility(e.target.value as VisibilitySetting)}>
-              <FormControlLabel value="nickname" control={<Radio />} label="Nur Nickname anzeigen" />
-              <FormControlLabel value="realName" control={<Radio />} label="Nur Klarnamen anzeigen" />
-              <FormControlLabel value="both" control={<Radio />} label="Klarname und Nickname anzeigen" />
+            <FormLabel component="legend">
+              Anzeige in öffentlichen Ranglisten:
+            </FormLabel>
+            <RadioGroup
+              value={visibility}
+              onChange={(e) =>
+                setVisibility(e.target.value as VisibilitySetting)
+              }
+            >
+              <FormControlLabel
+                value="nickname"
+                control={<Radio />}
+                label="Nur Nickname anzeigen"
+              />
+              <FormControlLabel
+                value="realName"
+                control={<Radio />}
+                label="Nur Klarnamen anzeigen"
+              />
+              <FormControlLabel
+                value="both"
+                control={<Radio />}
+                label="Klarname und Nickname anzeigen"
+              />
             </RadioGroup>
           </FormControl>
         </Paper>
 
         {/* 2. Nachricht an Trainer */}
-        <Paper variant="outlined" className="p-4 flex flex-col gap-3">
-          <Typography variant="h6" className="font-bold flex items-center gap-2">
+        <Paper
+          variant="outlined"
+          sx={{ bgcolor: "background.paper", borderColor: "divider" }}
+          className="p-4 sm:p-6 flex flex-col gap-3 shadow-sm"
+        >
+          <Typography
+            variant="h6"
+            className="font-bold flex items-center gap-2"
+            color="text.primary"
+          >
             Trainer-Kommunikation
           </Typography>
-          <Typography variant="body2" color="textSecondary">
-            Teile deinem Trainer Urlaube, Abwesenheiten oder Ergebnisse von Turnieren und Ligaspielen mit.
+          <Typography variant="body2" color="text.secondary">
+            Teile deinem Trainer Urlaube, Abwesenheiten oder Ergebnisse von
+            Turnieren und Ligaspielen mit.
           </Typography>
-          <Button
-            variant="outlined"
-            color="primary"
-            disabled={!userProfile?.assignedCoachId}
-            onClick={() => setIsMessageModalOpen(true)}
-          >
-            {userProfile?.assignedCoachId ? 'Nachricht an Trainer schreiben' : 'Kein Trainer zugewiesen'}
-          </Button>
+          <Box>
+            <Button
+              variant="outlined"
+              color="primary"
+              disabled={!userProfile?.assignedCoachId}
+              onClick={() => setIsMessageModalOpen(true)}
+            >
+              {userProfile?.assignedCoachId
+                ? "Nachricht an Trainer schreiben"
+                : "Kein Trainer zugewiesen"}
+            </Button>
+          </Box>
         </Paper>
 
         {/* 3. Design & Erscheinungsbild */}
-        <Paper className="p-6 shadow-md">
+        <Paper
+          variant="outlined"
+          sx={{ bgcolor: "background.paper", borderColor: "divider" }}
+          className="p-4 sm:p-6 shadow-md"
+        >
           <div className="flex items-center gap-2 mb-4">
             <PaletteIcon color="primary" />
-            <Typography variant="h6" className="font-bold">
+            <Typography
+              variant="h6"
+              className="font-bold"
+              color="text.primary"
+            >
               Design & Erscheinungsbild
             </Typography>
           </div>
@@ -419,18 +555,36 @@ export const UserProfileView: React.FC = () => {
             <RadioGroup
               row
               value={mode}
-              onChange={(e) => handleThemeChange(e.target.value as ThemePreference)}
+              onChange={(e) =>
+                handleThemeChange(e.target.value as ThemePreference)
+              }
               className="mt-2"
             >
-              <FormControlLabel value="dark" control={<Radio />} label="Dunkles Design (Dark Mode)" />
-              <FormControlLabel value="light" control={<Radio />} label="Helles Design (Light Mode)" />
+              <FormControlLabel
+                value="dark"
+                control={<Radio />}
+                label="Dunkles Design (Dark Mode)"
+              />
+              <FormControlLabel
+                value="light"
+                control={<Radio />}
+                label="Helles Design (Light Mode)"
+              />
             </RadioGroup>
           </FormControl>
         </Paper>
 
         {/* 4. Benachrichtigungen */}
-        <Paper className="p-6 shadow-md flex flex-col gap-4">
-          <Typography variant="h6" className="font-bold flex items-center gap-2" color="primary">
+        <Paper
+          variant="outlined"
+          sx={{ bgcolor: "background.paper", borderColor: "divider" }}
+          className="p-4 sm:p-6 shadow-md flex flex-col gap-4"
+        >
+          <Typography
+            variant="h6"
+            className="font-bold flex items-center gap-2"
+            color="primary"
+          >
             <NotificationsIcon /> Benachrichtigungen
           </Typography>
 
@@ -442,12 +596,20 @@ export const UserProfileView: React.FC = () => {
                 color="primary"
               />
             }
-            label={<Typography className="font-bold">Benachrichtigungen grundsätzlich aktivieren</Typography>}
+            label={
+              <Typography className="font-bold" color="text.primary">
+                Benachrichtigungen grundsätzlich aktivieren
+              </Typography>
+            }
           />
 
           <Divider />
 
-          <div className={`flex flex-col gap-3 ${!notificationsEnabled ? 'opacity-50 pointer-events-none' : ''}`}>
+          <div
+            className={`flex flex-col gap-3 ${
+              !notificationsEnabled ? "opacity-50 pointer-events-none" : ""
+            }`}
+          >
             <FormControlLabel
               control={
                 <Switch
@@ -457,19 +619,29 @@ export const UserProfileView: React.FC = () => {
                   disabled={!notificationsEnabled}
                 />
               }
-              label="Neue oder bearbeitete Trainingspläne"
+              label={
+                <Typography variant="body2" color="text.primary">
+                  Neue oder bearbeitete Trainingspläne
+                </Typography>
+              }
             />
 
             <FormControlLabel
               control={
                 <Switch
                   checked={notifyPerformanceTests}
-                  onChange={(e) => setNotifyPerformanceTests(e.target.checked)}
+                  onChange={(e) =>
+                    setNotifyPerformanceTests(e.target.checked)
+                  }
                   color="primary"
                   disabled={!notificationsEnabled}
                 />
               }
-              label="Neuer oder geänderter Leistungstest"
+              label={
+                <Typography variant="body2" color="text.primary">
+                  Neuer oder geänderter Leistungstest
+                </Typography>
+              }
             />
 
             <FormControlLabel
@@ -481,7 +653,11 @@ export const UserProfileView: React.FC = () => {
                   disabled={!notificationsEnabled}
                 />
               }
-              label="Neuer Highscore bei der Übung des Monats"
+              label={
+                <Typography variant="body2" color="text.primary">
+                  Neuer Highscore bei der Übung des Monats
+                </Typography>
+              }
             />
 
             <Divider className="my-1" />
@@ -496,13 +672,20 @@ export const UserProfileView: React.FC = () => {
                     disabled={!notificationsEnabled}
                   />
                 }
-                label="Erinnerung an Trainingsplan bevor er abläuft"
+                label={
+                  <Typography variant="body2" color="text.primary">
+                    Erinnerung an Trainingsplan bevor er abläuft
+                  </Typography>
+                }
               />
 
               {notifyPlanReminder && notificationsEnabled && (
                 <FormControl size="small" className="w-48">
-                  <InputLabel>Erinnerungsvorlauf</InputLabel>
+                  <InputLabel id="reminder-days-label">
+                    Erinnerungsvorlauf
+                  </InputLabel>
                   <Select
+                    labelId="reminder-days-label"
                     value={reminderDays}
                     label="Erinnerungsvorlauf"
                     onChange={(e) => setReminderDays(Number(e.target.value))}
@@ -518,8 +701,16 @@ export const UserProfileView: React.FC = () => {
         </Paper>
 
         {/* 5. Equipment & Dart Setup */}
-        <Paper className="p-6 shadow-md flex flex-col gap-4">
-          <Typography variant="h6" className="font-bold flex items-center gap-2" color="primary">
+        <Paper
+          variant="outlined"
+          sx={{ bgcolor: "background.paper", borderColor: "divider" }}
+          className="p-4 sm:p-6 shadow-md flex flex-col gap-4"
+        >
+          <Typography
+            variant="h6"
+            className="font-bold flex items-center gap-2"
+            color="primary"
+          >
             <SportsMartsIcon /> Mein Equipment & Setup
           </Typography>
 
@@ -557,8 +748,9 @@ export const UserProfileView: React.FC = () => {
             />
 
             <FormControl fullWidth>
-              <InputLabel>Scoring System</InputLabel>
+              <InputLabel id="scoring-system-label">Scoring System</InputLabel>
               <Select
+                labelId="scoring-system-label"
                 value={scoringSystem}
                 label="Scoring System"
                 onChange={(e) => setScoringSystem(e.target.value as any)}
@@ -577,7 +769,7 @@ export const UserProfileView: React.FC = () => {
               fullWidth
               value={systemUsername}
               onChange={(e) => setSystemUsername(e.target.value)}
-              disabled={scoringSystem === 'none'}
+              disabled={scoringSystem === "none"}
             />
           </div>
 
@@ -591,36 +783,65 @@ export const UserProfileView: React.FC = () => {
                 color="primary"
               />
             }
-            label="Equipment öffentlich für andere Spieler im Profil anzeigen"
+            label={
+              <Typography variant="body2" color="text.primary">
+                Equipment öffentlich für andere Spieler im Profil anzeigen
+              </Typography>
+            }
           />
 
           <Box className="mt-2">
-            <Button type="submit" variant="contained" color="primary" disabled={loading}>
-              {loading ? 'Speichert...' : 'Profil & Einstellungen Speichern'}
+            <Button
+              type="submit"
+              variant="contained"
+              color="primary"
+              disabled={loading}
+            >
+              {loading ? "Speichert..." : "Profil & Einstellungen Speichern"}
             </Button>
           </Box>
         </Paper>
       </form>
 
       {/* 6. Feedback & Ideen einreichen */}
-      <Paper className="p-6 shadow-md flex flex-col gap-4">
-        <Typography variant="h6" className="font-bold flex items-center gap-2" color="primary">
+      <Paper
+        variant="outlined"
+        sx={{ bgcolor: "background.paper", borderColor: "divider" }}
+        className="p-4 sm:p-6 shadow-md flex flex-col gap-4"
+      >
+        <Typography
+          variant="h6"
+          className="font-bold flex items-center gap-2"
+          color="primary"
+        >
           <FeedbackIcon /> Feedback & Ideen mitteilen
         </Typography>
-        <Typography variant="body2" color="textSecondary">
-          Hast du eine Idee für eine neue Funktion oder einen Fehler gefunden? Teile es uns gerne mit!
+        <Typography variant="body2" color="text.secondary">
+          Hast du eine Idee für eine neue Funktion oder einen Fehler gefunden?
+          Teile es uns gerne mit!
         </Typography>
 
-        {feedbackError && <Alert severity="error" onClose={() => setFeedbackError(null)}>{feedbackError}</Alert>}
-        {feedbackSuccess && <Alert severity="success" onClose={() => setFeedbackSuccess(null)}>{feedbackSuccess}</Alert>}
+        {feedbackError && (
+          <Alert severity="error" onClose={() => setFeedbackError(null)}>
+            {feedbackError}
+          </Alert>
+        )}
+        {feedbackSuccess && (
+          <Alert severity="success" onClose={() => setFeedbackSuccess(null)}>
+            {feedbackSuccess}
+          </Alert>
+        )}
 
         <form onSubmit={handleSubmitFeedback} className="flex flex-col gap-4">
           <FormControl fullWidth size="small">
-            <InputLabel>Kategorie</InputLabel>
+            <InputLabel id="feedback-category-label">Kategorie</InputLabel>
             <Select
+              labelId="feedback-category-label"
               value={feedbackType}
               label="Kategorie"
-              onChange={(e) => setFeedbackType(e.target.value as 'idea' | 'bug' | 'other')}
+              onChange={(e) =>
+                setFeedbackType(e.target.value as "idea" | "bug" | "other")
+              }
             >
               <MenuItem value="idea">Idee / Feature-Wunsch</MenuItem>
               <MenuItem value="bug">Fehler / Bug melden</MenuItem>
@@ -647,20 +868,36 @@ export const UserProfileView: React.FC = () => {
               startIcon={<SendIcon />}
               disabled={feedbackSubmitting || !feedbackMessage.trim()}
             >
-              {feedbackSubmitting ? 'Wird gesendet...' : 'Feedback Absenden'}
+              {feedbackSubmitting ? "Wird gesendet..." : "Feedback Absenden"}
             </Button>
           </Box>
         </form>
       </Paper>
 
       {/* 7. Passwort ändern Kachel */}
-      <Paper className="p-6 shadow-md flex flex-col gap-4">
-        <Typography variant="h6" className="font-bold flex items-center gap-2" color="primary">
+      <Paper
+        variant="outlined"
+        sx={{ bgcolor: "background.paper", borderColor: "divider" }}
+        className="p-4 sm:p-6 shadow-md flex flex-col gap-4"
+      >
+        <Typography
+          variant="h6"
+          className="font-bold flex items-center gap-2"
+          color="primary"
+        >
           <LockIcon /> Passwort ändern
         </Typography>
 
-        {passwordError && <Alert severity="error" onClose={() => setPasswordError(null)}>{passwordError}</Alert>}
-        {passwordSuccess && <Alert severity="success" onClose={() => setPasswordSuccess(null)}>{passwordSuccess}</Alert>}
+        {passwordError && (
+          <Alert severity="error" onClose={() => setPasswordError(null)}>
+            {passwordError}
+          </Alert>
+        )}
+        {passwordSuccess && (
+          <Alert severity="success" onClose={() => setPasswordSuccess(null)}>
+            {passwordSuccess}
+          </Alert>
+        )}
 
         <form onSubmit={handleChangePassword} className="flex flex-col gap-4">
           <TextField
@@ -692,20 +929,37 @@ export const UserProfileView: React.FC = () => {
           </div>
 
           <Box>
-            <Button type="submit" variant="contained" color="primary" disabled={passwordLoading}>
-              {passwordLoading ? 'Wird geändert...' : 'Passwort Ändern'}
+            <Button
+              type="submit"
+              variant="contained"
+              color="primary"
+              disabled={passwordLoading}
+            >
+              {passwordLoading ? "Wird geändert..." : "Passwort Ändern"}
             </Button>
           </Box>
         </form>
       </Paper>
 
       {/* 8. DSGVO Datenschutz & Account Löschen */}
-      <Paper className="p-6 shadow-md border border-red-200">
-        <Typography variant="h6" className="font-bold flex items-center gap-2 text-red-600 mb-2">
+      <Paper
+        variant="outlined"
+        sx={{
+          bgcolor: "background.paper",
+          borderColor: "error.main",
+        }}
+        className="p-4 sm:p-6 shadow-md"
+      >
+        <Typography
+          variant="h6"
+          className="font-bold flex items-center gap-2 mb-2"
+          color="error"
+        >
           <SecurityIcon /> DSGVO & Account löschen
         </Typography>
-        <Typography variant="body2" color="textSecondary" className="mb-4">
-          Hier kannst du dein Konto unwiderruflich löschen. Dabei werden alle deine Personen- und Profil-Daten gemäß DSGVO dauerhaft gelöscht.
+        <Typography variant="body2" color="text.secondary" className="mb-4">
+          Hier kannst du dein Konto unwiderruflich löschen. Dabei werden alle
+          deine Personen- und Profil-Daten gemäß DSGVO dauerhaft gelöscht.
         </Typography>
 
         <Button
@@ -717,8 +971,8 @@ export const UserProfileView: React.FC = () => {
           Konto Endgültig Löschen
         </Button>
       </Paper>
-      
-      {/* 3. Message Modal */}
+
+      {/* Message Modal */}
       <SendCoachMessageModal
         open={isMessageModalOpen}
         onClose={() => setIsMessageModalOpen(false)}
@@ -726,20 +980,34 @@ export const UserProfileView: React.FC = () => {
       />
 
       {/* Confirmation Modal für Account Löschung */}
-      <Dialog open={isDeleteModalOpen} onClose={() => setIsDeleteModalOpen(false)}>
-        <DialogTitle className="font-bold text-red-600">Account unwiderruflich löschen?</DialogTitle>
+      <Dialog
+        open={isDeleteModalOpen}
+        onClose={() => setIsDeleteModalOpen(false)}
+      >
+        <DialogTitle className="font-bold text-red-600">
+          Account unwiderruflich löschen?
+        </DialogTitle>
         <DialogContent>
           <DialogContentText>
-            Möchtest du deinen Account und all deine gespeicherten Profildaten wirklich dauerhaft löschen? Dieser Schritt kann nicht rückgängig gemacht werden.
+            Möchtest du deinen Account und all deine gespeicherten Profildaten
+            wirklich dauerhaft löschen? Dieser Schritt kann nicht rückgängig
+            gemacht werden.
           </DialogContentText>
         </DialogContent>
         <DialogActions className="p-4">
-          <Button onClick={() => setIsDeleteModalOpen(false)}>Abbrechen</Button>
-          <Button onClick={handleDeleteAccount} color="error" variant="contained" disabled={deleting}>
-            {deleting ? 'Löscht...' : 'Ja, Konto Löschen'}
+          <Button onClick={() => setIsDeleteModalOpen(false)}>
+            Abbrechen
+          </Button>
+          <Button
+            onClick={handleDeleteAccount}
+            color="error"
+            variant="contained"
+            disabled={deleting}
+          >
+            {deleting ? "Löscht..." : "Ja, Konto Löschen"}
           </Button>
         </DialogActions>
       </Dialog>
-    </div>
+    </Box>
   );
 };

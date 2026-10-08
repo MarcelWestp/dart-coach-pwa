@@ -16,7 +16,10 @@ import {
   Chip, 
   Alert, 
   CircularProgress,
-  IconButton
+  IconButton,
+  useTheme,
+  useMediaQuery,
+  Box
 } from '@mui/material';
 import DeleteIcon from '@mui/icons-material/Delete';
 import LocalOfferIcon from '@mui/icons-material/LocalOffer';
@@ -28,6 +31,9 @@ export const TagManagement: React.FC = () => {
   const [submitting, setSubmitting] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
 
   const fetchTags = async () => {
     setLoading(true);
@@ -100,10 +106,20 @@ export const TagManagement: React.FC = () => {
   }
 
   return (
-    <Paper className="p-6 my-6 shadow-md">
+    <Paper 
+      variant="outlined" 
+      sx={{ 
+        p: { xs: 2, sm: 3 }, 
+        my: { xs: 2, sm: 3 }, 
+        bgcolor: 'background.paper', 
+        borderColor: 'divider' 
+      }} 
+      className="shadow-sm"
+    >
+      {/* Titelzeile */}
       <div className="flex items-center gap-2 mb-4">
         <LocalOfferIcon color="primary" />
-        <Typography variant="h6" className="font-bold">
+        <Typography variant="h6" className="font-bold text-base sm:text-lg" color="text.primary">
           Übungs-Tags verwalten
         </Typography>
       </div>
@@ -111,8 +127,8 @@ export const TagManagement: React.FC = () => {
       {error && <Alert severity="error" className="mb-4" onClose={() => setError(null)}>{error}</Alert>}
       {success && <Alert severity="success" className="mb-4" onClose={() => setSuccess(null)}>{success}</Alert>}
 
-      {/* Formular zum Erstellen eines neuen Tags */}
-      <form onSubmit={handleCreateTag} className="flex gap-4 mb-6 items-center">
+      {/* Formular zum Erstellen eines neuen Tags (Auf Mobile flex-col, sonst flex-row) */}
+      <form onSubmit={handleCreateTag} className="flex flex-col sm:flex-row gap-3 sm:gap-4 mb-6 items-stretch sm:items-center">
         <TextField
           label="Neuer Tag Name (z. B. Doppel, Scoring, Bull)"
           variant="outlined"
@@ -127,20 +143,21 @@ export const TagManagement: React.FC = () => {
           variant="contained" 
           color="primary"
           disabled={submitting || !tagName.trim()}
-          className="whitespace-nowrap"
+          size={isMobile ? "medium" : "small"}
+          className="whitespace-nowrap min-h-[40px]"
         >
           {submitting ? 'Speichert...' : 'Tag Hinzufügen'}
         </Button>
       </form>
 
       {/* Liste aller existierenden Tags */}
-      <Typography variant="subtitle2" className="mb-2 text-gray-500">
+      <Typography variant="subtitle2" className="mb-3 font-semibold" color="text.secondary">
         Vorhandene Tags ({tags.length}):
       </Typography>
 
-      <div className="flex flex-wrap gap-2">
+      <Box className="flex flex-wrap gap-2">
         {tags.length === 0 ? (
-          <Typography variant="body2" color="textSecondary">
+          <Typography variant="body2" color="text.secondary">
             Noch keine Tags vorhanden. Erstelle den ersten Tag oben.
           </Typography>
         ) : (
@@ -152,14 +169,22 @@ export const TagManagement: React.FC = () => {
               variant="outlined"
               onDelete={() => handleDeleteTag(tag.id, tag.name)}
               deleteIcon={
-                <IconButton size="small" component="span">
+                <IconButton size="small" component="span" sx={{ p: 0.5 }}>
                   <DeleteIcon fontSize="small" />
                 </IconButton>
               }
+              sx={{
+                bgcolor: 'action.hover',
+                borderColor: 'divider',
+                '& .MuiChip-label': {
+                  px: 1.5,
+                  fontSize: { xs: '0.75rem', sm: '0.875rem' }
+                }
+              }}
             />
           ))
         )}
-      </div>
+      </Box>
     </Paper>
   );
 };

@@ -26,6 +26,8 @@ import {
   Menu,
   MenuItem,
   CircularProgress,
+  useMediaQuery,
+  useTheme,
 } from "@mui/material";
 import KeyboardArrowDownIcon from "@mui/icons-material/KeyboardArrowDown";
 import FitnessCenterIcon from "@mui/icons-material/FitnessCenter";
@@ -38,7 +40,10 @@ const MainContent: React.FC = () => {
   const { setThemeMode } = useThemeContext();
   const [isRegistering, setIsRegistering] = useState(false);
 
-  // Navigations-State ('player-plan', 'league', 'player-stats', 'exercises', 'tests', 'coach-plans', 'roster', 'groups', 'coach-stats', 'admin-league', 'admin-dashboard', 'profile')
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
+
+  // Navigations-State
   const [activeView, setActiveView] = useState<string>("dashboard");
 
   // Dropdown Menü-Anchors
@@ -55,7 +60,7 @@ const MainContent: React.FC = () => {
     }
   }, [userProfile?.themePreference, setThemeMode]);
 
-  // 1. Lade-Zustand abfangen (Verhindert Render-Fehler solange Auth/Profil lädt)
+  // 1. Lade-Zustand
   if (loading) {
     return (
       <Box
@@ -93,7 +98,7 @@ const MainContent: React.FC = () => {
     );
   }
 
-  // 3. Sichere Rollenprüfung (Schützt vor crashes bei undefined/null)
+  // 3. Rollenprüfung
   const userRoles = Array.isArray(userProfile?.roles) ? userProfile.roles : [];
   const isAdmin = userRoles.includes("admin");
   const isCoach = userRoles.includes("coach") || isAdmin;
@@ -121,19 +126,21 @@ const MainContent: React.FC = () => {
           onOpenDashboard={() => setActiveView("dashboard")}
         />
 
-        {/* Strukturierte Hauptnavigation */}
-        <div className="max-w-6xl mx-auto px-6 mt-4">
-          <Paper className="shadow-sm p-2 flex items-center justify-start gap-2 flex-wrap">
+        {/* Hauptnavigation */}
+        <div className="max-w-6xl mx-auto px-2 sm:px-6 mt-3 sm:mt-4">
+          <Paper className="shadow-sm p-1.5 sm:p-2 flex items-center justify-start gap-1.5 sm:gap-2 overflow-x-auto flex-nowrap no-scrollbar">
             {/* 1. KATEGORIE: Mein Training */}
             <Button
-              startIcon={<FitnessCenterIcon />}
-              endIcon={<KeyboardArrowDownIcon />}
+              size={isMobile ? "small" : "medium"}
+              startIcon={<FitnessCenterIcon fontSize="small" />}
+              endIcon={<KeyboardArrowDownIcon fontSize="small" />}
               variant={
-                ["player-plan", "league", "player-stats"].includes(activeView)
+                ["dashboard", "player-plan", "league", "player-stats"].includes(activeView)
                   ? "contained"
                   : "text"
               }
               onClick={(e) => setTrainingAnchor(e.currentTarget)}
+              className="text-xs sm:text-sm shrink-0 whitespace-nowrap"
             >
               Mein Training
             </Button>
@@ -158,14 +165,16 @@ const MainContent: React.FC = () => {
 
             {/* 2. KATEGORIE: Bibliotheken */}
             <Button
-              startIcon={<MenuBookIcon />}
-              endIcon={<KeyboardArrowDownIcon />}
+              size={isMobile ? "small" : "medium"}
+              startIcon={<MenuBookIcon fontSize="small" />}
+              endIcon={<KeyboardArrowDownIcon fontSize="small" />}
               variant={
                 ["exercises", "tests"].includes(activeView)
                   ? "contained"
                   : "text"
               }
               onClick={(e) => setLibraryAnchor(e.currentTarget)}
+              className="text-xs sm:text-sm shrink-0 whitespace-nowrap"
             >
               Bibliotheken
             </Button>
@@ -182,22 +191,28 @@ const MainContent: React.FC = () => {
               </MenuItem>
             </Menu>
 
-            {/* 3. KATEGORIE: Trainer-Bereich (Nur Coach/Admin) */}
+            {/* 3. KATEGORIE: Trainer-Bereich */}
             {isCoach && (
               <>
                 <Button
-                  startIcon={<SupervisorAccountIcon />}
-                  endIcon={<KeyboardArrowDownIcon />}
+                  size={isMobile ? "small" : "medium"}
+                  startIcon={<SupervisorAccountIcon fontSize="small" />}
+                  endIcon={<KeyboardArrowDownIcon fontSize="small" />}
                   variant={
-                    ["coach-plans", "roster", "groups", "coach-stats"].includes(
-                      activeView,
-                    )
+                    [
+                      "coach-plans",
+                      "roster",
+                      "groups",
+                      "coach-stats",
+                      "coach-messages",
+                    ].includes(activeView)
                       ? "contained"
                       : "text"
                   }
                   onClick={(e) => setCoachAnchor(e.currentTarget)}
+                  className="text-xs sm:text-sm shrink-0 whitespace-nowrap"
                 >
-                  Trainer-Bereich
+                  Trainer
                 </Button>
                 <Menu
                   anchorEl={coachAnchor}
@@ -223,20 +238,22 @@ const MainContent: React.FC = () => {
               </>
             )}
 
-            {/* 4. KATEGORIE: Administration (Nur Admin) */}
+            {/* 4. KATEGORIE: Administration */}
             {isAdmin && (
               <>
                 <Button
-                  startIcon={<AdminPanelSettingsIcon />}
-                  endIcon={<KeyboardArrowDownIcon />}
+                  size={isMobile ? "small" : "medium"}
+                  startIcon={<AdminPanelSettingsIcon fontSize="small" />}
+                  endIcon={<KeyboardArrowDownIcon fontSize="small" />}
                   variant={
                     ["admin-league", "admin-dashboard"].includes(activeView)
                       ? "contained"
                       : "text"
                   }
                   onClick={(e) => setAdminAnchor(e.currentTarget)}
+                  className="text-xs sm:text-sm shrink-0 whitespace-nowrap"
                 >
-                  Administration
+                  Admin
                 </Button>
                 <Menu
                   anchorEl={adminAnchor}
@@ -256,10 +273,12 @@ const MainContent: React.FC = () => {
         </div>
 
         {/* Hauptinhalt je nach ausgewählter Ansicht */}
-        <main className="py-6">
+        <main className="py-4 sm:py-6 px-2 sm:px-0">
           {activeView === "dashboard" && (
             <DashboardLandingPage
-              onNavigate={(routeOrIndex) => {setActiveView(routeOrIndex);              }}
+              onNavigate={(routeOrIndex) => {
+                setActiveView(String(routeOrIndex));
+              }}
             />
           )}
           {activeView === "player-plan" && <PlayerPlanView />}

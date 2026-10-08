@@ -45,7 +45,7 @@ export const AssignTestModal: React.FC<AssignTestModalProps> = ({
     getWeekAndYearFromDate(new Date().toISOString());
 
   const [assignTarget, setAssignTarget] = useState<"player" | "group" | "all">(
-    "player",
+    "player"
   );
   const [selectedPlayerId, setSelectedPlayerId] = useState<string>("");
   const [selectedGroupId, setSelectedGroupId] = useState<string>("");
@@ -58,6 +58,10 @@ export const AssignTestModal: React.FC<AssignTestModalProps> = ({
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
 
+  /**
+   * Generiert die Namensdarstellung des Spielers gemäß seiner Datenschutz-Präferenz
+   * und hängt die E-Mail-Adresse an.
+   */
   const getPlayerDisplayName = (player: UserProfile): string => {
     const visibility =
       player.privacySettings?.leaderboardVisibility || "nickname";
@@ -79,16 +83,19 @@ export const AssignTestModal: React.FC<AssignTestModalProps> = ({
       namePart = nickname || realName || "Spieler";
     }
 
-    // E-Mail immer hinzufügen
     return `${namePart} – ${player.email}`;
   };
 
-  // 2. Im useEffect für das Laden des Kaders (fetchRosterAndGroups):
+  /**
+   * Lädt die Spieler (Kader) und Gruppen des Trainers
+   */
   useEffect(() => {
     if (!open) return;
 
     const fetchRosterAndGroups = async () => {
       try {
+        setError(null);
+
         // 1. Trainer-Spieler-Beziehungen abfragen
         const relSnap = await getDocs(collection(db, "coachPlayerRelations"));
         const playerIds: string[] = [];
@@ -105,9 +112,8 @@ export const AssignTestModal: React.FC<AssignTestModalProps> = ({
 
         userSnap.forEach((d) => {
           const data = d.data();
-          const userId = d.id; // Dokumenten-ID verwenden
+          const userId = d.id; // Dokumenten-ID als Basis-UID verwenden
 
-          // Fallback-Prüfung: Entweder in coachPlayerRelations oder direkt am User
           const isMyPlayer =
             playerIds.includes(userId) ||
             data.assignedCoachId === userProfile?.uid;
@@ -115,7 +121,7 @@ export const AssignTestModal: React.FC<AssignTestModalProps> = ({
           if (isMyPlayer) {
             fetchedUsers.push({
               ...data,
-              uid: userId, // WICHTIG: Ersetzt/sichert das Feld 'uid', damit das Dropdown nicht leer bleibt!
+              uid: userId, // WICHTIG: Garantiert ein valides 'uid'-Feld für das MUI-Select
             } as UserProfile);
           }
         });
@@ -134,16 +140,19 @@ export const AssignTestModal: React.FC<AssignTestModalProps> = ({
         setGroups(fetchedGroups);
       } catch (err) {
         console.error("Fehler beim Laden des Kaders:", err);
+        setError("Fehler beim Laden der Kader- und Gruppendaten.");
       }
     };
 
     fetchRosterAndGroups();
   }, [open, userProfile?.uid]);
 
+  /**
+   * Führt die Zuweisung des Leistungstests durch
+   */
   const handleAssign = async () => {
     if (!testToAssign || !userProfile) return;
 
-    // Empfänger-IDs bestimmen
     let targetPlayerIds: string[] = [];
 
     if (assignTarget === "player") {
@@ -158,7 +167,7 @@ export const AssignTestModal: React.FC<AssignTestModalProps> = ({
         return;
       }
       const group = groups.find((g) => g.id === selectedGroupId);
-      if (group) {
+      if (group && group.memberIds) {
         targetPlayerIds = group.memberIds;
       }
     } else if (assignTarget === "all") {
@@ -176,8 +185,8 @@ export const AssignTestModal: React.FC<AssignTestModalProps> = ({
     try {
       const nowIso = new Date().toISOString();
 
-      // Zuweisungs-Dokumente in Firestore anlegen
-      for (const pId of targetPlayerIds) {
+      // Zuweisungen für alle Zielspieler parallel/in Schleife anlegen
+      const assignPromises = targetPlayerIds.map(async (pId) => {
         await addDoc(collection(db, "assignedPerformanceTests"), {
           testId: testToAssign.id,
           title: testToAssign.title,
@@ -202,12 +211,14 @@ export const AssignTestModal: React.FC<AssignTestModalProps> = ({
           message: `Dein Trainer hat dir den Leistungstest "${testToAssign.title}" für KW ${calendarWeek} zugewiesen.`,
           link: "/performance-tests",
         });
-      }
+      });
+
+      await Promise.all(assignPromises);
 
       onAssigned();
       onClose();
     } catch (err) {
-      console.error(err);
+      console.error("Fehler beim Zuweisen des Leistungstests:", err);
       setError("Fehler beim Zuweisen des Leistungstests.");
     } finally {
       setLoading(false);
@@ -217,8 +228,9 @@ export const AssignTestModal: React.FC<AssignTestModalProps> = ({
   return (
     <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
       <DialogTitle className="font-bold">
-        Leistungstest zuweisen: {testToAssign?.title}
+        Leistungstest zuweisen: {testToAssign?.title || "Unbekannter Test"}
       </DialogTitle>
+      
       <DialogContent dividers className="flex flex-col gap-4">
         {error && <Alert severity="error">{error}</Alert>}
 
@@ -229,7 +241,9 @@ export const AssignTestModal: React.FC<AssignTestModalProps> = ({
         <RadioGroup
           row
           value={assignTarget}
-          onChange={(e) => setAssignTarget(e.target.value as any)}
+          onChange={(e) =>
+            setAssignTarget(e.target.value as "player" | "group" | "all")
+          }
         >
           <FormControlLabel
             value="player"
@@ -253,33 +267,46 @@ export const AssignTestModal: React.FC<AssignTestModalProps> = ({
               label="Spieler auswählen"
               onChange={(e) => setSelectedPlayerId(e.target.value)}
             >
-              {roster.map((p) => (
-                <MenuItem key={p.uid} value={p.uid}>
-                  {getPlayerDisplayName(p)}
+              {roster.length === 0 ? (
+                <MenuItem disabled value="">
+                  Keine Spieler im Kader vorhanden
                 </MenuItem>
-              ))}
+              ) : (
+                roster.map((p) => (
+                  <MenuItem key={p.uid} value={p.uid}>
+                    {getPlayerDisplayName(p)}
+                  </MenuItem>
+                ))
+              )}
             </Select>
           </FormControl>
         )}
 
         {assignTarget === "group" && (
-          <FormControl fullWidth required>
-            <InputLabel>Gruppe</InputLabel>
+          <FormControl fullWidth required className="mt-2">
+            <InputLabel id="group-select-label">Gruppe auswählen</InputLabel>
             <Select
+              labelId="group-select-label"
               value={selectedGroupId}
-              label="Gruppe"
+              label="Gruppe auswählen"
               onChange={(e) => setSelectedGroupId(e.target.value)}
             >
-              {groups.map((g) => (
-                <MenuItem key={g.id} value={g.id}>
-                  {g.name} ({g.memberIds.length} Mitglieder)
+              {groups.length === 0 ? (
+                <MenuItem disabled value="">
+                  Keine Gruppen vorhanden
                 </MenuItem>
-              ))}
+              ) : (
+                groups.map((g) => (
+                  <MenuItem key={g.id} value={g.id}>
+                    {g.name} ({g.memberIds?.length || 0} Mitglieder)
+                  </MenuItem>
+                ))
+              )}
             </Select>
           </FormControl>
         )}
 
-        <Box className="flex gap-4">
+        <Box className="flex gap-4 mt-2">
           <TextField
             label="Kalenderwoche"
             type="number"
@@ -287,6 +314,7 @@ export const AssignTestModal: React.FC<AssignTestModalProps> = ({
             onChange={(e) => setCalendarWeek(Number(e.target.value))}
             fullWidth
             required
+            slotProps={{ htmlInput: { min: 1, max: 53 } }}
           />
           <TextField
             label="Jahr"
@@ -295,6 +323,7 @@ export const AssignTestModal: React.FC<AssignTestModalProps> = ({
             onChange={(e) => setYear(Number(e.target.value))}
             fullWidth
             required
+            slotProps={{ htmlInput: { min: 2024, max: 2100 } }}
           />
         </Box>
 
@@ -308,8 +337,11 @@ export const AssignTestModal: React.FC<AssignTestModalProps> = ({
           fullWidth
         />
       </DialogContent>
+
       <DialogActions className="p-4">
-        <Button onClick={onClose}>Abbrechen</Button>
+        <Button onClick={onClose} disabled={loading}>
+          Abbrechen
+        </Button>
         <Button
           variant="contained"
           color="primary"

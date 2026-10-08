@@ -32,6 +32,7 @@ import {
   TableHead,
   TableRow,
   Chip,
+  Box,
 } from "@mui/material";
 import EditIcon from "@mui/icons-material/Edit";
 import DeleteIcon from "@mui/icons-material/Delete";
@@ -116,7 +117,7 @@ export const AdminLeagueManager: React.FC = () => {
       setExercises(fetchedEx);
       setMonthlyConfigs(fetchedMonthly);
     } catch (err) {
-      console.error(err);
+      console.error("Fehler beim Laden der Admin-Daten:", err);
       setError("Fehler beim Laden der Admin-Daten.");
     } finally {
       setLoading(false);
@@ -141,8 +142,8 @@ export const AdminLeagueManager: React.FC = () => {
       if (isEditingLeague) {
         const leagueRef = doc(db, "leagues", isEditingLeague);
         await updateDoc(leagueRef, {
-          title,
-          description,
+          title: title.trim(),
+          description: description.trim(),
           type,
           startDate: startDate || null,
           endDate: endDate || null,
@@ -153,8 +154,8 @@ export const AdminLeagueManager: React.FC = () => {
         setSuccess("Liga erfolgreich aktualisiert!");
       } else {
         await addDoc(collection(db, "leagues"), {
-          title,
-          description,
+          title: title.trim(),
+          description: description.trim(),
           type,
           startDate: startDate || null,
           endDate: endDate || null,
@@ -170,7 +171,7 @@ export const AdminLeagueManager: React.FC = () => {
       resetLeagueForm();
       fetchData();
     } catch (err) {
-      console.error(err);
+      console.error("Fehler beim Speichern der Liga:", err);
       setError("Fehler beim Speichern der Liga.");
     }
   };
@@ -209,7 +210,7 @@ export const AdminLeagueManager: React.FC = () => {
       setSuccess("Liga wurde beendet.");
       fetchData();
     } catch (err) {
-      console.error(err);
+      console.error("Fehler beim Beenden der Liga:", err);
       setError("Fehler beim Beenden der Liga.");
     }
   };
@@ -221,7 +222,7 @@ export const AdminLeagueManager: React.FC = () => {
       setSuccess("Liga gelöscht.");
       fetchData();
     } catch (err) {
-      console.error(err);
+      console.error("Fehler beim Löschen der Liga:", err);
       setError("Fehler beim Löschen der Liga.");
     }
   };
@@ -242,14 +243,14 @@ export const AdminLeagueManager: React.FC = () => {
         const ref = doc(db, "monthlyExercises", existing.id);
         await updateDoc(ref, {
           exerciseId: monthlyExId,
-          description: monthlyDesc,
+          description: monthlyDesc.trim(),
         });
       } else {
         await addDoc(collection(db, "monthlyExercises"), {
           exerciseId: monthlyExId,
           year: monthlyYear,
           month: monthlyMonth,
-          description: monthlyDesc,
+          description: monthlyDesc.trim(),
           createdBy: userProfile?.uid || "",
           createdAt: new Date().toISOString(),
         });
@@ -260,7 +261,7 @@ export const AdminLeagueManager: React.FC = () => {
       setMonthlyDesc("");
       fetchData();
     } catch (err) {
-      console.error(err);
+      console.error("Fehler beim Speichern der Monatsübung:", err);
       setError("Fehler beim Speichern der Monatsübung.");
     }
   };
@@ -268,36 +269,53 @@ export const AdminLeagueManager: React.FC = () => {
   const filteredLeagues = leagues.filter((l) => {
     if (leagueFilterStatus === "all") return true;
     if (leagueFilterStatus === "active") return l.isActive === true;
-    if (leagueFilterStatus === "paused") return l.isActive === false && (!l.endDate || new Date(l.endDate) > new Date());
+    if (leagueFilterStatus === "paused")
+      return l.isActive === false && (!l.endDate || new Date(l.endDate) > new Date());
     if (leagueFilterStatus === "terminated") return l.isActive === false;
     return true;
   });
 
   if (loading) {
     return (
-      <div className="flex justify-center items-center p-8">
+      <Box className="flex justify-center items-center p-8">
         <CircularProgress />
-      </div>
+      </Box>
     );
   }
 
   return (
-    <div className="p-6 max-w-6xl mx-auto flex flex-col gap-6">
+    <Box className="p-4 sm:p-6 max-w-6xl mx-auto space-y-6">
       <div>
-        <Typography variant="h4" className="font-bold flex items-center gap-2" color="text.primary">
+        <Typography
+          variant="h4"
+          className="font-bold flex items-center gap-2"
+          color="text.primary"
+        >
           <EmojiEventsIcon fontSize="large" color="primary" /> Liga-Verwaltung (Admin)
         </Typography>
-        <Typography variant="body2" color="textSecondary">
+        <Typography variant="body2" color="text.secondary">
           Erstelle, bearbeite und verwalte Trainingsligen und die monatlichen Challenges.
         </Typography>
       </div>
 
-      {error && <Alert severity="error" onClose={() => setError(null)}>{error}</Alert>}
-      {success && <Alert severity="success" onClose={() => setSuccess(null)}>{success}</Alert>}
+      {error && (
+        <Alert severity="error" onClose={() => setError(null)}>
+          {error}
+        </Alert>
+      )}
+      {success && (
+        <Alert severity="success" onClose={() => setSuccess(null)}>
+          {success}
+        </Alert>
+      )}
 
       {/* Sektion 1: Ligen erstellen / bearbeiten */}
-      <Paper className="p-6 shadow-md flex flex-col gap-4">
-        <Typography variant="h6" className="font-bold">
+      <Paper
+        variant="outlined"
+        sx={{ bgcolor: "background.paper", borderColor: "divider" }}
+        className="p-4 sm:p-6 shadow-md flex flex-col gap-4"
+      >
+        <Typography variant="h6" className="font-bold" color="text.primary">
           {isEditingLeague ? "Liga bearbeiten" : "Neue Liga erstellen"}
         </Typography>
 
@@ -312,14 +330,17 @@ export const AdminLeagueManager: React.FC = () => {
               onChange={(e) => setTitle(e.target.value)}
             />
 
-            <FormControl fullWidth>
-              <InputLabel>Ligatyp</InputLabel>
+            <FormControl fullWidth required>
+              <InputLabel id="league-type-label">Ligatyp</InputLabel>
               <Select
+                labelId="league-type-label"
                 value={type}
                 label="Ligatyp"
                 onChange={(e) => setType(e.target.value as LeagueType)}
               >
-                <MenuItem value="performance">Performance League (Übungsbasiert)</MenuItem>
+                <MenuItem value="performance">
+                  Performance League (Übungsbasiert)
+                </MenuItem>
                 <MenuItem value="match">Match League (1v1 ELO-Duell)</MenuItem>
               </Select>
             </FormControl>
@@ -341,6 +362,7 @@ export const AdminLeagueManager: React.FC = () => {
               type="date"
               value={startDate}
               onChange={(e) => setStartDate(e.target.value)}
+              slotProps={{ inputLabel: { shrink: true } }}
             />
 
             <TextField
@@ -348,11 +370,13 @@ export const AdminLeagueManager: React.FC = () => {
               type="date"
               value={endDate}
               onChange={(e) => setEndDate(e.target.value)}
+              slotProps={{ inputLabel: { shrink: true } }}
             />
 
             <FormControl fullWidth>
-              <InputLabel>Status</InputLabel>
+              <InputLabel id="league-status-label">Status</InputLabel>
               <Select
+                labelId="league-status-label"
                 value={isActive ? "active" : "inactive"}
                 label="Status"
                 onChange={(e) => setIsActive(e.target.value === "active")}
@@ -365,12 +389,19 @@ export const AdminLeagueManager: React.FC = () => {
 
           {type === "performance" && (
             <FormControl fullWidth>
-              <InputLabel>Gewertete Übungen für Performance League</InputLabel>
+              <InputLabel id="performance-exercises-label">
+                Gewertete Übungen für Performance League
+              </InputLabel>
               <Select
+                labelId="performance-exercises-label"
                 multiple
                 value={selectedExerciseIds}
-                onChange={(e) => setSelectedExerciseIds(e.target.value as string[])}
-                input={<OutlinedInput label="Gewertete Übungen für Performance League" />}
+                onChange={(e) =>
+                  setSelectedExerciseIds(e.target.value as string[])
+                }
+                input={
+                  <OutlinedInput label="Gewertete Übungen für Performance League" />
+                }
                 renderValue={(selected) =>
                   selected
                     .map((id) => exercises.find((ex) => ex.id === id)?.title)
@@ -380,7 +411,9 @@ export const AdminLeagueManager: React.FC = () => {
               >
                 {exercises.map((ex) => (
                   <MenuItem key={ex.id} value={ex.id}>
-                    <Checkbox checked={selectedExerciseIds.indexOf(ex.id) > -1} />
+                    <Checkbox
+                      checked={selectedExerciseIds.indexOf(ex.id) > -1}
+                    />
                     <ListItemText primary={ex.title} />
                   </MenuItem>
                 ))}
@@ -390,7 +423,11 @@ export const AdminLeagueManager: React.FC = () => {
 
           <div className="flex gap-2 justify-end">
             {isEditingLeague && (
-              <Button variant="outlined" color="inherit" onClick={resetLeagueForm}>
+              <Button
+                variant="outlined"
+                color="inherit"
+                onClick={resetLeagueForm}
+              >
                 Abbrechen
               </Button>
             )}
@@ -402,15 +439,22 @@ export const AdminLeagueManager: React.FC = () => {
       </Paper>
 
       {/* Sektion 2: Bestehende Ligen verwalten & filtern */}
-      <Paper className="p-6 shadow-md flex flex-col gap-4">
+      <Paper
+        variant="outlined"
+        sx={{ bgcolor: "background.paper", borderColor: "divider" }}
+        className="p-4 sm:p-6 shadow-md flex flex-col gap-4"
+      >
         <div className="flex justify-between items-center flex-wrap gap-4">
-          <Typography variant="h6" className="font-bold">
+          <Typography variant="h6" className="font-bold" color="text.primary">
             Bestehende Ligen
           </Typography>
 
           <FormControl size="small" className="w-48">
-            <InputLabel>Filter Status</InputLabel>
+            <InputLabel id="league-filter-status-label">
+              Filter Status
+            </InputLabel>
             <Select
+              labelId="league-filter-status-label"
               value={leagueFilterStatus}
               label="Filter Status"
               onChange={(e) => setLeagueFilterStatus(e.target.value)}
@@ -431,32 +475,54 @@ export const AdminLeagueManager: React.FC = () => {
                 <TableCell className="font-bold">Typ</TableCell>
                 <TableCell className="font-bold">Status</TableCell>
                 <TableCell className="font-bold">Laufzeit</TableCell>
-                <TableCell align="right" className="font-bold">Aktionen</TableCell>
+                <TableCell align="right" className="font-bold">
+                  Aktionen
+                </TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
               {filteredLeagues.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={5} align="center" className="py-6 text-gray-500">
-                    Keine Ligen gefunden.
+                  <TableCell colSpan={5} align="center" className="py-6">
+                    <Typography variant="body2" color="text.secondary">
+                      Keine Ligen gefunden.
+                    </Typography>
                   </TableCell>
                 </TableRow>
               ) : (
                 filteredLeagues.map((league) => (
                   <TableRow key={league.id} hover>
                     <TableCell className="font-semibold">
-                      <div className="font-bold text-base">{league.title}</div>
+                      <Typography
+                        variant="subtitle1"
+                        className="font-bold text-base"
+                        color="text.primary"
+                      >
+                        {league.title}
+                      </Typography>
                       {league.description && (
-                        <Typography variant="body2" color="textSecondary" className="mt-1">
+                        <Typography
+                          variant="body2"
+                          color="text.secondary"
+                          className="mt-1"
+                        >
                           {league.description}
                         </Typography>
                       )}
                     </TableCell>
                     <TableCell>
                       <Chip
-                        label={league.type === "performance" ? "Performance" : "1v1 Match"}
+                        label={
+                          league.type === "performance"
+                            ? "Performance"
+                            : "1v1 Match"
+                        }
                         size="small"
-                        color={league.type === "performance" ? "primary" : "secondary"}
+                        color={
+                          league.type === "performance"
+                            ? "primary"
+                            : "secondary"
+                        }
                         variant="outlined"
                       />
                     </TableCell>
@@ -467,8 +533,11 @@ export const AdminLeagueManager: React.FC = () => {
                         color={league.isActive ? "success" : "default"}
                       />
                     </TableCell>
-                    <TableCell className="text-sm text-gray-600 dark:text-gray-300">
-                      {league.startDate || "Unbefristet"} bis {league.endDate || "Offen"}
+                    <TableCell>
+                      <Typography variant="body2" color="text.secondary">
+                        {league.startDate || "Unbefristet"} bis{" "}
+                        {league.endDate || "Offen"}
+                      </Typography>
                     </TableCell>
                     <TableCell align="right">
                       <div className="flex gap-1 justify-end">
@@ -505,19 +574,33 @@ export const AdminLeagueManager: React.FC = () => {
       </Paper>
 
       {/* Sektion 3: Übung des Monats im Voraus planen */}
-      <Paper className="p-6 shadow-md flex flex-col gap-4">
-        <Typography variant="h6" className="font-bold flex items-center gap-2">
+      <Paper
+        variant="outlined"
+        sx={{ bgcolor: "background.paper", borderColor: "divider" }}
+        className="p-4 sm:p-6 shadow-md flex flex-col gap-4"
+      >
+        <Typography
+          variant="h6"
+          className="font-bold flex items-center gap-2"
+          color="text.primary"
+        >
           <CalendarMonthIcon color="primary" /> Übung des Monats planen
         </Typography>
-        <Typography variant="body2" color="textSecondary">
+        <Typography variant="body2" color="text.secondary">
           Lege fest, welche Übung in einem bestimmten Monat als offizielle Monats-Challenge gilt.
         </Typography>
 
-        <form onSubmit={handleSaveMonthlyExercise} className="flex flex-col gap-4 mt-2">
+        <form
+          onSubmit={handleSaveMonthlyExercise}
+          className="flex flex-col gap-4 mt-2"
+        >
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <FormControl fullWidth required>
-              <InputLabel>Übung auswählen</InputLabel>
+              <InputLabel id="select-monthly-exercise-label">
+                Übung auswählen
+              </InputLabel>
               <Select
+                labelId="select-monthly-exercise-label"
                 value={monthlyExId}
                 label="Übung auswählen"
                 onChange={(e) => setMonthlyExId(e.target.value)}
@@ -531,8 +614,9 @@ export const AdminLeagueManager: React.FC = () => {
             </FormControl>
 
             <FormControl fullWidth required>
-              <InputLabel>Monat</InputLabel>
+              <InputLabel id="select-monthly-month-label">Monat</InputLabel>
               <Select
+                labelId="select-monthly-month-label"
                 value={monthlyMonth}
                 label="Monat"
                 onChange={(e) => setMonthlyMonth(Number(e.target.value))}
@@ -546,8 +630,9 @@ export const AdminLeagueManager: React.FC = () => {
             </FormControl>
 
             <FormControl fullWidth required>
-              <InputLabel>Jahr</InputLabel>
+              <InputLabel id="select-monthly-year-label">Jahr</InputLabel>
               <Select
+                labelId="select-monthly-year-label"
                 value={monthlyYear}
                 label="Jahr"
                 onChange={(e) => setMonthlyYear(Number(e.target.value))}
@@ -576,6 +661,6 @@ export const AdminLeagueManager: React.FC = () => {
           </div>
         </form>
       </Paper>
-    </div>
+    </Box>
   );
 };

@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { collection, addDoc } from "firebase/firestore";
 import { db } from "../../firebase/config";
 import { useAuth } from "../../context/AuthContext";
@@ -17,6 +17,7 @@ import {
   Accordion,
   AccordionSummary,
   AccordionDetails,
+  Box,
 } from "@mui/material";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import HelpIcon from "@mui/icons-material/Help";
@@ -43,6 +44,14 @@ export const RecordResultModal: React.FC<RecordResultModalProps> = ({
   const [scores, setScores] = useState<{ [key: string]: number }>({});
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // State beim Öffnen/Schließen des Modals zurücksetzen
+  useEffect(() => {
+    if (open) {
+      setScores({});
+      setError(null);
+    }
+  }, [open, exercise, test]);
 
   const handleScoreChange = (key: string, value: string) => {
     const numericValue = parseInt(value, 10);
@@ -104,7 +113,7 @@ export const RecordResultModal: React.FC<RecordResultModalProps> = ({
       onResultRecorded();
       onClose();
     } catch (err: any) {
-      console.error(err);
+      console.error("Fehler beim Speichern des Ergebnisses:", err);
       setError("Fehler beim Speichern des Ergebnisses.");
     } finally {
       setLoading(false);
@@ -117,8 +126,8 @@ export const RecordResultModal: React.FC<RecordResultModalProps> = ({
         {test
           ? `Ergebnis eintragen: ${test.title}`
           : exercise
-            ? `Ergebnis eintragen: ${exercise.title}`
-            : "Ergebnis eintragen"}
+          ? `Ergebnis eintragen: ${exercise.title}`
+          : "Ergebnis eintragen"}
       </DialogTitle>
 
       <form onSubmit={handleSubmit}>
@@ -127,12 +136,8 @@ export const RecordResultModal: React.FC<RecordResultModalProps> = ({
 
           {/* Fall 1: Einzelleistungstest */}
           {test && (
-            <div>
-              <Typography
-                variant="body2"
-                color="textSecondary"
-                className="mb-4"
-              >
+            <Box className="space-y-4">
+              <Typography variant="body2" color="text.secondary">
                 Trage bitte die erreichten Punkte für jede enthaltene Übung ein:
               </Typography>
 
@@ -142,13 +147,24 @@ export const RecordResultModal: React.FC<RecordResultModalProps> = ({
                   const key = `${index}_${exId}`;
 
                   return (
-                    <Paper key={key} variant="outlined" className="p-3">
-                      <div className="flex justify-between items-center mb-2">
-                        <div>
-                          <Typography variant="subtitle2" className="font-bold">
-                            {index + 1}. {ex ? ex.title : "Übung"}
-                          </Typography>
-                        </div>
+                    <Paper
+                      key={key}
+                      variant="outlined"
+                      sx={{
+                        p: 2,
+                        bgcolor: "background.paper",
+                        borderColor: "divider",
+                      }}
+                      className="flex flex-col gap-2"
+                    >
+                      <div className="flex justify-between items-center gap-2">
+                        <Typography
+                          variant="subtitle2"
+                          className="font-bold"
+                          color="text.primary"
+                        >
+                          {index + 1}. {ex ? ex.title : "Übung"}
+                        </Typography>
 
                         <TextField
                           label="Punkte"
@@ -170,12 +186,13 @@ export const RecordResultModal: React.FC<RecordResultModalProps> = ({
                         <Accordion
                           elevation={0}
                           variant="outlined"
-                          className="mt-2"
+                          sx={{ bgcolor: "action.hover", mt: 1 }}
                         >
                           <AccordionSummary expandIcon={<ExpandMoreIcon />}>
                             <Typography
                               variant="caption"
-                              className="flex items-center gap-1"
+                              className="flex items-center gap-1 font-semibold"
+                              color="text.primary"
                             >
                               <HelpIcon fontSize="small" color="primary" />{" "}
                               Spielanleitung anzeigen
@@ -184,7 +201,8 @@ export const RecordResultModal: React.FC<RecordResultModalProps> = ({
                           <AccordionDetails>
                             <Typography
                               variant="caption"
-                              className="whitespace-pre-line text-gray-600 dark:text-gray-300"
+                              color="text.secondary"
+                              className="whitespace-pre-line"
                             >
                               {ex.instructions}
                             </Typography>
@@ -196,30 +214,34 @@ export const RecordResultModal: React.FC<RecordResultModalProps> = ({
                 })}
               </div>
 
-              <Divider className="my-4" />
+              <Divider />
 
               <div className="flex justify-between items-center px-2">
-                <Typography variant="subtitle1" className="font-bold">
+                <Typography
+                  variant="subtitle1"
+                  className="font-bold"
+                  color="text.primary"
+                >
                   Gesamtpunkte:
                 </Typography>
-                <Typography variant="h6" className="font-bold" color="primary">
+                <Typography
+                  variant="h6"
+                  className="font-bold"
+                  color="primary.main"
+                >
                   {test.exerciseIds.reduce(
                     (sum, exId, idx) => sum + (scores[`${idx}_${exId}`] || 0),
-                    0,
+                    0
                   )}
                 </Typography>
               </div>
-            </div>
+            </Box>
           )}
 
           {/* Fall 2: Einzelübung */}
           {exercise && (
-            <div>
-              <Typography
-                variant="body2"
-                color="textSecondary"
-                className="mb-2 dark:text-gray-200"
-              >
+            <Box className="space-y-3">
+              <Typography variant="body2" color="text.secondary">
                 {exercise.description ||
                   "Trage deine erreichte Punktzahl für diese Übung ein."}
               </Typography>
@@ -231,24 +253,23 @@ export const RecordResultModal: React.FC<RecordResultModalProps> = ({
                   sx={{
                     bgcolor: "action.hover",
                     borderColor: "divider",
-                    mt: 2,
-                    mb: 3,
                   }}
                 >
                   <AccordionSummary expandIcon={<ExpandMoreIcon />}>
                     <Typography
                       variant="caption"
                       className="font-bold flex items-center gap-1"
+                      color="text.primary"
                     >
-                      <HelpIcon fontSize="small" color="action" />{" "}
+                      <HelpIcon fontSize="small" color="primary" />{" "}
                       Spielanleitung anzeigen
                     </Typography>
                   </AccordionSummary>
                   <AccordionDetails>
                     <Typography
                       variant="body2"
-                      color="text.primary"
-                      className="whitespace-pre-line dark:text-gray-100"
+                      color="text.secondary"
+                      className="whitespace-pre-line text-xs sm:text-sm"
                     >
                       {exercise.instructions}
                     </Typography>
@@ -270,12 +291,12 @@ export const RecordResultModal: React.FC<RecordResultModalProps> = ({
                 }
                 onChange={(e) => handleScoreChange(exercise.id, e.target.value)}
               />
-            </div>
+            </Box>
           )}
         </DialogContent>
 
         <DialogActions className="p-4">
-          <Button onClick={onClose} disabled={loading} color="secondary">
+          <Button onClick={onClose} disabled={loading} color="inherit">
             Abbrechen
           </Button>
           <Button

@@ -1,30 +1,30 @@
-import React, { useEffect, useState } from 'react';
-import { 
-  collection, 
-  getDocs, 
+import React, { useState, useEffect } from "react";
+import {
+  collection,
+  getDocs,
   addDoc,
   doc,
-  updateDoc 
-} from 'firebase/firestore';
-import { db } from '../../firebase/config';
-import { useAuth } from '../../context/AuthContext';
-import type { Tag, ExerciseType, Exercise } from '../../types/exercise';
-import { 
-  Dialog, 
-  DialogTitle, 
-  DialogContent, 
-  DialogActions, 
-  Button, 
-  TextField, 
-  MenuItem, 
-  FormControl, 
-  InputLabel, 
-  Select, 
-  OutlinedInput, 
-  Box, 
-  Chip, 
-  Alert 
-} from '@mui/material';
+  updateDoc,
+} from "firebase/firestore";
+import { db } from "../../firebase/config";
+import { useAuth } from "../../context/AuthContext";
+import type { Tag, ExerciseType, Exercise } from "../../types/exercise";
+import {
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  Button,
+  TextField,
+  MenuItem,
+  FormControl,
+  InputLabel,
+  Select,
+  OutlinedInput,
+  Box,
+  Chip,
+  Alert,
+} from "@mui/material";
 
 interface CreateExerciseModalProps {
   open: boolean;
@@ -33,52 +33,53 @@ interface CreateExerciseModalProps {
   exerciseToEdit?: Exercise | null;
 }
 
-export const CreateExerciseModal: React.FC<CreateExerciseModalProps> = ({ 
-  open, 
-  onClose, 
+export const CreateExerciseModal: React.FC<CreateExerciseModalProps> = ({
+  open,
+  onClose,
   onExerciseCreated,
-  exerciseToEdit
+  exerciseToEdit,
 }) => {
   const { userProfile } = useAuth();
-  const [title, setTitle] = useState('');
-  const [description, setDescription] = useState('');
-  const [instructions, setInstructions] = useState('');
-  const [type, setType] = useState<ExerciseType>('scoring');
+  const [title, setTitle] = useState("");
+  const [description, setDescription] = useState("");
+  const [instructions, setInstructions] = useState("");
+  const [type, setType] = useState<ExerciseType>("scoring");
   const [selectedTagIds, setSelectedTagIds] = useState<string[]>([]);
   const [availableTags, setAvailableTags] = useState<Tag[]>([]);
-  
+
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchTags = async () => {
       try {
-        const querySnapshot = await getDocs(collection(db, 'tags'));
+        const querySnapshot = await getDocs(collection(db, "tags"));
         const tags: Tag[] = [];
         querySnapshot.forEach((docSnap) => {
           tags.push({ id: docSnap.id, ...docSnap.data() } as Tag);
         });
         setAvailableTags(tags);
       } catch (err) {
-        console.error('Fehler beim Laden der Tags:', err);
+        console.error("Fehler beim Laden der Tags:", err);
       }
     };
 
     if (open) {
       fetchTags();
       if (exerciseToEdit) {
-        setTitle(exerciseToEdit.title);
-        setDescription(exerciseToEdit.description || '');
-        setInstructions(exerciseToEdit.instructions || '');
-        setType(exerciseToEdit.type);
+        setTitle(exerciseToEdit.title || "");
+        setDescription(exerciseToEdit.description || "");
+        setInstructions(exerciseToEdit.instructions || "");
+        setType(exerciseToEdit.type || "scoring");
         setSelectedTagIds(exerciseToEdit.tagIds || []);
       } else {
-        setTitle('');
-        setDescription('');
-        setInstructions('');
-        setType('scoring');
+        setTitle("");
+        setDescription("");
+        setInstructions("");
+        setType("scoring");
         setSelectedTagIds([]);
       }
+      setError(null);
     }
   }, [open, exerciseToEdit]);
 
@@ -91,8 +92,8 @@ export const CreateExerciseModal: React.FC<CreateExerciseModalProps> = ({
 
     try {
       if (exerciseToEdit) {
-        // Übung aktualisieren
-        const exerciseRef = doc(db, 'exercises', exerciseToEdit.id);
+        // Bestehende Übung aktualisieren
+        const exerciseRef = doc(db, "exercises", exerciseToEdit.id);
         await updateDoc(exerciseRef, {
           title: title.trim(),
           description: description.trim(),
@@ -103,8 +104,10 @@ export const CreateExerciseModal: React.FC<CreateExerciseModalProps> = ({
         });
       } else {
         // Neue Übung erstellen
-        const isSystemStandard = userProfile.roles.includes('admin');
-        await addDoc(collection(db, 'exercises'), {
+        const isSystemStandard = Boolean(
+          userProfile.roles && userProfile.roles.includes("admin")
+        );
+        await addDoc(collection(db, "exercises"), {
           title: title.trim(),
           description: description.trim(),
           instructions: instructions.trim(),
@@ -120,8 +123,8 @@ export const CreateExerciseModal: React.FC<CreateExerciseModalProps> = ({
       onExerciseCreated();
       onClose();
     } catch (err: any) {
-      console.error(err);
-      setError('Fehler beim Speichern der Übung.');
+      console.error("Fehler beim Speichern der Übung:", err);
+      setError("Fehler beim Speichern der Übung.");
     } finally {
       setLoading(false);
     }
@@ -130,7 +133,7 @@ export const CreateExerciseModal: React.FC<CreateExerciseModalProps> = ({
   return (
     <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
       <DialogTitle className="font-bold">
-        {exerciseToEdit ? 'Übung bearbeiten' : 'Neue Dart-Übung erstellen'}
+        {exerciseToEdit ? "Übung bearbeiten" : "Neue Dart-Übung erstellen"}
       </DialogTitle>
       <form onSubmit={handleSubmit}>
         <DialogContent dividers className="flex flex-col gap-4">
@@ -146,8 +149,9 @@ export const CreateExerciseModal: React.FC<CreateExerciseModalProps> = ({
           />
 
           <FormControl fullWidth required>
-            <InputLabel>Übungstyp</InputLabel>
+            <InputLabel id="exercise-type-label">Übungstyp</InputLabel>
             <Select
+              labelId="exercise-type-label"
               value={type}
               label="Übungstyp"
               onChange={(e) => setType(e.target.value as ExerciseType)}
@@ -187,13 +191,25 @@ export const CreateExerciseModal: React.FC<CreateExerciseModalProps> = ({
               labelId="tags-select-label"
               multiple
               value={selectedTagIds}
-              onChange={(e) => setSelectedTagIds(typeof e.target.value === 'string' ? e.target.value.split(',') : e.target.value)}
+              onChange={(e) =>
+                setSelectedTagIds(
+                  typeof e.target.value === "string"
+                    ? e.target.value.split(",")
+                    : e.target.value
+                )
+              }
               input={<OutlinedInput label="Tags zuweisen" />}
               renderValue={(selected) => (
-                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.5 }}>
                   {selected.map((tagId) => {
                     const tag = availableTags.find((t) => t.id === tagId);
-                    return <Chip key={tagId} label={tag ? tag.name : tagId} size="small" />;
+                    return (
+                      <Chip
+                        key={tagId}
+                        label={tag ? tag.name : tagId}
+                        size="small"
+                      />
+                    );
                   })}
                 </Box>
               )}
@@ -211,8 +227,17 @@ export const CreateExerciseModal: React.FC<CreateExerciseModalProps> = ({
           <Button onClick={onClose} disabled={loading}>
             Abbrechen
           </Button>
-          <Button type="submit" variant="contained" color="primary" disabled={loading}>
-            {loading ? 'Speichert...' : exerciseToEdit ? 'Änderungen Speichern' : 'Übung Erstellen'}
+          <Button
+            type="submit"
+            variant="contained"
+            color="primary"
+            disabled={loading}
+          >
+            {loading
+              ? "Speichert..."
+              : exerciseToEdit
+              ? "Änderungen Speichern"
+              : "Übung Erstellen"}
           </Button>
         </DialogActions>
       </form>

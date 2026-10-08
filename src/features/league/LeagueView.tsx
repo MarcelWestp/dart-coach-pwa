@@ -117,31 +117,40 @@ export const LeagueView: React.FC = () => {
 
       const fetchedUsers: UserProfile[] = [];
       uSnap.forEach((d) => {
-        const { id, ...data } = d.data();
-        fetchedUsers.push({ id: d.id, ...data } as any);
+        const data = d.data();
+        delete data.id;
+        fetchedUsers.push({
+          ...data,
+          uid: d.id,
+          id: d.id,
+        } as unknown as UserProfile);
       });
 
       const fetchedEx: Exercise[] = [];
       exSnap.forEach((d) => {
-        const { id, ...data } = d.data();
+        const data = d.data();
+        delete data.id;
         fetchedEx.push({ id: d.id, ...data } as Exercise);
       });
 
       const fetchedRes: TestResult[] = [];
       resSnap.forEach((d) => {
-        const { id, ...data } = d.data();
+        const data = d.data();
+        delete data.id;
         fetchedRes.push({ id: d.id, ...data } as TestResult);
       });
 
       const fetchedLeagues: LeagueConfig[] = [];
       lSnap.forEach((d) => {
-        const { id, ...data } = d.data();
+        const data = d.data();
+        delete data.id;
         fetchedLeagues.push({ id: d.id, ...data } as LeagueConfig);
       });
 
       const fetchedMonthly: MonthlyExerciseConfig[] = [];
       mSnap.forEach((d) => {
-        const { id, ...data } = d.data();
+        const data = d.data();
+        delete data.id;
         fetchedMonthly.push({ id: d.id, ...data } as MonthlyExerciseConfig);
       });
 
@@ -155,6 +164,7 @@ export const LeagueView: React.FC = () => {
       const fetchedMatches: MatchResult[] = [];
       matchSnap.forEach((d) => {
         const data = d.data();
+        delete data.id;
         fetchedMatches.push({ id: d.id, ...data } as MatchResult);
       });
 
@@ -166,7 +176,7 @@ export const LeagueView: React.FC = () => {
       setRatings(fetchedRatings);
       setMatches(fetchedMatches);
     } catch (err) {
-      console.error(err);
+      console.error("Fehler beim Laden der Ligationen:", err);
       setError("Fehler beim Laden der Ligationen.");
     } finally {
       setLoading(false);
@@ -358,14 +368,13 @@ export const LeagueView: React.FC = () => {
       setOpponentScore(0);
       fetchData();
     } catch (err) {
-      console.error(err);
+      console.error("Fehler beim Anfragen des Matches:", err);
       setError("Fehler beim Anfragen des Matches.");
     } finally {
       setMatchSubmitting(false);
     }
   };
 
-  // Match bestätigen & Dynamische Ratings berechnen (+100 bis +10 & -100 bis -10)
   const handleConfirmMatch = async (match: MatchResult) => {
     try {
       const p1Id = match.player1Id;
@@ -384,21 +393,17 @@ export const LeagueView: React.FC = () => {
       const p1Won = match.winnerId === p1Id;
       const ratingDiff = Math.abs(p1RatingBefore - p2RatingBefore);
 
-      // Satz-/Leg-Differenz ermitteln (z.B. 3:2 ist knapper als 3:0)
-      // Je knapper das Ergebnis für den Verlierer, desto milder der Verlust / besser der Bonus.
-      const myScore =
+      const score1 =
         match.player1Id === p1Id ? match.scorePlayer1 : match.scorePlayer2;
-      const opponentScore =
+      const score2 =
         match.player1Id === p1Id ? match.scorePlayer2 : match.scorePlayer1;
-      const legDiff = Math.abs(myScore - opponentScore); // z.B. 3:2 -> Diff 1; 3:0 -> Diff 3
+      const legDiff = Math.abs(score1 - score2);
 
       let p1Change = 0;
       let p2Change = 0;
 
       if (ratingDiff <= 100) {
-        // Neutraler Bereich (+/- 100 Punkte Differenz) -> Standard +/- 50 Punkte, leicht modifiziert durch Knappheit
         const baseChange = 50;
-        // Knappes Spiel (z.B. 3:2) belohnt den Verlierer etwas oder dämpft den Verlust
         const adjustment = legDiff === 1 ? 10 : 0;
 
         p1Change = p1Won
@@ -406,24 +411,17 @@ export const LeagueView: React.FC = () => {
           : -baseChange + adjustment;
         p2Change = -p1Change;
       } else {
-        // Größere Differenz (> 100 Punkte)
         const p1IsFavorite = p1RatingBefore > p2RatingBefore;
 
         if ((p1Won && p1IsFavorite) || (!p1Won && !p1IsFavorite)) {
-          // Favoritensieg: Gewinner bekommt weniger, Verlierer verliert mehr (aber gedeckelt)
-          // Hat der Underdog ein 3:2 geholt, verliert der Favorit etwas weniger / Underdog profitiert
           const baseWin = 25;
           const baseLoss = -25;
           p1Change = p1Won ? baseWin : baseLoss;
         } else {
-          // Upset / Überraschungssieg (Schwächerer gewinnt gegen Stärkeren)
-          // Mehr Punkte für den Sieg des Schwächeren (max +100), weniger Abzug bei knappen Niederlagen (min -10)
           if (p1Won) {
-            // P1 war schwächer und hat gewonnen -> starker Bonus (bis +100)
             p1Change = Math.min(100, 50 + legDiff * 15);
             p2Change = -p1Change;
           } else {
-            // P1 war schwächer und hat verloren -> verliert weniger Punkte (mindestens -10 bei 3:2)
             const lossAmount = legDiff === 1 ? 10 : legDiff === 2 ? 25 : 50;
             p1Change = -lossAmount;
             p2Change = -p1Change;
@@ -431,11 +429,9 @@ export const LeagueView: React.FC = () => {
         }
       }
 
-      // Sorge dafür, dass die Grenzen (+100 bis +10 & -100 bis -10) eingehalten werden
       p1Change = Math.max(-100, Math.min(100, p1Change));
       p2Change = Math.max(-100, Math.min(100, p2Change));
 
-      // Falls P2 die andere Seite der Medaille ist
       if (ratingDiff > 100) {
         p2Change = -p1Change;
       }
@@ -479,7 +475,7 @@ export const LeagueView: React.FC = () => {
 
       fetchData();
     } catch (err) {
-      console.error(err);
+      console.error("Fehler beim Bestätigen des Matches:", err);
       setError("Fehler beim Bestätigen des Matches.");
     }
   };
@@ -490,16 +486,16 @@ export const LeagueView: React.FC = () => {
       await updateDoc(matchRef, { status: "rejected" });
       fetchData();
     } catch (err) {
-      console.error(err);
+      console.error("Fehler beim Ablehnen des Matches:", err);
       setError("Fehler beim Ablehnen des Matches.");
     }
   };
 
   if (loading) {
     return (
-      <div className="flex justify-center items-center p-8">
+      <Box className="flex justify-center items-center p-8">
         <CircularProgress />
-      </div>
+      </Box>
     );
   }
 
@@ -508,7 +504,7 @@ export const LeagueView: React.FC = () => {
     selectedArchivedYear === currentDate.getFullYear();
 
   return (
-    <div className="p-6 max-w-6xl mx-auto flex flex-col gap-6">
+    <Box className="p-4 sm:p-6 max-w-6xl mx-auto space-y-6">
       <div className="flex justify-between items-center flex-wrap gap-2">
         <div>
           <Typography
@@ -520,7 +516,7 @@ export const LeagueView: React.FC = () => {
             <EmojiEventsIcon fontSize="large" color="primary" /> Trainingsliga &
             Ranglisten
           </Typography>
-          <Typography variant="body2" color="textSecondary">
+          <Typography variant="body2" color="text.secondary">
             Miss dich in Monats-Challenges, Performance-Ranglisten und
             1v1-Duellen.
           </Typography>
@@ -533,7 +529,11 @@ export const LeagueView: React.FC = () => {
         </Alert>
       )}
 
-      <Paper className="shadow-sm">
+      <Paper
+        variant="outlined"
+        sx={{ bgcolor: "background.paper", borderColor: "divider" }}
+        className="shadow-sm"
+      >
         <Tabs
           value={activeTab}
           onChange={(_, val) => setActiveTab(val)}
@@ -550,7 +550,11 @@ export const LeagueView: React.FC = () => {
       {/* TAB 1: ÜBUNG DES MONATS */}
       {activeTab === 0 && (
         <div className="flex flex-col gap-6">
-          <Paper className="p-6 shadow-md flex flex-col gap-4">
+          <Paper
+            variant="outlined"
+            sx={{ bgcolor: "background.paper", borderColor: "divider" }}
+            className="p-4 sm:p-6 shadow-md flex flex-col gap-4"
+          >
             <div className="flex justify-between items-center flex-wrap gap-4">
               <div>
                 <Typography
@@ -565,7 +569,7 @@ export const LeagueView: React.FC = () => {
                 </Typography>
                 <Typography
                   variant="body2"
-                  color="textSecondary"
+                  color="text.secondary"
                   className="mt-1"
                 >
                   {currentMonthlyConfig?.description ||
@@ -574,11 +578,12 @@ export const LeagueView: React.FC = () => {
               </div>
 
               {/* Archiv-Filter */}
-              <div className="flex gap-2 items-center">
+              <div className="flex gap-2 items-center flex-wrap">
                 <HistoryIcon color="action" />
                 <FormControl size="small" className="w-36">
-                  <InputLabel>Monat</InputLabel>
+                  <InputLabel id="archive-month-label">Monat</InputLabel>
                   <Select
+                    labelId="archive-month-label"
                     value={selectedArchivedMonth}
                     label="Monat"
                     onChange={(e) =>
@@ -607,15 +612,16 @@ export const LeagueView: React.FC = () => {
                 </FormControl>
 
                 <FormControl size="small" className="w-28">
-                  <InputLabel>Jahr</InputLabel>
+                  <InputLabel id="archive-year-label">Jahr</InputLabel>
                   <Select
+                    labelId="archive-year-label"
                     value={selectedArchivedYear}
                     label="Jahr"
                     onChange={(e) =>
                       setSelectedArchivedYear(Number(e.target.value))
                     }
                   >
-                    {[2025, 2026, 2027].map((y) => (
+                    {[2025, 2026, 2027, 2028].map((y) => (
                       <MenuItem key={y} value={y}>
                         {y}
                       </MenuItem>
@@ -647,7 +653,7 @@ export const LeagueView: React.FC = () => {
 
             <Divider className="my-2" />
 
-            <Typography variant="h6" className="font-bold">
+            <Typography variant="h6" className="font-bold" color="text.primary">
               Rangliste ({selectedArchivedMonth} / {selectedArchivedYear})
             </Typography>
 
@@ -665,13 +671,11 @@ export const LeagueView: React.FC = () => {
                 <TableBody>
                   {getMonthlyHighscores().length === 0 ? (
                     <TableRow>
-                      <TableCell
-                        colSpan={3}
-                        align="center"
-                        className="text-gray-500 py-6"
-                      >
-                        In diesem Monat wurden noch keine Ergebnisse
-                        eingetragen.
+                      <TableCell colSpan={3} align="center" className="py-6">
+                        <Typography variant="body2" color="text.secondary">
+                          In diesem Monat wurden noch keine Ergebnisse
+                          eingetragen.
+                        </Typography>
                       </TableCell>
                     </TableRow>
                   ) : (
@@ -696,9 +700,14 @@ export const LeagueView: React.FC = () => {
                         </TableCell>
                         <TableCell
                           align="right"
-                          className="font-bold color-primary text-base"
+                          className="font-bold text-base"
                         >
-                          {entry.score} Punkte
+                          <Typography
+                            color="primary.main"
+                            className="font-bold"
+                          >
+                            {entry.score} Punkte
+                          </Typography>
                         </TableCell>
                       </TableRow>
                     ))
@@ -725,13 +734,15 @@ export const LeagueView: React.FC = () => {
         <div className="flex flex-col gap-6">
           {leagues.filter((l) => l.type === "performance" && l.isActive)
             .length === 0 ? (
-            <Typography
-              variant="body1"
-              color="textSecondary"
-              className="text-center py-8"
+            <Paper
+              variant="outlined"
+              sx={{ bgcolor: "background.paper", borderColor: "divider" }}
+              className="p-8 text-center"
             >
-              Aktuell sind keine Performance-Ligen aktiv.
-            </Typography>
+              <Typography variant="body1" color="text.secondary">
+                Aktuell sind keine Performance-Ligen aktiv.
+              </Typography>
+            </Paper>
           ) : (
             leagues
               .filter((l) => l.type === "performance" && l.isActive)
@@ -747,7 +758,9 @@ export const LeagueView: React.FC = () => {
                 return (
                   <Paper
                     key={league.id}
-                    className="p-6 shadow-md flex flex-col gap-4"
+                    variant="outlined"
+                    sx={{ bgcolor: "background.paper", borderColor: "divider" }}
+                    className="p-4 sm:p-6 shadow-md flex flex-col gap-4"
                   >
                     <div>
                       <Typography
@@ -757,13 +770,15 @@ export const LeagueView: React.FC = () => {
                       >
                         {league.title}
                       </Typography>
-                      <Typography
-                        variant="body2"
-                        color="textSecondary"
-                        className="mt-1"
-                      >
-                        {league.description}
-                      </Typography>
+                      {league.description && (
+                        <Typography
+                          variant="body2"
+                          color="text.secondary"
+                          className="mt-1"
+                        >
+                          {league.description}
+                        </Typography>
+                      )}
                     </div>
 
                     <Divider />
@@ -785,9 +800,14 @@ export const LeagueView: React.FC = () => {
                               <TableCell
                                 colSpan={3}
                                 align="center"
-                                className="text-gray-500 py-6"
+                                className="py-6"
                               >
-                                Noch keine gewerteten Ergebnisse vorhanden.
+                                <Typography
+                                  variant="body2"
+                                  color="text.secondary"
+                                >
+                                  Noch keine gewerteten Ergebnisse vorhanden.
+                                </Typography>
                               </TableCell>
                             </TableRow>
                           ) : (
@@ -804,11 +824,13 @@ export const LeagueView: React.FC = () => {
                                 >
                                   {getDisplayName(entry.user)}
                                 </TableCell>
-                                <TableCell
-                                  align="right"
-                                  className="font-bold color-primary"
-                                >
-                                  {entry.score} Pkt.
+                                <TableCell align="right" className="font-bold">
+                                  <Typography
+                                    color="primary.main"
+                                    className="font-bold"
+                                  >
+                                    {entry.score} Pkt.
+                                  </Typography>
                                 </TableCell>
                               </TableRow>
                             ))
@@ -831,11 +853,16 @@ export const LeagueView: React.FC = () => {
             matches.filter(
               (m) => m.status === "pending" && m.player2Id === userProfile.uid,
             ).length > 0 && (
-              <Paper className="p-4 border border-amber-400 bg-amber-50/20 flex flex-col gap-3">
-                <Typography
-                  variant="subtitle1"
-                  className="font-bold text-amber-700"
-                >
+              <Paper
+                variant="outlined"
+                sx={{
+                  bgcolor: "warning.dark",
+                  borderColor: "warning.main",
+                  color: "warning.contrastText",
+                }}
+                className="p-4 flex flex-col gap-3"
+              >
+                <Typography variant="subtitle1" className="font-bold">
                   ⏳ Ausstehende Match-Bestätigungen
                 </Typography>
                 {matches
@@ -846,11 +873,13 @@ export const LeagueView: React.FC = () => {
                   .map((m) => {
                     const p1 = users.find((u) => u.uid === m.player1Id);
                     return (
-                      <div
+                      <Paper
                         key={m.id}
-                        className="flex justify-between items-center bg-white dark:bg-gray-800 p-3 rounded shadow-sm"
+                        variant="outlined"
+                        sx={{ bgcolor: "background.paper" }}
+                        className="flex justify-between items-center p-3 rounded shadow-sm flex-wrap gap-2"
                       >
-                        <Typography variant="body2">
+                        <Typography variant="body2" color="text.primary">
                           <strong>{getDisplayName(p1)}</strong> hat ein Match
                           gegen dich eingetragen:{" "}
                           <strong>
@@ -877,7 +906,7 @@ export const LeagueView: React.FC = () => {
                             Ablehnen
                           </Button>
                         </div>
-                      </div>
+                      </Paper>
                     );
                   })}
               </Paper>
@@ -885,13 +914,15 @@ export const LeagueView: React.FC = () => {
 
           {leagues.filter((l) => l.type === "match" && l.isActive).length ===
           0 ? (
-            <Typography
-              variant="body1"
-              color="textSecondary"
-              className="text-center py-8"
+            <Paper
+              variant="outlined"
+              sx={{ bgcolor: "background.paper", borderColor: "divider" }}
+              className="p-8 text-center"
             >
-              Aktuell sind keine 1v1 Match-Ligen aktiv.
-            </Typography>
+              <Typography variant="body1" color="text.secondary">
+                Aktuell sind keine 1v1 Match-Ligen aktiv.
+              </Typography>
+            </Paper>
           ) : (
             leagues
               .filter((l) => l.type === "match" && l.isActive)
@@ -927,7 +958,9 @@ export const LeagueView: React.FC = () => {
                 return (
                   <Paper
                     key={league.id}
-                    className="p-6 shadow-md flex flex-col gap-4"
+                    variant="outlined"
+                    sx={{ bgcolor: "background.paper", borderColor: "divider" }}
+                    className="p-4 sm:p-6 shadow-md flex flex-col gap-4"
                   >
                     <div className="flex justify-between items-center flex-wrap gap-2">
                       <div>
@@ -938,13 +971,15 @@ export const LeagueView: React.FC = () => {
                         >
                           {league.title}
                         </Typography>
-                        <Typography
-                          variant="body2"
-                          color="textSecondary"
-                          className="mt-1"
-                        >
-                          {league.description}
-                        </Typography>
+                        {league.description && (
+                          <Typography
+                            variant="body2"
+                            color="text.secondary"
+                            className="mt-1"
+                          >
+                            {league.description}
+                          </Typography>
+                        )}
                       </div>
 
                       <Button
@@ -1010,14 +1045,16 @@ export const LeagueView: React.FC = () => {
                               </TableCell>
                               <TableCell
                                 align="center"
-                                className="font-semibold text-gray-700 dark:text-gray-200"
+                                className="font-semibold"
                               >
-                                {entry.wins} : {entry.losses}
+                                <Typography
+                                  variant="body2"
+                                  color="text.primary"
+                                >
+                                  {entry.wins} : {entry.losses}
+                                </Typography>
                               </TableCell>
-                              <TableCell
-                                align="right"
-                                className="font-bold color-primary text-base"
-                              >
+                              <TableCell align="right" className="font-bold">
                                 <Chip
                                   label={`${entry.rating} Pkt.`}
                                   color="primary"
@@ -1055,8 +1092,11 @@ export const LeagueView: React.FC = () => {
         <form onSubmit={handleRecordMatch}>
           <DialogContent dividers className="flex flex-col gap-4">
             <FormControl fullWidth required>
-              <InputLabel>Gegner auswählen</InputLabel>
+              <InputLabel id="select-opponent-label">
+                Gegner auswählen
+              </InputLabel>
               <Select
+                labelId="select-opponent-label"
                 value={selectedOpponentId}
                 label="Gegner auswählen"
                 onChange={(e) => setSelectedOpponentId(e.target.value)}
@@ -1072,15 +1112,23 @@ export const LeagueView: React.FC = () => {
             </FormControl>
 
             <div className="grid grid-cols-2 gap-4">
-              <Card variant="outlined" className="p-3 text-center">
-                <Typography variant="caption" className="font-bold block mb-1">
+              <Card
+                variant="outlined"
+                sx={{ bgcolor: "background.paper" }}
+                className="p-3 text-center"
+              >
+                <Typography
+                  variant="caption"
+                  className="font-bold block mb-1"
+                  color="text.secondary"
+                >
                   Deine Legs/Sätze
                 </Typography>
                 <input
                   type="number"
                   min="0"
                   required
-                  className="w-full text-center text-2xl font-bold p-2 border rounded dark:bg-gray-800"
+                  className="w-full text-center text-2xl font-bold p-2 border rounded dark:bg-gray-800 dark:text-white"
                   value={myScore}
                   onChange={(e) =>
                     setMyScore(parseInt(e.target.value, 10) || 0)
@@ -1088,15 +1136,23 @@ export const LeagueView: React.FC = () => {
                 />
               </Card>
 
-              <Card variant="outlined" className="p-3 text-center">
-                <Typography variant="caption" className="font-bold block mb-1">
+              <Card
+                variant="outlined"
+                sx={{ bgcolor: "background.paper" }}
+                className="p-3 text-center"
+              >
+                <Typography
+                  variant="caption"
+                  className="font-bold block mb-1"
+                  color="text.secondary"
+                >
                   Gegner Legs/Sätze
                 </Typography>
                 <input
                   type="number"
                   min="0"
                   required
-                  className="w-full text-center text-2xl font-bold p-2 border rounded dark:bg-gray-800"
+                  className="w-full text-center text-2xl font-bold p-2 border rounded dark:bg-gray-800 dark:text-white"
                   value={opponentScore}
                   onChange={(e) =>
                     setOpponentScore(parseInt(e.target.value, 10) || 0)
@@ -1104,7 +1160,7 @@ export const LeagueView: React.FC = () => {
                 />
               </Card>
             </div>
-            <Typography variant="caption" color="textSecondary">
+            <Typography variant="caption" color="text.secondary">
               * Das Match wird erst nach Bestätigung durch den Gegner gewertet
               und in die Rangliste eingetragen.
             </Typography>
@@ -1125,6 +1181,6 @@ export const LeagueView: React.FC = () => {
           </DialogActions>
         </form>
       </Dialog>
-    </div>
+    </Box>
   );
 };

@@ -25,3 +25,4 @@ dist-ssr
 
 # Firebase Cache & lokale CLI-Dateien
 .firebase/
+.firebase/hosting.*.cache

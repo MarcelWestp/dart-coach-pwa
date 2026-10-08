@@ -36,6 +36,7 @@ import {
   MenuItem,
   FormControlLabel,
   Switch,
+  Box,
 } from "@mui/material";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import CalendarTodayIcon from "@mui/icons-material/CalendarToday";
@@ -134,14 +135,14 @@ export const PlayerPlanView: React.FC = () => {
       // --- ERINNERUNG FÜR AKTUELLE WOCHE PRÜFEN ---
       if (userProfile?.uid && fetchedPlans.length > 0) {
         const { calendarWeek, year } = getWeekAndYearFromDate(
-          new Date().toISOString(),
+          new Date().toISOString()
         );
 
         const currentWeekUnstartedPlan = fetchedPlans.find(
           (p) =>
             p.calendarWeek === calendarWeek &&
             p.year === year &&
-            (p.status as string) === "assigned",
+            (p.status as string) === "assigned"
         );
 
         if (currentWeekUnstartedPlan) {
@@ -183,7 +184,7 @@ export const PlayerPlanView: React.FC = () => {
     }
 
     const currentActiveInVisible = visiblePlans.find(
-      (p) => p.id === activePlanId,
+      (p) => p.id === activePlanId
     );
     if (currentActiveInVisible) {
       setActivePlan(currentActiveInVisible);
@@ -214,7 +215,7 @@ export const PlayerPlanView: React.FC = () => {
         editingFeedbackTarget.exIndex !== undefined
       ) {
         const blockIdx = updatedBlocks.findIndex(
-          (b) => b.id === editingFeedbackTarget.blockId,
+          (b) => b.id === editingFeedbackTarget.blockId
         );
         if (blockIdx !== -1) {
           updatedBlocks[blockIdx].exercises[
@@ -223,7 +224,7 @@ export const PlayerPlanView: React.FC = () => {
         }
       } else if (editingFeedbackTarget.blockId !== undefined) {
         const blockIdx = updatedBlocks.findIndex(
-          (b) => b.id === editingFeedbackTarget.blockId,
+          (b) => b.id === editingFeedbackTarget.blockId
         );
         if (blockIdx !== -1) {
           updatedBlocks[blockIdx].playerNote = feedbackNote.trim();
@@ -241,8 +242,8 @@ export const PlayerPlanView: React.FC = () => {
 
       setPlans((prev) =>
         prev.map((p) =>
-          p.id === activePlan.id ? { ...activePlan, blocks: updatedBlocks } : p,
-        ),
+          p.id === activePlan.id ? { ...activePlan, blocks: updatedBlocks } : p
+        )
       );
       setEditingFeedbackTarget(null);
       setFeedbackNote("");
@@ -251,54 +252,55 @@ export const PlayerPlanView: React.FC = () => {
       setError("Fehler beim Speichern deiner Anmerkung.");
     }
   };
-// Nach Ergebniserfassung einer Übung
-const handleResultSaved = async () => {
-  if (!selectedExerciseToRecord || !activePlan || !activePlan?.id) return;
 
-  const { blockId, exIndex } = selectedExerciseToRecord;
-  const nowIso = new Date().toISOString();
+  // Nach Ergebniserfassung einer Übung
+  const handleResultSaved = async () => {
+    if (!selectedExerciseToRecord || !activePlan || !activePlan?.id) return;
 
-  // 1. Blöcke im lokalen State kopieren und completedAt setzen
-  const updatedBlocks = [...activePlan.blocks];
-  const blockIdx = updatedBlocks.findIndex((b) => b.id === blockId);
-  if (blockIdx !== -1) {
-    updatedBlocks[blockIdx].exercises[exIndex].completedAt = nowIso;
-  }
+    const { blockId, exIndex } = selectedExerciseToRecord;
+    const nowIso = new Date().toISOString();
 
-  // 2. Prüfen, ob der gesamte Plan nun abgeschlossen ist
-  const allExercisesCompleted = updatedBlocks.every((b) =>
-    b.exercises.every((e) => !!e.completedAt)
-  );
-  const testCompleted =
-    !activePlan.performanceTestId || !!activePlan.performanceTestCompletedAt;
-  const newStatus =
-    allExercisesCompleted && testCompleted ? "completed" : "in_progress";
+    // 1. Blöcke im lokalen State kopieren und completedAt setzen
+    const updatedBlocks = [...activePlan.blocks];
+    const blockIdx = updatedBlocks.findIndex((b) => b.id === blockId);
+    if (blockIdx !== -1) {
+      updatedBlocks[blockIdx].exercises[exIndex].completedAt = nowIso;
+    }
 
-  try {
-    // 3. In Firestore aktualisieren (Collection: assignedPlans)
-    const planRef = doc(db, "assignedPlans", activePlan.id);
-    await updateDoc(planRef, {
-      blocks: updatedBlocks,
-      status: newStatus,
-      updatedAt: nowIso,
-    });
-
-    // 4. UI-States aktualisieren
-    const updatedPlan = {
-      ...activePlan,
-      blocks: updatedBlocks,
-      status: newStatus as any,
-    };
-    setActivePlan(updatedPlan);
-    setPlans((prev) =>
-      prev.map((p) => (p.id === activePlan.id ? updatedPlan : p)),
+    // 2. Prüfen, ob der gesamte Plan nun abgeschlossen ist
+    const allExercisesCompleted = updatedBlocks.every((b) =>
+      b.exercises.every((e) => !!e.completedAt)
     );
-    setSelectedExerciseToRecord(null);
-  } catch (err) {
-    console.error(err);
-    setError("Fehler beim Aktualisieren des Plan-Fortschritts.");
-  }
-};
+    const testCompleted =
+      !activePlan.performanceTestId || !!activePlan.performanceTestCompletedAt;
+    const newStatus =
+      allExercisesCompleted && testCompleted ? "completed" : "in_progress";
+
+    try {
+      // 3. In Firestore aktualisieren (Collection: assignedPlans)
+      const planRef = doc(db, "assignedPlans", activePlan.id);
+      await updateDoc(planRef, {
+        blocks: updatedBlocks,
+        status: newStatus,
+        updatedAt: nowIso,
+      });
+
+      // 4. UI-States aktualisieren
+      const updatedPlan = {
+        ...activePlan,
+        blocks: updatedBlocks,
+        status: newStatus as any,
+      };
+      setActivePlan(updatedPlan);
+      setPlans((prev) =>
+        prev.map((p) => (p.id === activePlan.id ? updatedPlan : p))
+      );
+      setSelectedExerciseToRecord(null);
+    } catch (err) {
+      console.error(err);
+      setError("Fehler beim Aktualisieren des Plan-Fortschritts.");
+    }
+  };
 
   // Nach Ergebniserfassung des Leistungstests
   const handleTestResultSaved = async () => {
@@ -310,15 +312,15 @@ const handleResultSaved = async () => {
 
   if (loading) {
     return (
-      <div className="flex justify-center items-center p-8">
+      <Box className="flex justify-center items-center p-8">
         <CircularProgress />
-      </div>
+      </Box>
     );
   }
 
   if (plans.length === 0) {
     return (
-      <div className="p-6 max-w-4xl mx-auto text-center">
+      <Box className="p-6 max-w-4xl mx-auto text-center">
         <Typography
           variant="h5"
           className="font-bold mb-2"
@@ -326,10 +328,10 @@ const handleResultSaved = async () => {
         >
           Keine Trainingspläne vorhanden
         </Typography>
-        <Typography variant="body2" color="textSecondary">
+        <Typography variant="body2" color="text.secondary">
           Dein Trainer hat dir derzeit noch keinen Wochenplan zugewiesen.
         </Typography>
-      </div>
+      </Box>
     );
   }
 
@@ -339,14 +341,14 @@ const handleResultSaved = async () => {
   const completedExercises = activePlan
     ? activePlan.blocks.reduce(
         (s, b) => s + b.exercises.filter((e) => !!e.completedAt).length,
-        0,
+        0
       )
     : 0;
   const totalBlocks = activePlan ? activePlan.blocks.length : 0;
   const completedBlocks = activePlan
     ? activePlan.blocks.filter(
         (b) =>
-          b.exercises.every((e) => !!e.completedAt) && b.exercises.length > 0,
+          b.exercises.every((e) => !!e.completedAt) && b.exercises.length > 0
       ).length
     : 0;
 
@@ -356,13 +358,13 @@ const handleResultSaved = async () => {
       : 0;
 
   return (
-    <div className="p-6 max-w-5xl mx-auto flex flex-col gap-6">
+    <Box className="p-4 sm:p-6 max-w-5xl mx-auto flex flex-col gap-6">
       <div className="flex items-center gap-2">
         <CalendarTodayIcon fontSize="large" color="primary" />
         <Typography
           variant="h4"
           component="h1"
-          className="font-bold"
+          className="font-bold text-xl sm:text-3xl"
           color="text.primary"
         >
           Mein Trainingsplan
@@ -375,19 +377,17 @@ const handleResultSaved = async () => {
         </Alert>
       )}
 
-      {/* Filterleiste: Select-Drop-down & Switch */}
+      {/* Filterleiste: Select-Dropdown & Switch */}
       <Paper
         variant="outlined"
         sx={{
           p: 2,
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          flexWrap: "wrap",
-          gap: 2,
+          bgcolor: "background.paper",
+          borderColor: "divider",
         }}
+        className="flex flex-wrap justify-between items-center gap-4 shadow-sm"
       >
-        <FormControl size="small" sx={{ minWidth: 260 }}>
+        <FormControl size="small" className="w-full sm:w-auto min-w-[260px]">
           <InputLabel id="select-plan-label">
             Trainingsplan auswählen
           </InputLabel>
@@ -415,7 +415,7 @@ const handleResultSaved = async () => {
             />
           }
           label={
-            <Typography variant="body2" className="font-medium">
+            <Typography variant="body2" className="font-medium" color="text.primary">
               Abgeschlossene Pläne anzeigen
             </Typography>
           }
@@ -423,8 +423,12 @@ const handleResultSaved = async () => {
       </Paper>
 
       {visiblePlans.length === 0 && (
-        <Paper className="p-6 text-center">
-          <Typography variant="body1" color="textSecondary">
+        <Paper
+          variant="outlined"
+          sx={{ bgcolor: "background.paper", borderColor: "divider" }}
+          className="p-6 text-center"
+        >
+          <Typography variant="body1" color="text.secondary">
             Keine aktiven Pläne vorhanden. Aktiviere den Schalter oben, um
             bereits abgeschlossene Pläne anzuzeigen.
           </Typography>
@@ -432,13 +436,17 @@ const handleResultSaved = async () => {
       )}
 
       {activePlan && visiblePlans.length > 0 && (
-        <Paper className="p-6 shadow-md flex flex-col gap-6">
+        <Paper
+          variant="outlined"
+          sx={{ bgcolor: "background.paper", borderColor: "divider" }}
+          className="p-4 sm:p-6 shadow-sm flex flex-col gap-6"
+        >
           {/* Header des aktiven Plans */}
           <div className="flex justify-between items-start flex-wrap gap-4">
             <div>
               <Typography
                 variant="h5"
-                className="font-bold"
+                className="font-bold text-lg sm:text-xl"
                 color="text.primary"
               >
                 {activePlan.title} (KW {activePlan.calendarWeek} /{" "}
@@ -447,7 +455,7 @@ const handleResultSaved = async () => {
               {activePlan.coachNote && (
                 <Typography
                   variant="body2"
-                  color="textSecondary"
+                  color="text.secondary"
                   className="italic mt-1"
                 >
                   Trainer-Notiz: "{activePlan.coachNote}"
@@ -471,18 +479,16 @@ const handleResultSaved = async () => {
             sx={{
               p: 2,
               bgcolor: "action.hover",
-              borderRadius: 2,
-              display: "flex",
-              flexDirection: "column",
-              gap: 1,
+              borderColor: "divider",
             }}
+            className="rounded-lg flex flex-col gap-2"
           >
             <div className="flex justify-between items-center text-sm font-bold">
-              <Typography variant="body2" className="font-bold">
+              <Typography variant="body2" className="font-bold" color="text.primary">
                 Gesamtfortschritt Übungen ({completedExercises} von{" "}
                 {totalExercises})
               </Typography>
-              <Typography variant="body2" className="font-bold">
+              <Typography variant="body2" className="font-bold" color="primary.main">
                 {exerciseProgressPercent}%
               </Typography>
             </div>
@@ -492,13 +498,13 @@ const handleResultSaved = async () => {
               className="h-2 rounded"
             />
 
-            <div className="flex gap-4 mt-2 text-xs">
-              <Typography variant="caption" color="textSecondary">
+            <div className="flex gap-4 mt-1 text-xs">
+              <Typography variant="caption" color="text.secondary">
                 <strong>Blöcke:</strong> {completedBlocks} von {totalBlocks}{" "}
                 erledigt
               </Typography>
               {activePlan.performanceTestId && (
-                <Typography variant="caption" color="textSecondary">
+                <Typography variant="caption" color="text.secondary">
                   <strong>Leistungstest:</strong>{" "}
                   {activePlan.performanceTestCompletedAt
                     ? "✓ Erledigt"
@@ -520,11 +526,11 @@ const handleResultSaved = async () => {
           {activePlan.performanceTestId &&
             (() => {
               const testObj = tests.find(
-                (t) => t.id === activePlan.performanceTestId,
+                (t) => t.id === activePlan.performanceTestId
               );
               const isTestDone = !!activePlan.performanceTestCompletedAt;
               const isTestEditable = canEditResult(
-                activePlan.performanceTestCompletedAt,
+                activePlan.performanceTestCompletedAt
               );
 
               return (
@@ -535,7 +541,7 @@ const handleResultSaved = async () => {
                     bgcolor: "action.hover",
                   }}
                 >
-                  <CardContent className="flex justify-between items-center flex-wrap gap-2">
+                  <CardContent className="flex justify-between items-center flex-wrap gap-3">
                     <div>
                       <Typography
                         variant="subtitle1"
@@ -547,12 +553,12 @@ const handleResultSaved = async () => {
                       </Typography>
                       <Typography
                         variant="caption"
-                        color="textSecondary"
+                        color="text.secondary"
                         className="block"
                       >
                         {isTestDone
                           ? `Absolviert am ${new Date(
-                              activePlan.performanceTestCompletedAt!,
+                              activePlan.performanceTestCompletedAt!
                             ).toLocaleDateString("de-DE")}`
                           : "Noch nicht absolviert"}
                       </Typography>
@@ -566,6 +572,7 @@ const handleResultSaved = async () => {
                         testObj && setSelectedTestToRecord(testObj)
                       }
                       startIcon={isTestDone ? <EditIcon /> : <PlayArrowIcon />}
+                      className="w-full sm:w-auto"
                     >
                       {isTestDone
                         ? isTestEditable
@@ -592,20 +599,32 @@ const handleResultSaved = async () => {
                 block.exercises.every((e) => !!e.completedAt);
 
               return (
-                <Accordion key={block.id} defaultExpanded variant="outlined">
+                <Accordion
+                  key={block.id}
+                  defaultExpanded
+                  variant="outlined"
+                  sx={{
+                    bgcolor: "background.paper",
+                    borderColor: "divider",
+                  }}
+                >
                   <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-                    <div className="flex justify-between items-center w-full pr-4">
+                    <div className="flex justify-between items-center w-full pr-2 sm:pr-4">
                       <div className="flex items-center gap-2">
                         {isBlockDone && (
                           <CheckCircleIcon color="success" fontSize="small" />
                         )}
-                        <Typography variant="subtitle1" className="font-bold">
+                        <Typography
+                          variant="subtitle1"
+                          className="font-bold"
+                          color="text.primary"
+                        >
                           {block.title}
                         </Typography>
                       </div>
-                      <Typography variant="caption" color="textSecondary">
+                      <Typography variant="caption" color="text.secondary">
                         {block.exercises.filter((e) => !!e.completedAt).length}{" "}
-                        / {block.exercises.length} Übungen erledigt
+                        / {block.exercises.length} Übungen
                       </Typography>
                     </div>
                   </AccordionSummary>
@@ -614,11 +633,11 @@ const handleResultSaved = async () => {
                     {block.coachNote && (
                       <Paper
                         variant="outlined"
-                        sx={{ p: 1.5, bgcolor: "action.hover" }}
+                        sx={{ p: 1.5, bgcolor: "action.hover", borderColor: "divider" }}
                       >
                         <Typography
                           variant="body2"
-                          color="textSecondary"
+                          color="text.secondary"
                           className="italic"
                         >
                           Anmerkung Trainer: {block.coachNote}
@@ -629,22 +648,22 @@ const handleResultSaved = async () => {
                     {/* Übungs-Liste des Blocks */}
                     {block.exercises.map((bEx, exIdx) => {
                       const exerciseObj = exercises.find(
-                        (e) => e.id === bEx.exerciseId,
+                        (e) => e.id === bEx.exerciseId
                       );
                       const isDone = !!bEx.completedAt;
                       const isEditable = canEditResult(bEx.completedAt);
 
                       const matchingResult = testResults.find((r) => {
-                              if (
-                                bEx.scoreResultId &&
-                                r.id === bEx.scoreResultId
-                              )
-                                return true;
-                              return (
-                                (r.exerciseId === bEx.exerciseId ||
-                                  r.testId === bEx.exerciseId)
-                              );
-                            });
+                        if (
+                          bEx.scoreResultId &&
+                          r.id === bEx.scoreResultId
+                        )
+                          return true;
+                        return (
+                          r.exerciseId === bEx.exerciseId ||
+                          r.testId === bEx.exerciseId
+                        );
+                      });
 
                       // Formatiertes Erledigungsdatum
                       const formattedDate = bEx.completedAt
@@ -654,7 +673,7 @@ const handleResultSaved = async () => {
                               day: "2-digit",
                               month: "2-digit",
                               year: "numeric",
-                            },
+                            }
                           )
                         : "";
 
@@ -664,10 +683,10 @@ const handleResultSaved = async () => {
                           variant="outlined"
                           sx={{
                             p: 2,
-                            bgcolor: "background.paper", // Garantiert korrekte Farbe im Light- & Darkmode
+                            bgcolor: "action.hover",
                             borderColor: "divider",
                           }}
-                          className="flex justify-between items-center flex-wrap gap-2"
+                          className="flex justify-between items-center flex-wrap gap-3"
                         >
                           <div>
                             <div className="flex items-center gap-2 flex-wrap">
@@ -720,7 +739,7 @@ const handleResultSaved = async () => {
                             {bEx.coachNote && (
                               <Typography
                                 variant="caption"
-                                color="textSecondary"
+                                color="text.secondary"
                                 className="block italic mt-1"
                               >
                                 Notiz Trainer: {bEx.coachNote}
@@ -738,7 +757,7 @@ const handleResultSaved = async () => {
                             )}
                           </div>
 
-                          <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
                             <Button
                               variant={isDone ? "outlined" : "contained"}
                               color={isDone ? "secondary" : "primary"}
@@ -755,6 +774,7 @@ const handleResultSaved = async () => {
                               startIcon={
                                 isDone ? <EditIcon /> : <PlayArrowIcon />
                               }
+                              className="w-full sm:w-auto"
                             >
                               {isDone
                                 ? isEditable
@@ -766,6 +786,7 @@ const handleResultSaved = async () => {
                         </Paper>
                       );
                     })}
+
                     {/* Block Spieler-Feedback Button */}
                     <div className="mt-2 text-right">
                       <Button
@@ -799,12 +820,9 @@ const handleResultSaved = async () => {
             sx={{
               p: 2,
               bgcolor: "action.hover",
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
-              flexWrap: "wrap",
-              gap: 2,
+              borderColor: "divider",
             }}
+            className="flex justify-between items-center flex-wrap gap-3"
           >
             <div>
               <Typography
@@ -814,7 +832,7 @@ const handleResultSaved = async () => {
               >
                 Dein Feedback zum gesamten Wochenplan:
               </Typography>
-              <Typography variant="body2" color="textSecondary">
+              <Typography variant="body2" color="text.secondary">
                 {activePlan.playerNote || "Noch kein Feedback hinterlassen."}
               </Typography>
             </div>
@@ -828,6 +846,7 @@ const handleResultSaved = async () => {
                 setEditingFeedbackTarget({ planId: activePlan.id });
                 setFeedbackNote(activePlan.playerNote || "");
               }}
+              className="w-full sm:w-auto"
             >
               {activePlan?.playerNote ? "Bearbeiten" : "Feedback hinterlassen"}
             </Button>
@@ -868,7 +887,7 @@ const handleResultSaved = async () => {
           <DialogTitle className="font-bold">
             Anmerkung / Feedback abgeben
           </DialogTitle>
-          <DialogContent dividers>
+          <DialogContent dividers className="p-4 sm:p-6">
             <TextField
               label="Deine Anmerkung"
               variant="outlined"
@@ -894,6 +913,6 @@ const handleResultSaved = async () => {
           </DialogActions>
         </Dialog>
       )}
-    </div>
+    </Box>
   );
 };

@@ -32,6 +32,7 @@ import {
   DialogActions,
   Divider,
   LinearProgress,
+  Box,
 } from "@mui/material";
 import AddIcon from "@mui/icons-material/Add";
 import DeleteIcon from "@mui/icons-material/Delete";
@@ -44,8 +45,8 @@ import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 export const TestList: React.FC = () => {
   const { userProfile } = useAuth();
   const isCoachOrAdmin =
-    userProfile?.roles.includes("admin") ||
-    userProfile?.roles.includes("coach");
+    userProfile?.roles?.includes("admin") ||
+    userProfile?.roles?.includes("coach");
 
   const [activeTab, setActiveTab] = useState<number>(0); // 0 = Bibliothek, 1 = Zugewiesene Tests
 
@@ -66,10 +67,10 @@ export const TestList: React.FC = () => {
   const [isCreateModalOpen, setIsCreateModalOpen] = useState<boolean>(false);
   const [testToEdit, setTestToEdit] = useState<PerformanceTest | null>(null);
   const [testToAssign, setTestToAssign] = useState<PerformanceTest | null>(
-    null,
+    null
   );
   const [testToRecord, setTestToRecord] = useState<PerformanceTest | null>(
-    null,
+    null
   );
 
   // Modal für Fortschrittsansicht (Coach-Ansicht)
@@ -120,7 +121,7 @@ export const TestList: React.FC = () => {
       const fetchedUsers: UserProfile[] = [];
       userSnap.forEach((d) => {
         const data = d.data();
-        const userId = d.id; // Dokumenten-ID aus Firestore
+        const userId = d.id; // Dokumenten-ID aus Firestore als UID sichern
 
         if (
           playerIds.includes(userId) ||
@@ -128,7 +129,7 @@ export const TestList: React.FC = () => {
         ) {
           fetchedUsers.push({
             ...data,
-            uid: userId, // WICHTIG: Stellt sicher, dass 'uid' niemals undefined ist!
+            uid: userId, // WICHTIG: Stellt sicher, dass 'uid' niemals undefined ist
           } as UserProfile);
         }
       });
@@ -138,7 +139,7 @@ export const TestList: React.FC = () => {
       setAssignedTests(fetchedAssigned);
       setRoster(fetchedUsers);
     } catch (err) {
-      console.error(err);
+      console.error("Fehler beim Laden der Leistungstests:", err);
       setError("Fehler beim Laden der Leistungstests.");
     } finally {
       setLoading(false);
@@ -152,7 +153,7 @@ export const TestList: React.FC = () => {
   const handleDeleteTest = async (testId: string, title: string) => {
     if (
       !window.confirm(
-        `Möchtest du den Leistungstest "${title}" wirklich löschen?`,
+        `Möchtest du den Leistungstest "${title}" wirklich löschen?`
       )
     )
       return;
@@ -161,18 +162,18 @@ export const TestList: React.FC = () => {
       await deleteDoc(doc(db, "performanceTests", testId));
       fetchData();
     } catch (err) {
-      console.error(err);
+      console.error("Fehler beim Löschen des Tests:", err);
       setError("Fehler beim Löschen des Tests.");
     }
   };
 
   const handleDeleteAssignedTest = async (
     assignedId: string,
-    title: string,
+    title: string
   ) => {
     if (
       !window.confirm(
-        `Möchtest du die Zuweisung für "${title}" wirklich löschen?`,
+        `Möchtest du die Zuweisung für "${title}" wirklich löschen?`
       )
     )
       return;
@@ -181,35 +182,36 @@ export const TestList: React.FC = () => {
       await deleteDoc(doc(db, "assignedPerformanceTests", assignedId));
       fetchData();
     } catch (err) {
-      console.error(err);
+      console.error("Fehler beim Löschen der Zuweisung:", err);
       setError("Fehler beim Löschen der Zuweisung.");
     }
   };
 
-  const filteredAssignedTests = assignedTests.filter((t) => {
-    if (selectedPlayerFilter !== "all" && t.playerId !== selectedPlayerFilter)
-      return false;
-    if (!showCompleted && t.status === "completed") return false;
-    return true;
-  });
+  /**
+   * Hilfsfunktion zur Formatierung des Spielernamens basierend auf den Datenschutz-Einstellungen
+   */
+  const getPlayerDisplayName = (
+    player?: UserProfile,
+    fallbackId?: string
+  ): string => {
+    if (!player) return fallbackId || "Unbekannter Spieler";
 
-// Hilfsfunktion zur Formatierung des Spielernamens
-const getPlayerDisplayName = (player?: UserProfile, fallbackId?: string): string => {
-  if (!player) return fallbackId || 'Unbekannter Spieler';
+    const visibility =
+      player.privacySettings?.leaderboardVisibility || "nickname";
+    const realName = player.realName?.trim();
+    const nickname = player.nickname?.trim();
 
-  const visibility = player.privacySettings?.leaderboardVisibility || 'nickname';
-  const realName = player.realName?.trim();
-  const nickname = player.nickname?.trim();
+    let namePart = "";
+    if (visibility === "realName" && realName) {
+      namePart = realName;
+    } else if (visibility === "both" && realName && nickname) {
+      namePart = `${realName} (${nickname})`;
+    } else {
+      namePart = nickname || realName || "Spieler";
+    }
 
-  if (visibility === 'realName' && realName) {
-    return realName;
-  }
-  if (visibility === 'both' && realName && nickname) {
-    return `${realName} (${nickname})`;
-  }
-
-  return nickname || realName || player.email || fallbackId || 'Spieler';
-};
+    return player.email ? `${namePart} – ${player.email}` : namePart;
+  };
 
   // Hilfsfunktion zur Berechnung des Fortschritts
   const calculateProgress = (assigned: any) => {
@@ -226,22 +228,29 @@ const getPlayerDisplayName = (player?: UserProfile, fallbackId?: string): string
     return { completedCount, total, percent };
   };
 
+  const filteredAssignedTests = assignedTests.filter((t) => {
+    if (selectedPlayerFilter !== "all" && t.playerId !== selectedPlayerFilter)
+      return false;
+    if (!showCompleted && t.status === "completed") return false;
+    return true;
+  });
+
   if (loading) {
     return (
-      <div className="flex justify-center items-center p-8">
+      <Box className="flex justify-center items-center p-8">
         <CircularProgress />
-      </div>
+      </Box>
     );
   }
 
   return (
-    <div className="p-6 max-w-6xl mx-auto flex flex-col gap-6">
+    <Box className="p-4 sm:p-6 max-w-6xl mx-auto space-y-6">
       <div className="flex justify-between items-center flex-wrap gap-4">
         <div>
           <Typography variant="h4" className="font-bold" color="text.primary">
             Leistungstests
           </Typography>
-          <Typography variant="body2" color="textSecondary">
+          <Typography variant="body2" color="text.secondary">
             Stelle mehrstufige Leistungstests zusammen und weise sie deinen
             Spielern zu.
           </Typography>
@@ -269,7 +278,11 @@ const getPlayerDisplayName = (player?: UserProfile, fallbackId?: string): string
       )}
 
       {isCoachOrAdmin && (
-        <Paper className="shadow-sm">
+        <Paper
+          variant="outlined"
+          sx={{ bgcolor: "background.paper", borderColor: "divider" }}
+          className="shadow-sm"
+        >
           <Tabs
             value={activeTab}
             onChange={(_, val) => setActiveTab(val)}
@@ -288,6 +301,8 @@ const getPlayerDisplayName = (player?: UserProfile, fallbackId?: string): string
           {tests.map((test) => (
             <Card
               key={test.id}
+              variant="outlined"
+              sx={{ bgcolor: "background.paper", borderColor: "divider" }}
               className="shadow-md flex flex-col justify-between"
             >
               <CardContent>
@@ -300,7 +315,7 @@ const getPlayerDisplayName = (player?: UserProfile, fallbackId?: string): string
                     {test.title}
                   </Typography>
                   {isCoachOrAdmin && (
-                    <div className="flex gap-1">
+                    <div className="flex gap-1 shrink-0">
                       <IconButton
                         size="small"
                         color="primary"
@@ -331,13 +346,17 @@ const getPlayerDisplayName = (player?: UserProfile, fallbackId?: string): string
 
                 <Typography
                   variant="body2"
-                  color="textSecondary"
+                  color="text.secondary"
                   className="mb-3"
                 >
                   {test.description || "Keine Beschreibung vorhanden."}
                 </Typography>
 
-                <Typography variant="caption" className="font-bold block mb-1">
+                <Typography
+                  variant="caption"
+                  className="font-bold block mb-1"
+                  color="text.primary"
+                >
                   Enthaltene Übungen ({test.exerciseIds.length}):
                 </Typography>
                 <div className="flex flex-col gap-1">
@@ -347,6 +366,7 @@ const getPlayerDisplayName = (player?: UserProfile, fallbackId?: string): string
                       <Paper
                         key={`${exId}-${idx}`}
                         variant="outlined"
+                        sx={{ bgcolor: "action.hover" }}
                         className="px-2 py-1 text-xs"
                       >
                         {idx + 1}. {ex ? ex.title : "Übung"}
@@ -386,10 +406,17 @@ const getPlayerDisplayName = (player?: UserProfile, fallbackId?: string): string
       {/* TAB 1: ZUGEWIESENE TESTS */}
       {activeTab === 1 && isCoachOrAdmin && (
         <div className="flex flex-col gap-4">
-          <Paper className="p-4 flex flex-wrap justify-between items-center gap-4">
-            <FormControl size="small" className="min-w-[200px]">
-              <InputLabel>Nach Spieler filtern</InputLabel>
+          <Paper
+            variant="outlined"
+            sx={{ bgcolor: "background.paper", borderColor: "divider" }}
+            className="p-4 flex flex-wrap justify-between items-center gap-4"
+          >
+            <FormControl size="small" className="min-w-[220px]">
+              <InputLabel id="player-filter-label">
+                Nach Spieler filtern
+              </InputLabel>
               <Select
+                labelId="player-filter-label"
                 value={selectedPlayerFilter}
                 label="Nach Spieler filtern"
                 onChange={(e) => setSelectedPlayerFilter(e.target.value)}
@@ -424,24 +451,31 @@ const getPlayerDisplayName = (player?: UserProfile, fallbackId?: string): string
               return (
                 <Card
                   key={assigned.id}
+                  variant="outlined"
+                  sx={{ bgcolor: "background.paper", borderColor: "divider" }}
                   className="shadow-md flex flex-col justify-between"
                 >
                   <CardContent>
                     <div className="flex justify-between items-start mb-2">
                       <div>
-                        <Typography variant="h6" className="font-bold">
+                        <Typography
+                          variant="h6"
+                          className="font-bold"
+                          color="text.primary"
+                        >
                           {assigned.title}
                         </Typography>
                         <Typography
                           variant="caption"
-                          color="textSecondary"
+                          color="text.secondary"
                           className="block"
                         >
-                          Spieler: {getPlayerDisplayName(player, assigned.playerId)}
+                          Spieler:{" "}
+                          {getPlayerDisplayName(player, assigned.playerId)}
                         </Typography>
                         <Typography
                           variant="caption"
-                          color="textSecondary"
+                          color="text.secondary"
                           className="block"
                         >
                           KW {assigned.calendarWeek} / {assigned.year}
@@ -471,7 +505,11 @@ const getPlayerDisplayName = (player?: UserProfile, fallbackId?: string): string
                         }
                         size="small"
                       />
-                      <Typography variant="caption" className="font-semibold">
+                      <Typography
+                        variant="caption"
+                        className="font-semibold"
+                        color="text.primary"
+                      >
                         {completedCount} / {total} Übungen
                       </Typography>
                     </div>
@@ -485,7 +523,7 @@ const getPlayerDisplayName = (player?: UserProfile, fallbackId?: string): string
                     {assigned.coachNote && (
                       <Typography
                         variant="body2"
-                        color="textSecondary"
+                        color="text.secondary"
                         className="italic mt-2"
                       >
                         Notiz: "{assigned.coachNote}"
@@ -521,16 +559,18 @@ const getPlayerDisplayName = (player?: UserProfile, fallbackId?: string): string
         {selectedAssignedForView &&
           (() => {
             const player = roster.find(
-              (p) => p.uid === selectedAssignedForView.playerId,
+              (p) => p.uid === selectedAssignedForView.playerId
             );
             const { completedCount, total, percent } = calculateProgress(
-              selectedAssignedForView,
+              selectedAssignedForView
             );
 
             return (
               <>
                 <DialogTitle className="font-bold flex justify-between items-center">
-                  <span>Test-Fortschritt: {selectedAssignedForView.title}</span>
+                  <span>
+                    Test-Fortschritt: {selectedAssignedForView.title}
+                  </span>
                   <Chip
                     label={
                       selectedAssignedForView.status === "completed"
@@ -548,13 +588,14 @@ const getPlayerDisplayName = (player?: UserProfile, fallbackId?: string): string
 
                 <DialogContent dividers className="flex flex-col gap-4">
                   <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-2">
-                    <Typography variant="subtitle2">
+                    <Typography variant="subtitle2" color="text.primary">
                       <strong>Spieler:</strong>{" "}
-                      {player
-                        ? `${player.realName} (${player.nickname})`
-                        : selectedAssignedForView.playerId}
+                      {getPlayerDisplayName(
+                        player,
+                        selectedAssignedForView.playerId
+                      )}
                     </Typography>
-                    <Typography variant="subtitle2">
+                    <Typography variant="subtitle2" color="text.primary">
                       <strong>Zeitraum:</strong> KW{" "}
                       {selectedAssignedForView.calendarWeek} /{" "}
                       {selectedAssignedForView.year}
@@ -562,21 +603,35 @@ const getPlayerDisplayName = (player?: UserProfile, fallbackId?: string): string
                   </div>
 
                   {selectedAssignedForView.coachNote && (
-                    <Typography
-                      variant="body2"
-                      className="italic bg-gray-50 dark:bg-gray-800 p-2 rounded"
+                    <Paper
+                      variant="outlined"
+                      sx={{ bgcolor: "action.hover", p: 1.5 }}
                     >
-                      Trainer-Notiz: "{selectedAssignedForView.coachNote}"
-                    </Typography>
+                      <Typography
+                        variant="body2"
+                        className="italic"
+                        color="text.secondary"
+                      >
+                        Trainer-Notiz: "{selectedAssignedForView.coachNote}"
+                      </Typography>
+                    </Paper>
                   )}
 
                   <div>
                     <div className="flex justify-between items-center mb-1">
-                      <Typography variant="caption" className="font-bold">
+                      <Typography
+                        variant="caption"
+                        className="font-bold"
+                        color="text.primary"
+                      >
                         Gesamtfortschritt ({completedCount} von {total} Übungen
                         absolviert)
                       </Typography>
-                      <Typography variant="caption" className="font-bold">
+                      <Typography
+                        variant="caption"
+                        className="font-bold"
+                        color="text.primary"
+                      >
                         {percent}%
                       </Typography>
                     </div>
@@ -589,7 +644,11 @@ const getPlayerDisplayName = (player?: UserProfile, fallbackId?: string): string
 
                   <Divider />
 
-                  <Typography variant="h6" className="font-bold">
+                  <Typography
+                    variant="h6"
+                    className="font-bold"
+                    color="text.primary"
+                  >
                     Übungsdetails & Ergebnisse
                   </Typography>
 
@@ -604,12 +663,17 @@ const getPlayerDisplayName = (player?: UserProfile, fallbackId?: string): string
                           <Paper
                             key={`${exId}-${idx}`}
                             variant="outlined"
-                            className="p-3"
+                            sx={{
+                              p: 2,
+                              bgcolor: "background.paper",
+                              borderColor: "divider",
+                            }}
                           >
                             <div className="flex justify-between items-start gap-2 mb-1">
                               <Typography
                                 variant="subtitle2"
                                 className="font-bold"
+                                color="text.primary"
                               >
                                 {idx + 1}. {ex ? ex.title : "Übung"}
                               </Typography>
@@ -630,10 +694,19 @@ const getPlayerDisplayName = (player?: UserProfile, fallbackId?: string): string
                             </div>
 
                             {result ? (
-                              <div className="mt-2 text-sm bg-green-50 dark:bg-gray-800/60 p-2 rounded">
+                              <Paper
+                                variant="outlined"
+                                sx={{
+                                  p: 1.5,
+                                  mt: 1,
+                                  bgcolor: "action.hover",
+                                  borderColor: "divider",
+                                }}
+                              >
                                 <Typography
                                   variant="body2"
-                                  className="font-bold color-primary"
+                                  className="font-bold"
+                                  color="primary.main"
                                 >
                                   Punkte:{" "}
                                   {result.totalPoints ?? result.points ?? "-"}
@@ -641,28 +714,29 @@ const getPlayerDisplayName = (player?: UserProfile, fallbackId?: string): string
                                 {result.completedAt && (
                                   <Typography
                                     variant="caption"
-                                    color="textSecondary"
+                                    color="text.secondary"
                                     className="block"
                                   >
                                     Absolviert am:{" "}
                                     {new Date(
-                                      result.completedAt,
+                                      result.completedAt
                                     ).toLocaleString("de-DE")}
                                   </Typography>
                                 )}
                                 {result.note && (
                                   <Typography
                                     variant="caption"
+                                    color="text.primary"
                                     className="italic block mt-1"
                                   >
                                     Spieler-Kommentar: "{result.note}"
                                   </Typography>
                                 )}
-                              </div>
+                              </Paper>
                             ) : (
                               <Typography
                                 variant="caption"
-                                color="textSecondary"
+                                color="text.secondary"
                                 className="italic"
                               >
                                 Noch kein Ergebnis von diesem Spieler
@@ -671,7 +745,7 @@ const getPlayerDisplayName = (player?: UserProfile, fallbackId?: string): string
                             )}
                           </Paper>
                         );
-                      },
+                      }
                     )}
                   </div>
                 </DialogContent>
@@ -717,6 +791,6 @@ const getPlayerDisplayName = (player?: UserProfile, fallbackId?: string): string
           onResultRecorded={fetchData}
         />
       )}
-    </div>
+    </Box>
   );
 };

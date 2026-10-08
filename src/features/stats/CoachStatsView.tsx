@@ -1,49 +1,49 @@
-import React, { useEffect, useState } from 'react';
-import { collection, getDocs } from 'firebase/firestore';
-import { db } from '../../firebase/config';
-import type { UserProfile } from '../../types/user';
-import type { PlayerGroup } from '../../types/group';
-import type { TestResult, Exercise } from '../../types/exercise';
-import type { DateRangeOption } from '../../types/stats';
-import { getDateRangeBounds } from '../../types/stats';
-import { TrendBadge } from '../../components/stats/TrendBadge';
-import { 
-  Paper, 
-  Typography, 
-  FormControl, 
-  InputLabel, 
-  Select, 
-  MenuItem, 
-  CircularProgress, 
-  Alert, 
-  Box, 
-  Table, 
-  TableBody, 
-  TableCell, 
-  TableContainer, 
-  TableHead, 
-  TableRow, 
-  Avatar, 
-  Chip 
-} from '@mui/material';
-import AssessmentIcon from '@mui/icons-material/Assessment';
-import GroupsIcon from '@mui/icons-material/Groups';
-import CheckCircleOutlinedIcon from '@mui/icons-material/CheckCircleOutlined';
-import TrendingUpIcon from '@mui/icons-material/TrendingUp';
-import FitnessCenterIcon from '@mui/icons-material/FitnessCenter';
-import PersonIcon from '@mui/icons-material/Person';
-import { 
-  ResponsiveContainer, 
-  BarChart, 
-  Bar, 
+import React, { useEffect, useState } from "react";
+import { collection, getDocs } from "firebase/firestore";
+import { db } from "../../firebase/config";
+import type { UserProfile } from "../../types/user";
+import type { PlayerGroup } from "../../types/group";
+import type { TestResult, Exercise } from "../../types/exercise";
+import type { DateRangeOption } from "../../types/stats";
+import { getDateRangeBounds } from "../../types/stats";
+import { TrendBadge } from "../../components/stats/TrendBadge";
+import {
+  Paper,
+  Typography,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
+  CircularProgress,
+  Alert,
+  Box,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
+  Avatar,
+  Chip,
+} from "@mui/material";
+import AssessmentIcon from "@mui/icons-material/Assessment";
+import GroupsIcon from "@mui/icons-material/Groups";
+import CheckCircleOutlinedIcon from "@mui/icons-material/CheckCircleOutlined";
+import TrendingUpIcon from "@mui/icons-material/TrendingUp";
+import FitnessCenterIcon from "@mui/icons-material/FitnessCenter";
+import PersonIcon from "@mui/icons-material/Person";
+import {
+  ResponsiveContainer,
+  BarChart,
+  Bar,
   LineChart,
   Line,
-  XAxis, 
-  YAxis, 
-  Tooltip, 
-  CartesianGrid, 
-  Legend 
-} from 'recharts';
+  XAxis,
+  YAxis,
+  Tooltip,
+  CartesianGrid,
+  Legend,
+} from "recharts";
 
 interface PlayerStatSummary {
   user: UserProfile;
@@ -54,17 +54,16 @@ interface PlayerStatSummary {
 }
 
 export const CoachStatsView: React.FC = () => {
-
-  const [dateRange, setDateRange] = useState<DateRangeOption>('30days');
-  const [selectedGroupId, setSelectedGroupId] = useState<string>('all');
-  const [selectedExerciseId, setSelectedExerciseId] = useState<string>('all');
-  const [selectedPlayerId, setSelectedPlayerId] = useState<string>('all');
+  const [dateRange, setDateRange] = useState<DateRangeOption>("30days");
+  const [selectedGroupId, setSelectedGroupId] = useState<string>("all");
+  const [selectedExerciseId, setSelectedExerciseId] = useState<string>("all");
+  const [selectedPlayerId, setSelectedPlayerId] = useState<string>("all");
 
   const [players, setPlayers] = useState<UserProfile[]>([]);
   const [groups, setGroups] = useState<PlayerGroup[]>([]);
   const [exercises, setExercises] = useState<Exercise[]>([]);
   const [allResults, setAllResults] = useState<TestResult[]>([]);
-  
+
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -73,12 +72,13 @@ export const CoachStatsView: React.FC = () => {
     setError(null);
 
     try {
-      const [usersSnap, groupsSnap, exercisesSnap, resultsSnap] = await Promise.all([
-        getDocs(collection(db, 'users')),
-        getDocs(collection(db, 'playerGroups')),
-        getDocs(collection(db, 'exercises')),
-        getDocs(collection(db, 'testResults'))
-      ]);
+      const [usersSnap, groupsSnap, exercisesSnap, resultsSnap] =
+        await Promise.all([
+          getDocs(collection(db, "users")),
+          getDocs(collection(db, "playerGroups")),
+          getDocs(collection(db, "exercises")),
+          getDocs(collection(db, "testResults")),
+        ]);
 
       const fetchedPlayers: UserProfile[] = [];
       usersSnap.forEach((d) => {
@@ -113,7 +113,7 @@ export const CoachStatsView: React.FC = () => {
       setAllResults(fetchedResults);
     } catch (err) {
       console.error(err);
-      setError('Fehler beim Laden der Kader-Statistiken.');
+      setError("Fehler beim Laden der Kader-Statistiken.");
     } finally {
       setLoading(false);
     }
@@ -124,23 +124,27 @@ export const CoachStatsView: React.FC = () => {
   }, []);
 
   const getDisplayName = (u?: UserProfile) => {
-    if (!u) return 'Unbekannter Spieler';
+    if (!u) return "Unbekannter Spieler";
     return u.nickname || u.realName || u.email;
   };
 
   // Hilfsfunktion zur Ermittlung des Übungsnamens
-  const getExerciseName = (exerciseId?: string, testId?: string, fallbackType?: string) => {
+  const getExerciseName = (
+    exerciseId?: string,
+    testId?: string,
+    fallbackType?: string
+  ) => {
     const idToFind = exerciseId || testId;
     if (idToFind) {
       const found = exercises.find((e) => e.id === idToFind);
       if (found) return found.title;
     }
-    return fallbackType || 'Allgemeine Übung';
+    return fallbackType || "Allgemeine Übung";
   };
 
   // Hilfsfunktion zur Ermittlung der eindeutigen Übungs-ID
   const getResultExerciseId = (res: TestResult) => {
-    return (res as any).exerciseId || res.testId || 'unknown';
+    return (res as any).exerciseId || res.testId || "unknown";
   };
 
   // Eindeutige Liste aller im System absolvierten konkreten Übungen
@@ -150,18 +154,22 @@ export const CoachStatsView: React.FC = () => {
     const sampleRes = allResults.find((r) => getResultExerciseId(r) === id);
     return {
       id,
-      name: getExerciseName((sampleRes as any)?.exerciseId, sampleRes?.testId, sampleRes?.exerciseType)
+      name: getExerciseName(
+        (sampleRes as any)?.exerciseId,
+        sampleRes?.testId,
+        sampleRes?.exerciseType
+      ),
     };
   });
 
   // 1. Filtern nach Gruppe & Einzelspieler
   const activeGroup = groups.find((g) => g.id === selectedGroupId);
   const filteredPlayers = players.filter((p) => {
-    if (selectedGroupId !== 'all') {
+    if (selectedGroupId !== "all") {
       const isMember = activeGroup ? activeGroup.memberIds.includes(p.uid) : true;
       if (!isMember) return false;
     }
-    if (selectedPlayerId !== 'all') {
+    if (selectedPlayerId !== "all") {
       if (p.uid !== selectedPlayerId) return false;
     }
     return true;
@@ -179,7 +187,7 @@ export const CoachStatsView: React.FC = () => {
     if (resDate > end) return false;
 
     // Konkreter Übungs-Filter
-    if (selectedExerciseId !== 'all') {
+    if (selectedExerciseId !== "all") {
       if (getResultExerciseId(res) !== selectedExerciseId) return false;
     }
 
@@ -190,17 +198,24 @@ export const CoachStatsView: React.FC = () => {
   const playerSummaries: PlayerStatSummary[] = filteredPlayers.map((player) => {
     const playerRes = filteredResults.filter((r) => r.userId === player.uid);
     const totalCompleted = playerRes.length;
-    const avgPoints = totalCompleted > 0
-      ? Math.round(playerRes.reduce((acc, r) => acc + r.totalPoints, 0) / totalCompleted)
-      : 0;
-    const maxPoints = totalCompleted > 0
-      ? Math.max(...playerRes.map((r) => r.totalPoints))
-      : 0;
+    const avgPoints =
+      totalCompleted > 0
+        ? Math.round(
+            playerRes.reduce((acc, r) => acc + r.totalPoints, 0) /
+              totalCompleted
+          )
+        : 0;
+    const maxPoints =
+      totalCompleted > 0
+        ? Math.max(...playerRes.map((r) => r.totalPoints))
+        : 0;
 
     const sortedDates = [...playerRes].sort(
-      (a, b) => new Date(b.completedAt).getTime() - new Date(a.completedAt).getTime()
+      (a, b) =>
+        new Date(b.completedAt).getTime() - new Date(a.completedAt).getTime()
     );
-    const lastActive = sortedDates.length > 0 ? sortedDates[0].completedAt : null;
+    const lastActive =
+      sortedDates.length > 0 ? sortedDates[0].completedAt : null;
 
     return {
       user: player,
@@ -222,13 +237,17 @@ export const CoachStatsView: React.FC = () => {
 
   // 5. LineChart-Daten für die Verlaufsansicht einer konkreten Übung
   const sortedFilteredResults = [...filteredResults].sort(
-    (a, b) => new Date(a.completedAt).getTime() - new Date(b.completedAt).getTime()
+    (a, b) =>
+      new Date(a.completedAt).getTime() - new Date(b.completedAt).getTime()
   );
 
   const lineChartData = sortedFilteredResults.map((r) => {
     const playerObj = players.find((p) => p.uid === r.userId);
     return {
-      date: new Date(r.completedAt).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' }),
+      date: new Date(r.completedAt).toLocaleDateString("de-DE", {
+        day: "2-digit",
+        month: "2-digit",
+      }),
       points: r.totalPoints,
       player: getDisplayName(playerObj),
     };
@@ -236,50 +255,67 @@ export const CoachStatsView: React.FC = () => {
 
   // Sortierte Durchgänge für die Historie-Tabelle bei Einzelauswahl
   const sortedHistoryResults = [...filteredResults].sort(
-    (a, b) => new Date(b.completedAt).getTime() - new Date(a.completedAt).getTime()
+    (a, b) =>
+      new Date(b.completedAt).getTime() - new Date(a.completedAt).getTime()
   );
 
   // Gesamtkennzahlen
   const totalRosterCompleted = filteredResults.length;
-  const activePlayersCount = playerSummaries.filter((s) => s.totalCompleted > 0).length;
-  const rosterAvg = totalRosterCompleted > 0
-    ? Math.round(filteredResults.reduce((acc, r) => acc + r.totalPoints, 0) / totalRosterCompleted)
-    : 0;
+  const activePlayersCount = playerSummaries.filter(
+    (s) => s.totalCompleted > 0
+  ).length;
+  const rosterAvg =
+    totalRosterCompleted > 0
+      ? Math.round(
+          filteredResults.reduce((acc, r) => acc + r.totalPoints, 0) /
+            totalRosterCompleted
+        )
+      : 0;
 
   if (loading) {
     return (
-      <div className="flex justify-center items-center p-8">
+      <Box className="flex justify-center items-center p-8">
         <CircularProgress />
-      </div>
+      </Box>
     );
   }
 
   // Liste der Spieler, die im Dropdown zur Auswahl stehen
   const selectablePlayers = players.filter((p) => {
-    if (selectedGroupId === 'all') return true;
+    if (selectedGroupId === "all") return true;
     return activeGroup ? activeGroup.memberIds.includes(p.uid) : true;
   });
 
-  const selectedExerciseObj = availableExercises.find((e) => e.id === selectedExerciseId);
+  const selectedExerciseObj = availableExercises.find(
+    (e) => e.id === selectedExerciseId
+  );
 
   return (
-    <div className="p-6 max-w-6xl mx-auto flex flex-col gap-6">
+    <Box className="p-4 sm:p-6 max-w-6xl mx-auto space-y-6">
       {/* Header & Filter */}
       <div className="flex justify-between items-center flex-wrap gap-4">
         <div>
-          <Typography variant="h4" component="h1" className="font-bold flex items-center gap-2">
-            <AssessmentIcon fontSize="large" color="primary" /> Kader- & Einzelstatistiken
+          <Typography
+            variant="h4"
+            component="h1"
+            className="font-bold flex items-center gap-2"
+            color="text.primary"
+          >
+            <AssessmentIcon fontSize="large" color="primary" /> Kader- &
+            Einzelstatistiken
           </Typography>
-          <Typography variant="body2" color="textSecondary">
-            Analysiere Trainingsfleiß und Leistungsentwicklung deiner Mannschaften und Einzelspieler.
+          <Typography variant="body2" color="text.secondary">
+            Analysiere Trainingsfleiß und Leistungsentwicklung deiner Mannschaften
+            und Einzelspieler.
           </Typography>
         </div>
 
-        <div className="flex gap-2 flex-wrap">
+        <div className="flex gap-2 flex-wrap w-full lg:w-auto">
           {/* Spieler-Filter Dropdown */}
-          <FormControl size="small" className="min-w-[180px]">
-            <InputLabel>Spieler Filtern</InputLabel>
+          <FormControl size="small" className="w-full sm:w-auto min-w-[180px]">
+            <InputLabel id="select-player-filter-label">Spieler Filtern</InputLabel>
             <Select
+              labelId="select-player-filter-label"
               value={selectedPlayerId}
               label="Spieler Filtern"
               onChange={(e) => setSelectedPlayerId(e.target.value)}
@@ -294,9 +330,12 @@ export const CoachStatsView: React.FC = () => {
           </FormControl>
 
           {/* Übungs-Filter */}
-          <FormControl size="small" className="min-w-[180px]">
-            <InputLabel>Übung Filtern</InputLabel>
+          <FormControl size="small" className="w-full sm:w-auto min-w-[180px]">
+            <InputLabel id="select-exercise-filter-label">
+              Übung Filtern
+            </InputLabel>
             <Select
+              labelId="select-exercise-filter-label"
               value={selectedExerciseId}
               label="Übung Filtern"
               onChange={(e) => setSelectedExerciseId(e.target.value)}
@@ -311,14 +350,15 @@ export const CoachStatsView: React.FC = () => {
           </FormControl>
 
           {/* Gruppen-Filter */}
-          <FormControl size="small" className="min-w-[180px]">
-            <InputLabel>Gruppe Filtern</InputLabel>
+          <FormControl size="small" className="w-full sm:w-auto min-w-[180px]">
+            <InputLabel id="select-group-filter-label">Gruppe Filtern</InputLabel>
             <Select
+              labelId="select-group-filter-label"
               value={selectedGroupId}
               label="Gruppe Filtern"
               onChange={(e) => {
                 setSelectedGroupId(e.target.value);
-                setSelectedPlayerId('all');
+                setSelectedPlayerId("all");
               }}
             >
               <MenuItem value="all">Alle Gruppen (Gesamtkader)</MenuItem>
@@ -331,9 +371,10 @@ export const CoachStatsView: React.FC = () => {
           </FormControl>
 
           {/* Zeit-Filter */}
-          <FormControl size="small" className="min-w-[180px]">
-            <InputLabel>Zeitraum Filter</InputLabel>
+          <FormControl size="small" className="w-full sm:w-auto min-w-[180px]">
+            <InputLabel id="select-date-filter-label">Zeitraum Filter</InputLabel>
             <Select
+              labelId="select-date-filter-label"
               value={dateRange}
               label="Zeitraum Filter"
               onChange={(e) => setDateRange(e.target.value as DateRangeOption)}
@@ -352,130 +393,225 @@ export const CoachStatsView: React.FC = () => {
 
       {/* KPI Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <Paper className="p-4 flex items-center gap-4 shadow-sm">
-          {selectedPlayerId === 'all' ? (
+        <Paper
+          variant="outlined"
+          sx={{ bgcolor: "background.paper", borderColor: "divider" }}
+          className="p-4 flex items-center gap-4 shadow-sm"
+        >
+          {selectedPlayerId === "all" ? (
             <GroupsIcon color="primary" sx={{ fontSize: 40 }} />
           ) : (
             <PersonIcon color="primary" sx={{ fontSize: 40 }} />
           )}
           <div>
-            <Typography variant="caption" color="textSecondary" className="font-bold block">
-              {selectedPlayerId === 'all' ? 'Aktive Spieler / Auswahl' : 'Ausgewählter Spieler'}
+            <Typography
+              variant="caption"
+              color="text.secondary"
+              className="font-bold block"
+            >
+              {selectedPlayerId === "all"
+                ? "Aktive Spieler / Auswahl"
+                : "Ausgewählter Spieler"}
             </Typography>
-            <Typography variant="h5" className="font-bold">
-              {selectedPlayerId === 'all' 
+            <Typography
+              variant="h5"
+              className="font-bold"
+              color="text.primary"
+            >
+              {selectedPlayerId === "all"
                 ? `${activePlayersCount} / ${filteredPlayers.length}`
-                : getDisplayName(filteredPlayers[0])
-              }
+                : getDisplayName(filteredPlayers[0])}
             </Typography>
           </div>
         </Paper>
 
-        <Paper className="p-4 flex items-center gap-4 shadow-sm">
+        <Paper
+          variant="outlined"
+          sx={{ bgcolor: "background.paper", borderColor: "divider" }}
+          className="p-4 flex items-center gap-4 shadow-sm"
+        >
           <CheckCircleOutlinedIcon color="secondary" sx={{ fontSize: 40 }} />
           <div>
-            <Typography variant="caption" color="textSecondary" className="font-bold block">
-              {selectedExerciseId === 'all' ? 'Absolvierte Einheiten' : 'Durchgänge der Übung'}
+            <Typography
+              variant="caption"
+              color="text.secondary"
+              className="font-bold block"
+            >
+              {selectedExerciseId === "all"
+                ? "Absolvierte Einheiten"
+                : "Durchgänge der Übung"}
             </Typography>
-            <Typography variant="h5" className="font-bold">
+            <Typography
+              variant="h5"
+              className="font-bold"
+              color="text.primary"
+            >
               {totalRosterCompleted}
             </Typography>
           </div>
         </Paper>
 
-        <Paper className="p-4 flex items-center gap-4 shadow-sm">
+        <Paper
+          variant="outlined"
+          sx={{ bgcolor: "background.paper", borderColor: "divider" }}
+          className="p-4 flex items-center gap-4 shadow-sm"
+        >
           <TrendingUpIcon color="warning" sx={{ fontSize: 40 }} />
           <div>
-            <Typography variant="caption" color="textSecondary" className="font-bold block">
-              {selectedPlayerId === 'all' ? 'Kader-Durchschnitt (Score)' : 'Spieler-Durchschnitt (Score)'}
+            <Typography
+              variant="caption"
+              color="text.secondary"
+              className="font-bold block"
+            >
+              {selectedPlayerId === "all"
+                ? "Kader-Durchschnitt (Score)"
+                : "Spieler-Durchschnitt (Score)"}
             </Typography>
-            <Typography variant="h5" className="font-bold">
+            <Typography
+              variant="h5"
+              className="font-bold"
+              color="text.primary"
+            >
               {rosterAvg} Pkt.
             </Typography>
           </div>
         </Paper>
       </div>
 
-      {/* Dynamic Chart: BarChart für Übersicht ("all"), LineChart für ausgewählte Einzelübung */}
-      <Paper className="p-6 shadow-sm">
-        <Typography variant="h6" className="font-bold mb-4 flex items-center gap-2">
+      {/* Dynamic Chart */}
+      <Paper
+        variant="outlined"
+        sx={{ bgcolor: "background.paper", borderColor: "divider" }}
+        className="p-4 sm:p-6 shadow-sm"
+      >
+        <Typography
+          variant="h6"
+          className="font-bold mb-4 flex items-center gap-2"
+          color="text.primary"
+        >
           <FitnessCenterIcon color="primary" />
-          {selectedExerciseId === 'all'
-            ? 'Leistungs- & Aktivitätsansicht'
+          {selectedExerciseId === "all"
+            ? "Leistungs- & Aktivitätsansicht"
             : `Punkteverlauf: ${selectedExerciseObj?.name}`}
         </Typography>
 
         {filteredResults.length === 0 ? (
-          <Typography variant="body2" color="textSecondary" className="italic text-center py-8">
-            Im gewählten Zeitraum wurden keine Übungsergebnisse für diese Filterkombination erfasst.
+          <Typography
+            variant="body2"
+            color="text.secondary"
+            className="italic text-center py-8"
+          >
+            Im gewählten Zeitraum wurden keine Übungsergebnisse für diese
+            Filterkombination erfasst.
           </Typography>
-        ) : selectedExerciseId !== 'all' ? (
-          /* LineChart genau wie in PlayerStatsView */
+        ) : selectedExerciseId !== "all" ? (
           <Box className="h-80 w-full">
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={lineChartData}>
-                <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
-                <XAxis dataKey="date" />
-                <YAxis />
-                <Tooltip 
+                <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
+                <XAxis dataKey="date" stroke="currentColor" />
+                <YAxis stroke="currentColor" />
+                <Tooltip
+                  contentStyle={{
+                    backgroundColor: "rgba(25, 25, 35, 0.95)",
+                    borderRadius: "8px",
+                    border: "1px solid #444",
+                    color: "#fff",
+                  }}
                   formatter={(value: any, _: any, props: any) => [
-                    `${value} Pkt.`, 
-                    selectedPlayerId === 'all' ? `Punkte (${props.payload.player})` : 'Punkte'
+                    `${value} Pkt.`,
+                    selectedPlayerId === "all"
+                      ? `Punkte (${props.payload.player})`
+                      : "Punkte",
                   ]}
                 />
-                <Line 
-                  type="monotone" 
-                  dataKey="points" 
-                  name="Punkte" 
-                  stroke="#1976d2" 
-                  strokeWidth={3} 
-                  dot={{ r: 4 }} 
+                <Line
+                  type="monotone"
+                  dataKey="points"
+                  name="Punkte"
+                  stroke="#5156B0"
+                  strokeWidth={3}
+                  dot={{ r: 4 }}
                 />
               </LineChart>
             </ResponsiveContainer>
           </Box>
         ) : (
-          /* BarChart für den Kadervergleich */
           <Box className="h-80 w-full">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={barChartData}>
-                <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
-                <XAxis dataKey="name" />
-                <YAxis />
-                <Tooltip />
+                <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
+                <XAxis dataKey="name" stroke="currentColor" />
+                <YAxis stroke="currentColor" />
+                <Tooltip
+                  contentStyle={{
+                    backgroundColor: "rgba(25, 25, 35, 0.95)",
+                    borderRadius: "8px",
+                    border: "1px solid #444",
+                    color: "#fff",
+                  }}
+                />
                 <Legend />
-                <Bar dataKey="Übungen" fill="#1976d2" name="Absolvierte Übungen" radius={[4, 4, 0, 0]} />
-                <Bar dataKey="Durchschnitt" fill="#2e7d32" name="Ø Punkte" radius={[4, 4, 0, 0]} />
+                <Bar
+                  dataKey="Übungen"
+                  fill="#5156B0"
+                  name="Absolvierte Übungen"
+                  radius={[4, 4, 0, 0]}
+                />
+                <Bar
+                  dataKey="Durchschnitt"
+                  fill="#2e7d32"
+                  name="Ø Punkte"
+                  radius={[4, 4, 0, 0]}
+                />
               </BarChart>
             </ResponsiveContainer>
           </Box>
         )}
       </Paper>
 
-      {/* Tabellenansicht-Wechsel: Bei ausgewählter Einzelübung Historie anzeigen, sonst Spieler-Übersicht */}
-      {selectedExerciseId !== 'all' ? (
-        <Paper className="shadow-sm overflow-hidden">
-          <Box className="p-4 border-b">
-            <Typography variant="h6" className="font-bold">
+      {/* Tabellenansicht */}
+      {selectedExerciseId !== "all" ? (
+        <Paper
+          variant="outlined"
+          sx={{ bgcolor: "background.paper", borderColor: "divider" }}
+          className="shadow-sm overflow-hidden"
+        >
+          <Box className="p-4 border-b border-divider">
+            <Typography
+              variant="h6"
+              className="font-bold"
+              color="text.primary"
+            >
               Historie der Durchgänge: {selectedExerciseObj?.name}
             </Typography>
           </Box>
 
           <TableContainer>
             <Table>
-              <TableHead>
+              <TableHead sx={{ bgcolor: "action.hover" }}>
                 <TableRow>
                   <TableCell className="font-bold">Datum & Uhrzeit</TableCell>
                   <TableCell className="font-bold">Spieler</TableCell>
-                  <TableCell className="font-bold" align="center">Erzielte Punkte</TableCell>
-                  <TableCell className="font-bold" align="left">Notizen / Anmerkungen</TableCell>
+                  <TableCell className="font-bold" align="center">
+                    Erzielte Punkte
+                  </TableCell>
+                  <TableCell className="font-bold" align="left">
+                    Notizen / Anmerkungen
+                  </TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
                 {sortedHistoryResults.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={4} align="center" className="py-6 text-gray-500 italic">
-                      Keine Einzelergebnisse im gewählten Zeitraum vorhanden.
+                    <TableCell
+                      colSpan={4}
+                      align="center"
+                      className="py-6 italic"
+                    >
+                      <Typography variant="body2" color="text.secondary">
+                        Keine Einzelergebnisse im gewählten Zeitraum vorhanden.
+                      </Typography>
                     </TableCell>
                   </TableRow>
                 ) : (
@@ -484,30 +620,57 @@ export const CoachStatsView: React.FC = () => {
                     return (
                       <TableRow key={res.id} hover>
                         <TableCell>
-                          {new Date(res.completedAt).toLocaleString('de-DE', {
-                            day: '2-digit',
-                            month: '2-digit',
-                            year: 'numeric',
-                            hour: '2-digit',
-                            minute: '2-digit',
-                          })}
+                          <Typography variant="body2" color="text.primary">
+                            {new Date(res.completedAt).toLocaleString("de-DE", {
+                              day: "2-digit",
+                              month: "2-digit",
+                              year: "numeric",
+                              hour: "2-digit",
+                              minute: "2-digit",
+                            })}
+                          </Typography>
                         </TableCell>
                         <TableCell>
                           <div className="flex items-center gap-2">
-                            <Avatar src={playerObj?.photoURL} sx={{ width: 24, height: 24 }}>
+                            <Avatar
+                              src={playerObj?.photoURL}
+                              sx={{
+                                width: 24,
+                                height: 24,
+                                bgcolor: "primary.main",
+                              }}
+                            >
                               {getDisplayName(playerObj).substring(0, 1)}
                             </Avatar>
-                            <Typography variant="body2" className="font-medium">
+                            <Typography
+                              variant="body2"
+                              className="font-medium"
+                              color="text.primary"
+                            >
                               {getDisplayName(playerObj)}
                             </Typography>
                           </div>
                         </TableCell>
-                        <TableCell align="center" className="font-bold text-primary-main">
-                          {res.totalPoints} Pkt.
+                        <TableCell align="center">
+                          <Typography
+                            variant="body2"
+                            className="font-bold"
+                            color="primary.main"
+                          >
+                            {res.totalPoints} Pkt.
+                          </Typography>
                         </TableCell>
                         <TableCell align="left">
-                          {res.playerNote || (
-                            <Typography variant="caption" color="textSecondary" className="italic">
+                          {res.playerNote ? (
+                            <Typography variant="body2" color="text.primary">
+                              {res.playerNote}
+                            </Typography>
+                          ) : (
+                            <Typography
+                              variant="caption"
+                              color="text.secondary"
+                              className="italic"
+                            >
                               Keine Notiz
                             </Typography>
                           )}
@@ -521,43 +684,65 @@ export const CoachStatsView: React.FC = () => {
           </TableContainer>
         </Paper>
       ) : (
-        <Paper className="shadow-sm overflow-hidden">
-          <Box className="p-4 border-b">
-            <Typography variant="h6" className="font-bold">
+        <Paper
+          variant="outlined"
+          sx={{ bgcolor: "background.paper", borderColor: "divider" }}
+          className="shadow-sm overflow-hidden"
+        >
+          <Box className="p-4 border-b border-divider">
+            <Typography
+              variant="h6"
+              className="font-bold"
+              color="text.primary"
+            >
               Einzelübersicht Spieler
             </Typography>
           </Box>
 
           <TableContainer>
             <Table>
-              <TableHead>
+              <TableHead sx={{ bgcolor: "action.hover" }}>
                 <TableRow>
                   <TableCell className="font-bold">Spieler</TableCell>
-                  <TableCell className="font-bold" align="center">Absolvierte Übungen</TableCell>
-                  <TableCell className="font-bold" align="center">Ø Punkte</TableCell>
-                  <TableCell className="font-bold" align="center">Form / Tendenz</TableCell>
-                  <TableCell className="font-bold" align="center">Höchstwert</TableCell>
-                  <TableCell className="font-bold" align="right">Zuletzt aktiv</TableCell>
+                  <TableCell className="font-bold" align="center">
+                    Absolvierte Übungen
+                  </TableCell>
+                  <TableCell className="font-bold" align="center">
+                    Ø Punkte
+                  </TableCell>
+                  <TableCell className="font-bold" align="center">
+                    Form / Tendenz
+                  </TableCell>
+                  <TableCell className="font-bold" align="center">
+                    Höchstwert
+                  </TableCell>
+                  <TableCell className="font-bold" align="right">
+                    Zuletzt aktiv
+                  </TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
                 {playerSummaries.map((summary) => {
                   const playerScores = filteredResults
                     .filter((r) => r.userId === summary.user.uid)
-                    .sort((a, b) => new Date(a.completedAt).getTime() - new Date(b.completedAt).getTime())
+                    .sort(
+                      (a, b) =>
+                        new Date(a.completedAt).getTime() -
+                        new Date(b.completedAt).getTime()
+                    )
                     .map((r) => r.totalPoints);
 
                   const isSelected = selectedPlayerId === summary.user.uid;
 
                   return (
-                    <TableRow 
-                      key={summary.user.uid} 
-                      hover 
+                    <TableRow
+                      key={summary.user.uid}
+                      hover
                       className="cursor-pointer"
                       selected={isSelected}
                       onClick={() => {
                         if (selectedPlayerId === summary.user.uid) {
-                          setSelectedPlayerId('all');
+                          setSelectedPlayerId("all");
                         } else {
                           setSelectedPlayerId(summary.user.uid);
                         }
@@ -565,46 +750,89 @@ export const CoachStatsView: React.FC = () => {
                     >
                       <TableCell>
                         <div className="flex items-center gap-3">
-                          <Avatar src={summary.user.photoURL} sx={{ width: 32, height: 32 }}>
+                          <Avatar
+                            src={summary.user.photoURL}
+                            sx={{
+                              width: 32,
+                              height: 32,
+                              bgcolor: "primary.main",
+                            }}
+                          >
                             {getDisplayName(summary.user).substring(0, 1)}
                           </Avatar>
                           <div>
-                            <Typography variant="body2" className="font-bold text-primary-main hover:underline">
+                            <Typography
+                              variant="body2"
+                              className="font-bold hover:underline"
+                              color="primary.main"
+                            >
                               {getDisplayName(summary.user)}
                             </Typography>
-                            <Typography variant="caption" color="textSecondary">
+                            <Typography
+                              variant="caption"
+                              color="text.secondary"
+                            >
                               {summary.user.email}
                             </Typography>
                           </div>
                         </div>
                       </TableCell>
                       <TableCell align="center">
-                        <Chip 
-                          label={summary.totalCompleted} 
-                          color={summary.totalCompleted > 0 ? 'primary' : 'default'} 
-                          size="small" 
+                        <Chip
+                          label={summary.totalCompleted}
+                          color={
+                            summary.totalCompleted > 0 ? "primary" : "default"
+                          }
+                          size="small"
                         />
                       </TableCell>
-                      <TableCell align="center" className="font-semibold">
-                        {summary.avgPoints} Pkt.
+                      <TableCell
+                        align="center"
+                        className="font-semibold"
+                      >
+                        <Typography variant="body2" color="text.primary">
+                          {summary.avgPoints} Pkt.
+                        </Typography>
                       </TableCell>
                       <TableCell align="center">
                         {playerScores.length >= 2 ? (
                           <TrendBadge scores={playerScores} />
                         ) : (
-                          <Typography variant="caption" color="textSecondary" className="italic">
+                          <Typography
+                            variant="caption"
+                            color="text.secondary"
+                            className="italic"
+                          >
                             Zu wenig Daten
                           </Typography>
                         )}
                       </TableCell>
                       <TableCell align="center">
-                        {summary.maxPoints} Pkt.
+                        <Typography variant="body2" color="text.primary">
+                          {summary.maxPoints} Pkt.
+                        </Typography>
                       </TableCell>
                       <TableCell align="right">
-                        {summary.lastActive 
-                          ? new Date(summary.lastActive).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' })
-                          : <Typography variant="caption" color="textSecondary" className="italic">Nie</Typography>
-                        }
+                        {summary.lastActive ? (
+                          <Typography variant="body2" color="text.primary">
+                            {new Date(summary.lastActive).toLocaleDateString(
+                              "de-DE",
+                              {
+                                day: "2-digit",
+                                month: "2-digit",
+                                year: "numeric",
+                              }
+                            )}
+                          </Typography>
+                        ) : (
+                          <Typography
+                            variant="caption"
+                            color="text.secondary"
+                            className="italic"
+                          >
+                            Nie
+                          </Typography>
+                        )}
                       </TableCell>
                     </TableRow>
                   );
@@ -614,6 +842,6 @@ export const CoachStatsView: React.FC = () => {
           </TableContainer>
         </Paper>
       )}
-    </div>
+    </Box>
   );
 };

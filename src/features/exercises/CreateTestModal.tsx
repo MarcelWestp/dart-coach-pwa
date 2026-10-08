@@ -1,37 +1,40 @@
-import React, { useEffect, useState } from 'react';
-import { 
-  collection, 
-  getDocs, 
+import React, { useEffect, useState } from "react";
+import {
+  collection,
+  getDocs,
   addDoc,
   doc,
-  updateDoc 
-} from 'firebase/firestore';
-import { db } from '../../firebase/config';
-import { useAuth } from '../../context/AuthContext';
-import { sendNotificationIfEnabled } from '../../services/notificationService';
-import type { Exercise, ExerciseType, PerformanceTest } from '../../types/exercise';
-import { 
-  Dialog, 
-  DialogTitle, 
-  DialogContent, 
-  DialogActions, 
-  Button, 
-  TextField, 
-  MenuItem, 
-  FormControl, 
-  InputLabel, 
-  Select, 
-  Alert, 
-  Typography, 
-  IconButton, 
-  List, 
-  ListItem, 
-  ListItemText, 
-  ListItemSecondaryAction, 
-  Paper 
-} from '@mui/material';
-import DeleteIcon from '@mui/icons-material/Delete';
-import AddIcon from '@mui/icons-material/Add';
+  updateDoc,
+} from "firebase/firestore";
+import { db } from "../../firebase/config";
+import { useAuth } from "../../context/AuthContext";
+import { sendNotificationIfEnabled } from "../../services/notificationService";
+import type {
+  Exercise,
+  ExerciseType,
+  PerformanceTest,
+} from "../../types/exercise";
+import {
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  Button,
+  TextField,
+  MenuItem,
+  FormControl,
+  InputLabel,
+  Select,
+  Alert,
+  Typography,
+  IconButton,
+  List,
+  ListItem,
+  ListItemText,
+  Paper,
+} from "@mui/material";
+import DeleteIcon from "@mui/icons-material/Delete";
+import AddIcon from "@mui/icons-material/Add";
 
 interface CreateTestModalProps {
   open: boolean;
@@ -40,20 +43,21 @@ interface CreateTestModalProps {
   testToEdit?: PerformanceTest | null;
 }
 
-export const CreateTestModal: React.FC<CreateTestModalProps> = ({ 
-  open, 
-  onClose, 
+export const CreateTestModal: React.FC<CreateTestModalProps> = ({
+  open,
+  onClose,
   onTestCreated,
-  testToEdit
+  testToEdit,
 }) => {
   const { userProfile } = useAuth();
-  const [title, setTitle] = useState('');
-  const [description, setDescription] = useState('');
-  const [exerciseType, setExerciseType] = useState<ExerciseType>('scoring');
-  
+  const [title, setTitle] = useState("");
+  const [description, setDescription] = useState("");
+  const [exerciseType, setExerciseType] = useState<ExerciseType>("scoring");
+
   const [allExercises, setAllExercises] = useState<Exercise[]>([]);
   const [selectedExerciseIds, setSelectedExerciseIds] = useState<string[]>([]);
-  const [selectedExerciseToAdd, setSelectedExerciseToAdd] = useState<string>('');
+  const [selectedExerciseToAdd, setSelectedExerciseToAdd] =
+    useState<string>("");
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -61,56 +65,61 @@ export const CreateTestModal: React.FC<CreateTestModalProps> = ({
   useEffect(() => {
     const fetchExercises = async () => {
       try {
-        const querySnapshot = await getDocs(collection(db, 'exercises'));
+        const querySnapshot = await getDocs(collection(db, "exercises"));
         const exercises: Exercise[] = [];
         querySnapshot.forEach((docSnap) => {
           exercises.push({ id: docSnap.id, ...docSnap.data() } as Exercise);
         });
         setAllExercises(exercises);
       } catch (err) {
-        console.error('Fehler beim Laden der Übungen:', err);
+        console.error("Fehler beim Laden der Übungen:", err);
       }
     };
 
     if (open) {
       fetchExercises();
       if (testToEdit) {
-        setTitle(testToEdit.title);
-        setDescription(testToEdit.description || '');
-        setExerciseType(testToEdit.exerciseType);
+        setTitle(testToEdit.title || "");
+        setDescription(testToEdit.description || "");
+        setExerciseType(testToEdit.exerciseType || "scoring");
         setSelectedExerciseIds(testToEdit.exerciseIds || []);
       } else {
-        setTitle('');
-        setDescription('');
-        setExerciseType('scoring');
+        setTitle("");
+        setDescription("");
+        setExerciseType("scoring");
         setSelectedExerciseIds([]);
       }
-      setSelectedExerciseToAdd('');
+      setSelectedExerciseToAdd("");
+      setError(null);
     }
   }, [open, testToEdit]);
 
   const handleTypeChange = (newType: ExerciseType) => {
     setExerciseType(newType);
     setSelectedExerciseIds([]);
-    setSelectedExerciseToAdd('');
+    setSelectedExerciseToAdd("");
   };
 
-  const availableExercisesForType = allExercises.filter(e => e.type === exerciseType);
+  const availableExercisesForType = allExercises.filter(
+    (e) => e.type === exerciseType
+  );
 
   const handleAddExercise = () => {
     if (!selectedExerciseToAdd) return;
-    setSelectedExerciseIds(prev => [...prev, selectedExerciseToAdd]);
-    setSelectedExerciseToAdd('');
+    setSelectedExerciseIds((prev) => [...prev, selectedExerciseToAdd]);
+    setSelectedExerciseToAdd("");
   };
 
   const handleRemoveExercise = (indexToRemove: number) => {
-    setSelectedExerciseIds(prev => prev.filter((_, index) => index !== indexToRemove));
+    setSelectedExerciseIds((prev) =>
+      prev.filter((_, index) => index !== indexToRemove)
+    );
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!title.trim() || selectedExerciseIds.length === 0 || !userProfile) {
-      setError('Bitte wähle einen Titel und mindestens eine Übung aus.');
+      setError("Bitte wähle einen Titel und mindestens eine Übung aus.");
       return;
     }
 
@@ -122,7 +131,7 @@ export const CreateTestModal: React.FC<CreateTestModalProps> = ({
 
       if (testToEdit) {
         // Test aktualisieren
-        const testRef = doc(db, 'performanceTests', testToEdit.id);
+        const testRef = doc(db, "performanceTests", testToEdit.id);
         await updateDoc(testRef, {
           title: cleanTitle,
           description: description.trim(),
@@ -131,17 +140,16 @@ export const CreateTestModal: React.FC<CreateTestModalProps> = ({
           updatedAt: new Date().toISOString(),
         });
 
-        // Optional: Benachrichtigung über Aktualisierung des Leistungstests auslösen
         await sendNotificationIfEnabled({
           userId: userProfile.uid,
-          type: 'newOrUpdatedPerformanceTest',
-          title: 'Leistungstest aktualisiert',
+          type: "newOrUpdatedPerformanceTest",
+          title: "Leistungstest aktualisiert",
           message: `Der Leistungstest "${cleanTitle}" wurde aktualisiert.`,
-          link: '/performance-tests',
+          link: "/performance-tests",
         });
       } else {
         // Neuen Test erstellen
-        await addDoc(collection(db, 'performanceTests'), {
+        await addDoc(collection(db, "performanceTests"), {
           title: cleanTitle,
           description: description.trim(),
           exerciseType,
@@ -151,21 +159,20 @@ export const CreateTestModal: React.FC<CreateTestModalProps> = ({
           updatedAt: new Date().toISOString(),
         });
 
-        // Benachrichtigung über neuen Leistungstest auslösen
         await sendNotificationIfEnabled({
           userId: userProfile.uid,
-          type: 'newOrUpdatedPerformanceTest',
-          title: 'Neuer Leistungstest verfügbar',
+          type: "newOrUpdatedPerformanceTest",
+          title: "Neuer Leistungstest verfügbar",
           message: `Ein neuer Leistungstest "${cleanTitle}" wurde erstellt.`,
-          link: '/performance-tests',
+          link: "/performance-tests",
         });
       }
 
       onTestCreated();
       onClose();
     } catch (err: any) {
-      console.error(err);
-      setError('Fehler beim Speichern des Leistungstests.');
+      console.error("Fehler beim Speichern des Leistungstests:", err);
+      setError("Fehler beim Speichern des Leistungstests.");
     } finally {
       setLoading(false);
     }
@@ -174,7 +181,9 @@ export const CreateTestModal: React.FC<CreateTestModalProps> = ({
   return (
     <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
       <DialogTitle className="font-bold">
-        {testToEdit ? 'Leistungstest bearbeiten' : 'Neuen Leistungstest erstellen'}
+        {testToEdit
+          ? "Leistungstest bearbeiten"
+          : "Neuen Leistungstest erstellen"}
       </DialogTitle>
       <form onSubmit={handleSubmit}>
         <DialogContent dividers className="flex flex-col gap-4">
@@ -200,11 +209,16 @@ export const CreateTestModal: React.FC<CreateTestModalProps> = ({
           />
 
           <FormControl fullWidth required>
-            <InputLabel>Übungstyp des Tests</InputLabel>
+            <InputLabel id="exercise-type-test-label">
+              Übungstyp des Tests
+            </InputLabel>
             <Select
+              labelId="exercise-type-test-label"
               value={exerciseType}
               label="Übungstyp des Tests"
-              onChange={(e) => handleTypeChange(e.target.value as ExerciseType)}
+              onChange={(e) =>
+                handleTypeChange(e.target.value as ExerciseType)
+              }
             >
               <MenuItem value="scoring">Scoring</MenuItem>
               <MenuItem value="check">Check</MenuItem>
@@ -219,8 +233,11 @@ export const CreateTestModal: React.FC<CreateTestModalProps> = ({
 
           <div className="flex gap-2 items-center mt-2">
             <FormControl fullWidth size="small">
-              <InputLabel>Übung zum Test hinzufügen</InputLabel>
+              <InputLabel id="add-exercise-select-label">
+                Übung zum Test hinzufügen
+              </InputLabel>
               <Select
+                labelId="add-exercise-select-label"
                 value={selectedExerciseToAdd}
                 label="Übung zum Test hinzufügen"
                 onChange={(e) => setSelectedExerciseToAdd(e.target.value)}
@@ -251,13 +268,25 @@ export const CreateTestModal: React.FC<CreateTestModalProps> = ({
             </Button>
           </div>
 
-          <Typography variant="subtitle2" className="mt-4 font-bold">
+          <Typography
+            variant="subtitle2"
+            className="mt-4 font-bold"
+            color="text.primary"
+          >
             Enthaltene Übungen in Reihenfolge ({selectedExerciseIds.length}):
           </Typography>
 
-          <Paper variant="outlined" className="max-h-60 overflow-y-auto">
+          <Paper
+            variant="outlined"
+            sx={{ bgcolor: "background.paper", borderColor: "divider" }}
+            className="max-h-60 overflow-y-auto"
+          >
             {selectedExerciseIds.length === 0 ? (
-              <Typography variant="body2" color="textSecondary" className="p-4 text-center">
+              <Typography
+                variant="body2"
+                color="textSecondary"
+                className="p-4 text-center"
+              >
                 Noch keine Übungen hinzugefügt.
               </Typography>
             ) : (
@@ -265,12 +294,10 @@ export const CreateTestModal: React.FC<CreateTestModalProps> = ({
                 {selectedExerciseIds.map((exId, index) => {
                   const exercise = allExercises.find((e) => e.id === exId);
                   return (
-                    <ListItem key={`${exId}-${index}`} divider>
-                      <ListItemText
-                        primary={`${index + 1}. ${exercise ? exercise.title : 'Unbekannte Übung'}`}
-                        secondary={exercise?.description}
-                      />
-                      <ListItemSecondaryAction>
+                    <ListItem
+                      key={`${exId}-${index}`}
+                      divider
+                      secondaryAction={
                         <IconButton
                           edge="end"
                           color="error"
@@ -279,7 +306,14 @@ export const CreateTestModal: React.FC<CreateTestModalProps> = ({
                         >
                           <DeleteIcon fontSize="small" />
                         </IconButton>
-                      </ListItemSecondaryAction>
+                      }
+                    >
+                      <ListItemText
+                        primary={`${index + 1}. ${
+                          exercise ? exercise.title : "Unbekannte Übung"
+                        }`}
+                        secondary={exercise?.description}
+                      />
                     </ListItem>
                   );
                 })}
@@ -292,13 +326,17 @@ export const CreateTestModal: React.FC<CreateTestModalProps> = ({
           <Button onClick={onClose} disabled={loading}>
             Abbrechen
           </Button>
-          <Button 
-            type="submit" 
-            variant="contained" 
-            color="primary" 
+          <Button
+            type="submit"
+            variant="contained"
+            color="primary"
             disabled={loading || selectedExerciseIds.length === 0}
           >
-            {loading ? 'Speichert...' : testToEdit ? 'Änderungen Speichern' : 'Leistungstest Erstellen'}
+            {loading
+              ? "Speichert..."
+              : testToEdit
+              ? "Änderungen Speichern"
+              : "Leistungstest Erstellen"}
           </Button>
         </DialogActions>
       </form>

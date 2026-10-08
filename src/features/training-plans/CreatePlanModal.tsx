@@ -36,6 +36,7 @@ import {
   AccordionDetails,
   FormControlLabel,
   Checkbox,
+  Box,
 } from "@mui/material";
 import DeleteIcon from "@mui/icons-material/Delete";
 import AddIcon from "@mui/icons-material/Add";
@@ -102,12 +103,12 @@ export const CreatePlanModal: React.FC<CreatePlanModalProps> = ({
 
         const fetchedExercises: Exercise[] = [];
         exSnap.forEach((d) =>
-          fetchedExercises.push({ id: d.id, ...d.data() } as Exercise),
+          fetchedExercises.push({ id: d.id, ...d.data() } as Exercise)
         );
 
         const fetchedTests: PerformanceTest[] = [];
         testSnap.forEach((d) =>
-          fetchedTests.push({ id: d.id, ...d.data() } as PerformanceTest),
+          fetchedTests.push({ id: d.id, ...d.data() } as PerformanceTest)
         );
 
         const fetchedTemplates: TrainingPlan[] = [];
@@ -199,7 +200,7 @@ export const CreatePlanModal: React.FC<CreatePlanModalProps> = ({
           return { ...b, exercises: [...b.exercises, newEx] };
         }
         return b;
-      }),
+      })
     );
   };
 
@@ -214,7 +215,7 @@ export const CreatePlanModal: React.FC<CreatePlanModalProps> = ({
           };
         }
         return b;
-      }),
+      })
     );
   };
 
@@ -222,7 +223,7 @@ export const CreatePlanModal: React.FC<CreatePlanModalProps> = ({
   const handleUpdateExerciseNote = (
     blockId: string,
     exIndex: number,
-    note: string,
+    note: string
   ) => {
     setBlocks((prev) =>
       prev.map((b) => {
@@ -232,7 +233,7 @@ export const CreatePlanModal: React.FC<CreatePlanModalProps> = ({
           return { ...b, exercises: updatedExs };
         }
         return b;
-      }),
+      })
     );
   };
 
@@ -310,25 +311,30 @@ export const CreatePlanModal: React.FC<CreatePlanModalProps> = ({
       </DialogTitle>
 
       <form onSubmit={handleSubmit}>
-        <DialogContent dividers className="flex flex-col gap-4">
+        <DialogContent dividers className="flex flex-col gap-4 p-4 sm:p-6">
           {error && <Alert severity="error">{error}</Alert>}
 
           {/* Aus Vorlage laden */}
           {templates.length > 0 && !planToEdit && (
             <Paper
               variant="outlined"
-              className="p-3 bg-blue-50 dark:bg-gray-800"
+              sx={{ bgcolor: "action.hover", borderColor: "divider" }}
+              className="p-3 shadow-sm"
             >
               <Typography
                 variant="subtitle2"
                 className="font-bold mb-2 flex items-center gap-1"
+                color="text.primary"
               >
                 <BookmarkIcon color="primary" fontSize="small" /> Aus
                 bestehender Vorlage laden:
               </Typography>
               <FormControl fullWidth size="small">
-                <InputLabel>Vorlage auswählen</InputLabel>
+                <InputLabel id="select-template-label">
+                  Vorlage auswählen
+                </InputLabel>
                 <Select
+                  labelId="select-template-label"
                   value={selectedTemplateId}
                   label="Vorlage auswählen"
                   onChange={(e) => handleLoadTemplate(e.target.value)}
@@ -347,18 +353,22 @@ export const CreatePlanModal: React.FC<CreatePlanModalProps> = ({
           )}
 
           {/* Basis-Informationen */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <TextField
               label="Titel des Plans"
               variant="outlined"
               required
+              fullWidth
               value={title}
               onChange={(e) => setTitle(e.target.value)}
             />
 
-            <FormControl required disabled={saveAsTemplate}>
-              <InputLabel>Spieler auswählen</InputLabel>
+            <FormControl required disabled={saveAsTemplate} fullWidth>
+              <InputLabel id="select-player-label">
+                Spieler auswählen
+              </InputLabel>
               <Select
+                labelId="select-player-label"
                 value={playerId}
                 label="Spieler auswählen"
                 onChange={(e) => setPlayerId(e.target.value)}
@@ -401,7 +411,7 @@ export const CreatePlanModal: React.FC<CreatePlanModalProps> = ({
                 value={year}
                 onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
                   setYear(
-                    parseInt(e.target.value, 10) || new Date().getFullYear(),
+                    parseInt(e.target.value, 10) || new Date().getFullYear()
                   )
                 }
               />
@@ -413,6 +423,7 @@ export const CreatePlanModal: React.FC<CreatePlanModalProps> = ({
             variant="outlined"
             multiline
             rows={2}
+            fullWidth
             value={coachNote}
             onChange={(e) => setCoachNote(e.target.value)}
             placeholder="z. B. Fokus diese Woche auf sauberes Durchziehen legen..."
@@ -420,10 +431,11 @@ export const CreatePlanModal: React.FC<CreatePlanModalProps> = ({
 
           {/* Maximal 1 Leistungstest */}
           <FormControl fullWidth>
-            <InputLabel>
+            <InputLabel id="select-test-label">
               Leistungstest zuweisen (Maximal 1 pro Woche)
             </InputLabel>
             <Select
+              labelId="select-test-label"
               value={performanceTestId}
               label="Leistungstest zuweisen (Maximal 1 pro Woche)"
               onChange={(e) => setPerformanceTestId(e.target.value)}
@@ -442,13 +454,14 @@ export const CreatePlanModal: React.FC<CreatePlanModalProps> = ({
           <Divider className="my-2" />
 
           {/* Trainingsblöcke verwalten */}
-          <div className="flex justify-between items-center">
-            <Typography variant="h6" className="font-bold">
+          <div className="flex justify-between items-center flex-wrap gap-2">
+            <Typography variant="h6" className="font-bold" color="text.primary">
               Trainingsblöcke ({blocks.length})
             </Typography>
             <Button
               variant="outlined"
               color="primary"
+              size="small"
               startIcon={<AddIcon />}
               onClick={handleAddBlock}
             >
@@ -460,21 +473,22 @@ export const CreatePlanModal: React.FC<CreatePlanModalProps> = ({
             <Paper
               key={block.id}
               variant="outlined"
-              className="p-4 flex flex-col gap-3"
+              sx={{ bgcolor: "action.hover", borderColor: "divider" }}
+              className="p-4 flex flex-col gap-3 rounded"
             >
-              <div className="flex justify-between items-center">
+              <div className="flex justify-between items-center gap-2">
                 <TextField
                   label={`Titel für Block ${bIndex + 1}`}
                   variant="outlined"
                   size="small"
-                  className="w-2/3"
+                  className="w-full sm:w-2/3"
                   value={block.title}
                   onChange={(e) => {
                     const newTitle = e.target.value;
                     setBlocks((prev) =>
                       prev.map((b) =>
-                        b.id === block.id ? { ...b, title: newTitle } : b,
-                      ),
+                        b.id === block.id ? { ...b, title: newTitle } : b
+                      )
                     );
                   }}
                 />
@@ -491,6 +505,7 @@ export const CreatePlanModal: React.FC<CreatePlanModalProps> = ({
                 label="Block-Anmerkung (Trainer)"
                 variant="outlined"
                 size="small"
+                fullWidth
                 multiline
                 rows={1}
                 value={block.coachNote || ""}
@@ -498,8 +513,8 @@ export const CreatePlanModal: React.FC<CreatePlanModalProps> = ({
                   const newNote = e.target.value;
                   setBlocks((prev) =>
                     prev.map((b) =>
-                      b.id === block.id ? { ...b, coachNote: newNote } : b,
-                    ),
+                      b.id === block.id ? { ...b, coachNote: newNote } : b
+                    )
                   );
                 }}
               />
@@ -507,13 +522,15 @@ export const CreatePlanModal: React.FC<CreatePlanModalProps> = ({
               {/* Übung zum Block hinzufügen */}
               <div className="flex gap-2 items-center">
                 <FormControl fullWidth size="small">
-                  <InputLabel>Übung zu diesem Block hinzufügen</InputLabel>
+                  <InputLabel id={`add-ex-block-${block.id}`}>
+                    Übung zu diesem Block hinzufügen
+                  </InputLabel>
                   <Select
-                    defaultValue=""
+                    labelId={`add-ex-block-${block.id}`}
+                    value=""
                     label="Übung zu diesem Block hinzufügen"
                     onChange={(e) => {
                       handleAddExerciseToBlock(block.id, e.target.value);
-                      e.target.value = "";
                     }}
                   >
                     <MenuItem disabled value="">
@@ -531,17 +548,25 @@ export const CreatePlanModal: React.FC<CreatePlanModalProps> = ({
               {/* Liste der Übungen in diesem Block */}
               {block.exercises.map((bEx, exIndex) => {
                 const exerciseObj = allExercises.find(
-                  (e) => e.id === bEx.exerciseId,
+                  (e) => e.id === bEx.exerciseId
                 );
                 return (
                   <Accordion
                     key={`${bEx.exerciseId}-${exIndex}`}
                     elevation={0}
                     variant="outlined"
+                    sx={{
+                      bgcolor: "background.paper",
+                      borderColor: "divider",
+                    }}
                   >
                     <AccordionSummary expandIcon={<ExpandMoreIcon />}>
                       <div className="flex justify-between items-center w-full pr-2">
-                        <Typography variant="body2" className="font-bold">
+                        <Typography
+                          variant="body2"
+                          className="font-bold"
+                          color="text.primary"
+                        >
                           {exIndex + 1}.{" "}
                           {exerciseObj ? exerciseObj.title : "Übung"}
                         </Typography>
@@ -570,7 +595,7 @@ export const CreatePlanModal: React.FC<CreatePlanModalProps> = ({
                           handleUpdateExerciseNote(
                             block.id,
                             exIndex,
-                            e.target.value,
+                            e.target.value
                           )
                         }
                         placeholder="z. B. 3 Serien absolvieren, Fokus auf Wurf-Rhythmus..."
@@ -594,7 +619,12 @@ export const CreatePlanModal: React.FC<CreatePlanModalProps> = ({
                   color="primary"
                 />
               }
-              label="Diesen Plan zusätzlich als wiederverwendbare Vorlage (Template) speichern"
+              label={
+                <Typography variant="body2" color="text.primary">
+                  Diesen Plan zusätzlich als wiederverwendbare Vorlage (Template)
+                  speichern
+                </Typography>
+              }
             />
 
             {saveAsTemplate && (
@@ -602,6 +632,7 @@ export const CreatePlanModal: React.FC<CreatePlanModalProps> = ({
                 label="Name der Vorlage"
                 variant="outlined"
                 size="small"
+                fullWidth
                 required={saveAsTemplate}
                 value={templateName}
                 onChange={(e) => setTemplateName(e.target.value)}
@@ -624,8 +655,8 @@ export const CreatePlanModal: React.FC<CreatePlanModalProps> = ({
             {loading
               ? "Speichert..."
               : planToEdit
-                ? "Änderungen Speichern"
-                : "Plan Zuweisen"}
+              ? "Änderungen Speichern"
+              : "Plan Zuweisen"}
           </Button>
         </DialogActions>
       </form>

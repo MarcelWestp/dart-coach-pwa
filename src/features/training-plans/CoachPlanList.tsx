@@ -86,7 +86,7 @@ export const CoachPlanList: React.FC<CoachPlanListProps> = () => {
   const [selectedPlanTemplate, setSelectedPlanTemplate] =
     useState<TrainingPlan | null>(null);
   const [assignmentType, setAssignmentType] = useState<"single" | "group">(
-    "single",
+    "single"
   );
   const [selectedPlayerId, setSelectedPlayerId] = useState("");
   const [selectedGroupId, setSelectedGroupId] = useState("");
@@ -95,11 +95,11 @@ export const CoachPlanList: React.FC<CoachPlanListProps> = () => {
   // Editor-Modal State (Plan/Vorlage Erstellen & Bearbeiten)
   const [isEditorModalOpen, setIsEditorModalOpen] = useState(false);
   const [editingTemplateId, setEditingTemplateId] = useState<string | null>(
-    null,
+    null
   );
   const [planTitle, setPlanTitle] = useState("");
   const [startDate, setStartDate] = useState<string>(
-    new Date().toISOString().split("T")[0],
+    new Date().toISOString().split("T")[0]
   );
   const [planCoachNote, setPlanCoachNote] = useState("");
   const [blocks, setBlocks] = useState<TrainingBlock[]>([]);
@@ -191,7 +191,7 @@ export const CoachPlanList: React.FC<CoachPlanListProps> = () => {
       setGroups(fetchedGroups);
       setTestResults(fetchedResults);
     } catch (err) {
-      console.error(err);
+      console.error("Fehler beim Laden der Trainingspläne:", err);
       setError("Fehler beim Laden der Daten.");
     } finally {
       setLoading(false);
@@ -266,7 +266,7 @@ export const CoachPlanList: React.FC<CoachPlanListProps> = () => {
   const handleUpdateExerciseNote = (
     blockIndex: number,
     exerciseIndex: number,
-    coachNote: string,
+    coachNote: string
   ) => {
     const updated = [...blocks];
     updated[blockIndex].exercises[exerciseIndex].coachNote = coachNote;
@@ -276,7 +276,7 @@ export const CoachPlanList: React.FC<CoachPlanListProps> = () => {
   const handleUpdateExerciseDuration = (
     blockIndex: number,
     exerciseIndex: number,
-    durationMinutes: number,
+    durationMinutes: number
   ) => {
     const updated = [...blocks];
     updated[blockIndex].exercises[exerciseIndex].durationMinutes =
@@ -286,11 +286,11 @@ export const CoachPlanList: React.FC<CoachPlanListProps> = () => {
 
   const handleRemoveExerciseFromBlock = (
     blockIndex: number,
-    exerciseIndex: number,
+    exerciseIndex: number
   ) => {
     const updated = [...blocks];
     updated[blockIndex].exercises = updated[blockIndex].exercises.filter(
-      (_, i) => i !== exerciseIndex,
+      (_, i) => i !== exerciseIndex
     );
     setBlocks(updated);
   };
@@ -320,7 +320,7 @@ export const CoachPlanList: React.FC<CoachPlanListProps> = () => {
       if (editingTemplateId) {
         await updateDoc(
           doc(db, "trainingPlans", editingTemplateId),
-          templateData,
+          templateData
         );
       } else {
         await addDoc(collection(db, "trainingPlans"), {
@@ -332,7 +332,7 @@ export const CoachPlanList: React.FC<CoachPlanListProps> = () => {
       setIsEditorModalOpen(false);
       fetchData();
     } catch (err) {
-      console.error(err);
+      console.error("Fehler beim Speichern der Vorlage:", err);
       setError("Fehler beim Speichern der Trainingsplan-Vorlage.");
     } finally {
       setSubmitting(false);
@@ -344,7 +344,7 @@ export const CoachPlanList: React.FC<CoachPlanListProps> = () => {
     if (!id) return;
     if (
       !window.confirm(
-        "Möchtest du diese Trainingsplan-Vorlage wirklich löschen?",
+        "Möchtest du diese Trainingsplan-Vorlage wirklich löschen?"
       )
     )
       return;
@@ -353,7 +353,7 @@ export const CoachPlanList: React.FC<CoachPlanListProps> = () => {
       await deleteDoc(doc(db, "trainingPlans", id));
       fetchData();
     } catch (err) {
-      console.error(err);
+      console.error("Fehler beim Löschen der Vorlage:", err);
       setError("Fehler beim Löschen der Vorlage.");
     }
   };
@@ -363,7 +363,7 @@ export const CoachPlanList: React.FC<CoachPlanListProps> = () => {
     if (!id) return;
     if (
       !window.confirm(
-        `Möchtest du den zugewiesenen Plan "${title || "Trainingsplan"}" für diesen Spieler wirklich löschen?`,
+        `Möchtest du den zugewiesenen Plan "${title || "Trainingsplan"}" für diesen Spieler wirklich löschen?`
       )
     )
       return;
@@ -372,7 +372,7 @@ export const CoachPlanList: React.FC<CoachPlanListProps> = () => {
       await deleteDoc(doc(db, "assignedPlans", id));
       fetchData();
     } catch (err) {
-      console.error(err);
+      console.error("Fehler beim Löschen des zugewiesenen Plans:", err);
       setError("Fehler beim Löschen des zugewiesenen Trainingsplans.");
     }
   };
@@ -437,7 +437,7 @@ export const CoachPlanList: React.FC<CoachPlanListProps> = () => {
       setSelectedGroupId("");
       fetchData();
     } catch (err) {
-      console.error(err);
+      console.error("Fehler beim Zuweisen des Plans:", err);
       setError("Fehler beim Zuweisen des Trainingsplans.");
     } finally {
       setSubmitting(false);
@@ -487,14 +487,14 @@ export const CoachPlanList: React.FC<CoachPlanListProps> = () => {
 
   if (loading) {
     return (
-      <div className="flex justify-center items-center p-8">
+      <Box className="flex justify-center items-center p-8">
         <CircularProgress />
-      </div>
+      </Box>
     );
   }
 
   return (
-    <div className="p-6 max-w-6xl mx-auto flex flex-col gap-6">
+    <Box className="p-4 sm:p-6 max-w-6xl mx-auto space-y-6">
       {/* Header */}
       <div className="flex justify-between items-center flex-wrap gap-4">
         <div>
@@ -507,7 +507,7 @@ export const CoachPlanList: React.FC<CoachPlanListProps> = () => {
             <AssignmentIcon fontSize="large" color="primary" /> Trainingspläne &
             Vorlagen
           </Typography>
-          <Typography variant="body2" color="textSecondary">
+          <Typography variant="body2" color="text.secondary">
             Erstelle Vorlagen und verwalte die zugewiesenen Pläne deiner
             Spieler.
           </Typography>
@@ -530,7 +530,10 @@ export const CoachPlanList: React.FC<CoachPlanListProps> = () => {
       )}
 
       {/* Tabs zur Verwaltung */}
-      <Paper variant="outlined">
+      <Paper
+        variant="outlined"
+        sx={{ bgcolor: "background.paper", borderColor: "divider" }}
+      >
         <Tabs
           value={activeTab}
           onChange={(_, newValue) => setActiveTab(newValue)}
@@ -546,8 +549,12 @@ export const CoachPlanList: React.FC<CoachPlanListProps> = () => {
       {activeTab === 0 && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {templates.length === 0 ? (
-            <Paper className="p-8 text-center col-span-full">
-              <Typography variant="body1" color="textSecondary">
+            <Paper
+              variant="outlined"
+              sx={{ bgcolor: "background.paper", borderColor: "divider" }}
+              className="p-8 text-center col-span-full"
+            >
+              <Typography variant="body1" color="text.secondary">
                 Keine Vorlagen vorhanden. Erstelle jetzt deinen ersten
                 Trainingsplan!
               </Typography>
@@ -557,6 +564,7 @@ export const CoachPlanList: React.FC<CoachPlanListProps> = () => {
               <Card
                 key={template.id}
                 variant="outlined"
+                sx={{ bgcolor: "background.paper", borderColor: "divider" }}
                 className="flex flex-col justify-between shadow-sm"
               >
                 <CardContent className="flex flex-col gap-3">
@@ -569,7 +577,7 @@ export const CoachPlanList: React.FC<CoachPlanListProps> = () => {
                       >
                         {template.title}
                       </Typography>
-                      <Typography variant="caption" color="textSecondary">
+                      <Typography variant="caption" color="text.secondary">
                         KW {template.calendarWeek} / {template.year}
                       </Typography>
                     </div>
@@ -595,14 +603,14 @@ export const CoachPlanList: React.FC<CoachPlanListProps> = () => {
                   {template.coachNote && (
                     <Typography
                       variant="body2"
-                      color="textSecondary"
+                      color="text.secondary"
                       className="italic"
                     >
                       "{template.coachNote}"
                     </Typography>
                   )}
 
-                  {/* VORSCHAU DER BLÖCKE (EXAKT EINMAL RENDERN) */}
+                  {/* VORSCHAU DER BLÖCKE */}
                   <div className="flex flex-col gap-2 mt-2">
                     {template.blocks && template.blocks.length > 0 ? (
                       template.blocks.map((block, idx) => (
@@ -633,7 +641,7 @@ export const CoachPlanList: React.FC<CoachPlanListProps> = () => {
                     ) : (
                       <Typography
                         variant="caption"
-                        color="textSecondary"
+                        color="text.secondary"
                         className="italic"
                       >
                         Keine Blöcke in dieser Vorlage enthalten.
@@ -663,12 +671,19 @@ export const CoachPlanList: React.FC<CoachPlanListProps> = () => {
       {/* TAB 1: ZUGEWIESENE PLÄNE */}
       {activeTab === 1 && (
         <div className="flex flex-col gap-4">
-          {/* Filter-Zeile: Spieler-Filter + Abgeschlossen-Switch */}
-          <div className="flex justify-between items-center flex-wrap gap-4 bg-gray-50 dark:bg-gray-800 p-3 rounded-lg border border-gray-200 dark:border-gray-700">
-            <div className="flex items-center gap-4 flex-wrap">
-              <FormControl size="small" className="min-w-[220px]">
-                <InputLabel>Nach Spieler filtern</InputLabel>
+          {/* Filter-Zeile */}
+          <Paper
+            variant="outlined"
+            sx={{ bgcolor: "background.paper", borderColor: "divider" }}
+            className="flex justify-between items-center flex-wrap gap-4 p-3 shadow-sm"
+          >
+            <div className="flex items-center gap-4 flex-wrap w-full sm:w-auto">
+              <FormControl size="small" className="w-full sm:w-auto min-w-[220px]">
+                <InputLabel id="filter-player-label">
+                  Nach Spieler filtern
+                </InputLabel>
                 <Select
+                  labelId="filter-player-label"
                   value={selectedPlayerFilter}
                   label="Nach Spieler filtern"
                   onChange={(e) => setSelectedPlayerFilter(e.target.value)}
@@ -678,7 +693,7 @@ export const CoachPlanList: React.FC<CoachPlanListProps> = () => {
                   </MenuItem>
                   {players.map((p) => {
                     const count = assignedPlans.filter(
-                      (ap) => ap.playerId === p.uid,
+                      (ap) => ap.playerId === p.uid
                     ).length;
                     return (
                       <MenuItem key={p.uid} value={p.uid}>
@@ -698,25 +713,29 @@ export const CoachPlanList: React.FC<CoachPlanListProps> = () => {
                   />
                 }
                 label={
-                  <Typography variant="body2" className="font-medium">
+                  <Typography
+                    variant="body2"
+                    className="font-medium"
+                    color="text.primary"
+                  >
                     Abgeschlossene Pläne anzeigen
                   </Typography>
                 }
               />
             </div>
 
-            <Typography variant="caption" color="textSecondary">
+            <Typography variant="caption" color="text.secondary">
               Zeige {filteredAssignedPlans.length} von {assignedPlans.length}{" "}
               zugewiesenen Plänen
             </Typography>
-          </div>
+          </Paper>
 
           {/* Karten-Grid */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {filteredAssignedPlans.length === 0 ? (
               <Typography
                 variant="body2"
-                color="textSecondary"
+                color="text.secondary"
                 className="py-4 col-span-2 text-center italic"
               >
                 Bisher wurden für diese Filterkombination keine Trainingspläne
@@ -731,12 +750,20 @@ export const CoachPlanList: React.FC<CoachPlanListProps> = () => {
                   <Card
                     key={plan.id}
                     variant="outlined"
+                    sx={{
+                      bgcolor: "background.paper",
+                      borderColor: "divider",
+                    }}
                     className="flex flex-col justify-between shadow-sm"
                   >
                     <CardContent>
                       <div className="flex justify-between items-start mb-2">
                         <div>
-                          <Typography variant="h6" className="font-bold">
+                          <Typography
+                            variant="h6"
+                            className="font-bold"
+                            color="text.primary"
+                          >
                             {plan.title}
                           </Typography>
                           <Typography
@@ -747,7 +774,10 @@ export const CoachPlanList: React.FC<CoachPlanListProps> = () => {
                             <PersonIcon fontSize="small" />{" "}
                             {getPlayerName(plan.playerId)}
                           </Typography>
-                          <Typography variant="caption" color="textSecondary">
+                          <Typography
+                            variant="caption"
+                            color="text.secondary"
+                          >
                             Zugewiesen für KW {plan.calendarWeek} / {plan.year}
                           </Typography>
                         </div>
@@ -770,19 +800,23 @@ export const CoachPlanList: React.FC<CoachPlanListProps> = () => {
                             plan.status === "completed"
                               ? "Abgeschlossen"
                               : plan.status === "in_progress"
-                                ? "In Bearbeitung"
-                                : "Zugewiesen"
+                              ? "In Bearbeitung"
+                              : "Zugewiesen"
                           }
                           color={
                             plan.status === "completed"
                               ? "success"
                               : plan.status === "in_progress"
-                                ? "warning"
-                                : "default"
+                              ? "warning"
+                              : "default"
                           }
                           size="small"
                         />
-                        <Typography variant="caption" className="font-semibold">
+                        <Typography
+                          variant="caption"
+                          className="font-semibold"
+                          color="text.primary"
+                        >
                           {completedExercises} / {totalExercises} Übungen
                         </Typography>
                       </div>
@@ -790,13 +824,13 @@ export const CoachPlanList: React.FC<CoachPlanListProps> = () => {
                       <LinearProgress
                         variant="determinate"
                         value={percent}
-                        className="rounded mb-3"
+                        className="rounded mb-3 h-2"
                       />
 
                       {plan.coachNote && (
                         <Typography
                           variant="body2"
-                          color="textSecondary"
+                          color="text.secondary"
                           className="mt-2 italic"
                         >
                           Hinweis: {plan.coachNote}
@@ -837,34 +871,42 @@ export const CoachPlanList: React.FC<CoachPlanListProps> = () => {
 
             return (
               <>
-                <DialogTitle className="font-bold flex justify-between items-center">
-                  <span>Plan-Fortschritt: {selectedPlanForView.title}</span>
+                <DialogTitle className="font-bold flex justify-between items-center flex-wrap gap-2">
+                  <span className="text-base sm:text-lg">
+                    Plan-Fortschritt: {selectedPlanForView.title}
+                  </span>
                   <Chip
                     label={
                       selectedPlanForView.status === "completed"
                         ? "Abgeschlossen"
                         : selectedPlanForView.status === "in_progress"
-                          ? "In Bearbeitung"
-                          : "Zugewiesen"
+                        ? "In Bearbeitung"
+                        : "Zugewiesen"
                     }
                     color={
                       selectedPlanForView.status === "completed"
                         ? "success"
                         : selectedPlanForView.status === "in_progress"
-                          ? "warning"
-                          : "default"
+                        ? "warning"
+                        : "default"
                     }
                     size="small"
                   />
                 </DialogTitle>
 
-                <DialogContent dividers className="flex flex-col gap-4">
+                <DialogContent dividers className="flex flex-col gap-4 p-4 sm:p-6">
                   <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-2">
-                    <Typography variant="subtitle2">
+                    <Typography
+                      variant="subtitle2"
+                      color="text.primary"
+                    >
                       <strong>Spieler:</strong>{" "}
                       {getPlayerName(selectedPlanForView.playerId)}
                     </Typography>
-                    <Typography variant="subtitle2">
+                    <Typography
+                      variant="subtitle2"
+                      color="text.primary"
+                    >
                       <strong>Zeitraum:</strong> KW{" "}
                       {selectedPlanForView.calendarWeek} /{" "}
                       {selectedPlanForView.year}
@@ -875,12 +917,13 @@ export const CoachPlanList: React.FC<CoachPlanListProps> = () => {
                     <Typography
                       variant="body2"
                       sx={{
-                        bgcolor: "action.hover", // Passt sich im Darkmode automatisch dunkel an
+                        bgcolor: "action.hover",
                         p: 1.5,
                         borderRadius: 1,
                         fontStyle: "italic",
                         border: 1,
                         borderColor: "divider",
+                        color: "text.primary",
                       }}
                     >
                       Trainer-Hinweis: "{selectedPlanForView.coachNote}"
@@ -889,11 +932,19 @@ export const CoachPlanList: React.FC<CoachPlanListProps> = () => {
 
                   <div>
                     <div className="flex justify-between items-center mb-1">
-                      <Typography variant="caption" className="font-bold">
+                      <Typography
+                        variant="caption"
+                        className="font-bold"
+                        color="text.primary"
+                      >
                         Gesamtfortschritt ({completedExercises} von{" "}
                         {totalExercises} Übungen absolviert)
                       </Typography>
-                      <Typography variant="caption" className="font-bold">
+                      <Typography
+                        variant="caption"
+                        className="font-bold"
+                        color="primary.main"
+                      >
                         {percent}%
                       </Typography>
                     </div>
@@ -907,15 +958,24 @@ export const CoachPlanList: React.FC<CoachPlanListProps> = () => {
                   {selectedPlanForView.playerNote && (
                     <Paper
                       variant="outlined"
-                      className="p-3 bg-blue-50 dark:bg-blue-900/20 border-blue-200"
+                      sx={{
+                        bgcolor: "action.hover",
+                        borderColor: "primary.main",
+                        p: 2,
+                      }}
                     >
                       <Typography
                         variant="subtitle2"
-                        className="font-bold text-blue-800 dark:text-blue-300"
+                        className="font-bold"
+                        color="primary.main"
                       >
                         Gesamtrückmeldung des Spielers:
                       </Typography>
-                      <Typography variant="body2" className="italic mt-1">
+                      <Typography
+                        variant="body2"
+                        className="italic mt-1"
+                        color="text.primary"
+                      >
                         "{selectedPlanForView.playerNote}"
                       </Typography>
                     </Paper>
@@ -923,7 +983,11 @@ export const CoachPlanList: React.FC<CoachPlanListProps> = () => {
 
                   <Divider />
 
-                  <Typography variant="h6" className="font-bold">
+                  <Typography
+                    variant="h6"
+                    className="font-bold"
+                    color="text.primary"
+                  >
                     Trainingsblöcke & Übungsergebnisse
                   </Typography>
 
@@ -932,19 +996,25 @@ export const CoachPlanList: React.FC<CoachPlanListProps> = () => {
                       <Paper
                         key={block.id || bIdx}
                         variant="outlined"
-                        className="p-4 flex flex-col gap-3 bg-gray-50/50 dark:bg-gray-800/40"
+                        sx={{
+                          p: 2.5,
+                          bgcolor: "action.hover",
+                          borderColor: "divider",
+                        }}
+                        className="flex flex-col gap-3"
                       >
                         <div>
                           <Typography
                             variant="subtitle1"
-                            className="font-bold color-primary"
+                            className="font-bold"
+                            color="primary.main"
                           >
                             {block.title}
                           </Typography>
                           {block.coachNote && (
                             <Typography
                               variant="caption"
-                              color="textSecondary"
+                              color="text.secondary"
                               className="italic block"
                             >
                               Block-Notiz: {block.coachNote}
@@ -953,7 +1023,8 @@ export const CoachPlanList: React.FC<CoachPlanListProps> = () => {
                           {block.playerNote && (
                             <Typography
                               variant="caption"
-                              className="italic block text-blue-600 dark:text-blue-400 mt-1"
+                              color="primary.light"
+                              className="italic block mt-1"
                             >
                               Spieler-Feedback zum Block: "{block.playerNote}"
                             </Typography>
@@ -963,7 +1034,7 @@ export const CoachPlanList: React.FC<CoachPlanListProps> = () => {
                         <div className="flex flex-col gap-2">
                           {block.exercises?.map((exItem, exIdx) => {
                             const exObj = exercises.find(
-                              (e) => e.id === exItem.exerciseId,
+                              (e) => e.id === exItem.exerciseId
                             );
                             const isDone = Boolean(exItem.completedAt);
 
@@ -987,7 +1058,7 @@ export const CoachPlanList: React.FC<CoachPlanListProps> = () => {
                                 variant="outlined"
                                 sx={{
                                   p: 2,
-                                  bgcolor: "background.paper", // Passt sich dynamisch an Light & Darkmode an
+                                  bgcolor: "background.paper",
                                   borderColor: "divider",
                                 }}
                               >
@@ -1000,6 +1071,7 @@ export const CoachPlanList: React.FC<CoachPlanListProps> = () => {
                                     <Typography
                                       variant="subtitle2"
                                       className="font-bold"
+                                      color="text.primary"
                                     >
                                       {exIdx + 1}.{" "}
                                       {exObj ? exObj.title : "Übung"}
@@ -1027,7 +1099,7 @@ export const CoachPlanList: React.FC<CoachPlanListProps> = () => {
                                 {exItem.coachNote && (
                                   <Typography
                                     variant="caption"
-                                    color="textSecondary"
+                                    color="text.secondary"
                                     className="block mt-1"
                                   >
                                     Hinweis: {exItem.coachNote}
@@ -1041,7 +1113,7 @@ export const CoachPlanList: React.FC<CoachPlanListProps> = () => {
                                       mt: 2,
                                       p: 1.5,
                                       borderRadius: 1,
-                                      bgcolor: "action.hover", // Subtiler Theme-Hintergrund statt hartem Grün/Weiß
+                                      bgcolor: "action.hover",
                                       border: 1,
                                       borderColor: "success.main",
                                     }}
@@ -1060,7 +1132,7 @@ export const CoachPlanList: React.FC<CoachPlanListProps> = () => {
                                     ) : (
                                       <Typography
                                         variant="caption"
-                                        color="textSecondary"
+                                        color="text.secondary"
                                         className="italic"
                                       >
                                         Punkte-Ergebnis konnte nicht geladen
@@ -1068,7 +1140,7 @@ export const CoachPlanList: React.FC<CoachPlanListProps> = () => {
                                       </Typography>
                                     )}
 
-                                    {/* Score Details anzeigen falls vorhanden */}
+                                    {/* Score Details anzeigen */}
                                     {matchingResult?.exerciseScores &&
                                       matchingResult.exerciseScores.length >
                                         0 && (
@@ -1077,14 +1149,16 @@ export const CoachPlanList: React.FC<CoachPlanListProps> = () => {
                                             (score, sIdx) => (
                                               <Chip
                                                 key={sIdx}
-                                                label={`Runde ${sIdx + 1}: ${score.points} Pkt.`}
+                                                label={`Runde ${sIdx + 1}: ${
+                                                  score.points
+                                                } Pkt.`}
                                                 size="small"
                                                 variant="outlined"
                                                 sx={{
                                                   bgcolor: "background.paper",
                                                 }}
                                               />
-                                            ),
+                                            )
                                           )}
                                         </div>
                                       )}
@@ -1092,17 +1166,17 @@ export const CoachPlanList: React.FC<CoachPlanListProps> = () => {
                                     {exItem.completedAt && (
                                       <Typography
                                         variant="caption"
-                                        color="textSecondary"
+                                        color="text.secondary"
                                         className="block"
                                       >
                                         Absolviert am:{" "}
                                         {new Date(
-                                          exItem.completedAt,
+                                          exItem.completedAt
                                         ).toLocaleString("de-DE")}
                                       </Typography>
                                     )}
 
-                                    {/* Spieler-Feedback direkt aus BlockExercise.playerNote */}
+                                    {/* Spieler-Feedback */}
                                     {exItem.playerNote ? (
                                       <Typography
                                         variant="caption"
@@ -1114,7 +1188,7 @@ export const CoachPlanList: React.FC<CoachPlanListProps> = () => {
                                     ) : (
                                       <Typography
                                         variant="caption"
-                                        color="textSecondary"
+                                        color="text.secondary"
                                         className="italic block mt-1"
                                       >
                                         Kein Kommentar vom Spieler hinterlassen.
@@ -1124,7 +1198,7 @@ export const CoachPlanList: React.FC<CoachPlanListProps> = () => {
                                 ) : (
                                   <Typography
                                     variant="caption"
-                                    color="textSecondary"
+                                    color="text.secondary"
                                     className="italic block mt-1"
                                   >
                                     Noch kein Ergebnis von diesem Spieler
@@ -1144,6 +1218,7 @@ export const CoachPlanList: React.FC<CoachPlanListProps> = () => {
                   <Button
                     onClick={() => setSelectedPlanForView(null)}
                     variant="contained"
+                    color="primary"
                   >
                     Schließen
                   </Button>
@@ -1166,7 +1241,7 @@ export const CoachPlanList: React.FC<CoachPlanListProps> = () => {
               ? "Vorlage Bearbeiten"
               : "Neue Vorlage Erstellen"}
           </DialogTitle>
-          <DialogContent dividers className="flex flex-col gap-4">
+          <DialogContent dividers className="flex flex-col gap-4 p-4 sm:p-6">
             <TextField
               label="Titel des Plans"
               variant="outlined"
@@ -1191,11 +1266,12 @@ export const CoachPlanList: React.FC<CoachPlanListProps> = () => {
 
               <Paper
                 variant="outlined"
+                sx={{ bgcolor: "background.paper", borderColor: "divider" }}
                 className="p-2 flex items-center justify-between px-4"
               >
                 <Typography
                   variant="caption"
-                  color="textSecondary"
+                  color="text.secondary"
                   className="font-bold"
                 >
                   Berechnete KW:
@@ -1223,7 +1299,7 @@ export const CoachPlanList: React.FC<CoachPlanListProps> = () => {
 
             <Divider className="my-2" />
 
-            {/* Blöcke Verwalten (EXAKT EINMAL) */}
+            {/* Blöcke Verwalten */}
             <div className="flex justify-between items-center">
               <Typography
                 variant="h6"
@@ -1325,18 +1401,18 @@ export const CoachPlanList: React.FC<CoachPlanListProps> = () => {
                       </div>
 
                       {/* EINGABE ZEITVORGABE & TRAINERNOTE */}
-                      <div className="flex gap-2 items-center mt-2">
+                      <div className="flex flex-col sm:flex-row gap-2 items-center mt-2">
                         <TextField
                           label="Zeitvorgabe (Min.)"
                           type="number"
                           size="small"
-                          style={{ width: "140px" }}
+                          className="w-full sm:w-36"
                           value={ex.durationMinutes || ""}
                           onChange={(e) =>
                             handleUpdateExerciseDuration(
                               bIdx,
                               exIdx,
-                              parseInt(e.target.value, 10) || 0,
+                              parseInt(e.target.value, 10) || 0
                             )
                           }
                           slotProps={{
@@ -1353,7 +1429,7 @@ export const CoachPlanList: React.FC<CoachPlanListProps> = () => {
                             handleUpdateExerciseNote(
                               bIdx,
                               exIdx,
-                              e.target.value,
+                              e.target.value
                             )
                           }
                         />
@@ -1363,8 +1439,11 @@ export const CoachPlanList: React.FC<CoachPlanListProps> = () => {
                 })}
 
                 <FormControl size="small" fullWidth className="mt-2">
-                  <InputLabel>Übung zu Block hinzufügen</InputLabel>
+                  <InputLabel id={`add-exercise-label-${bIdx}`}>
+                    Übung zu Block hinzufügen
+                  </InputLabel>
                   <Select
+                    labelId={`add-exercise-label-${bIdx}`}
                     value=""
                     label="Übung zu Block hinzufügen"
                     onChange={(e) =>
@@ -1396,6 +1475,7 @@ export const CoachPlanList: React.FC<CoachPlanListProps> = () => {
           </DialogActions>
         </form>
       </Dialog>
+
       {/* Modal: Plan zuweisen */}
       <Dialog
         open={isAssignModalOpen}
@@ -1404,7 +1484,7 @@ export const CoachPlanList: React.FC<CoachPlanListProps> = () => {
         fullWidth
       >
         <DialogTitle className="font-bold">Trainingsplan Zuweisen</DialogTitle>
-        <DialogContent dividers className="flex flex-col gap-4">
+        <DialogContent dividers className="flex flex-col gap-4 p-4 sm:p-6">
           <FormControl component="fieldset">
             <FormLabel component="legend">Zuweisen an:</FormLabel>
             <RadioGroup
@@ -1429,8 +1509,11 @@ export const CoachPlanList: React.FC<CoachPlanListProps> = () => {
 
           {assignmentType === "single" ? (
             <FormControl fullWidth required>
-              <InputLabel>Spieler Auswählen</InputLabel>
+              <InputLabel id="assign-single-player-label">
+                Spieler Auswählen
+              </InputLabel>
               <Select
+                labelId="assign-single-player-label"
                 value={selectedPlayerId}
                 label="Spieler Auswählen"
                 onChange={(e) => setSelectedPlayerId(e.target.value)}
@@ -1444,8 +1527,11 @@ export const CoachPlanList: React.FC<CoachPlanListProps> = () => {
             </FormControl>
           ) : (
             <FormControl fullWidth required>
-              <InputLabel>Gruppe Auswählen</InputLabel>
+              <InputLabel id="assign-group-label">
+                Gruppe Auswählen
+              </InputLabel>
               <Select
+                labelId="assign-group-label"
                 value={selectedGroupId}
                 label="Gruppe Auswählen"
                 onChange={(e) => setSelectedGroupId(e.target.value)}
@@ -1475,6 +1561,6 @@ export const CoachPlanList: React.FC<CoachPlanListProps> = () => {
           </Button>
         </DialogActions>
       </Dialog>
-    </div>
+    </Box>
   );
 };

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState } from "react";
 import {
   Dialog,
   DialogTitle,
@@ -11,12 +11,12 @@ import {
   Select,
   MenuItem,
   Alert,
-} from '@mui/material';
-import { collection, addDoc } from 'firebase/firestore';
-import { db } from '../../firebase/config';
-import { useAuth } from '../../context/AuthContext';
-import { sendNotificationIfEnabled } from '../../services/notificationService';
-import type { MessageCategory } from '../../types/message';
+} from "@mui/material";
+import { collection, addDoc } from "firebase/firestore";
+import { db } from "../../firebase/config";
+import { useAuth } from "../../context/AuthContext";
+import { sendNotificationIfEnabled } from "../../services/notificationService";
+import type { MessageCategory } from "../../types/message";
 
 interface SendMessageProps {
   open: boolean;
@@ -24,13 +24,17 @@ interface SendMessageProps {
   coachId?: string;
 }
 
-export const SendCoachMessageModal: React.FC<SendMessageProps> = ({ open, onClose, coachId }) => {
+export const SendCoachMessageModal: React.FC<SendMessageProps> = ({
+  open,
+  onClose,
+  coachId,
+}) => {
   const { userProfile } = useAuth();
-  const [category, setCategory] = useState<MessageCategory>('absence');
-  const [subject, setSubject] = useState('');
-  const [content, setContent] = useState('');
-  const [startDate, setStartDate] = useState('');
-  const [endDate, setEndDate] = useState('');
+  const [category, setCategory] = useState<MessageCategory>("absence");
+  const [subject, setSubject] = useState("");
+  const [content, setContent] = useState("");
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -38,7 +42,7 @@ export const SendCoachMessageModal: React.FC<SendMessageProps> = ({ open, onClos
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!userProfile || !coachId) {
-      setError('Kein Trainer zugewiesen oder nicht eingeloggt.');
+      setError("Kein Trainer zugewiesen oder nicht eingeloggt.");
       return;
     }
 
@@ -46,12 +50,12 @@ export const SendCoachMessageModal: React.FC<SendMessageProps> = ({ open, onClos
     setError(null);
 
     try {
-      await addDoc(collection(db, 'coachMessages'), {
+      await addDoc(collection(db, "coachMessages"), {
         playerId: userProfile.uid,
         coachId: coachId,
         category,
-        subject,
-        content,
+        subject: subject.trim(),
+        content: content.trim(),
         startDate: startDate || null,
         endDate: endDate || null,
         isRead: false,
@@ -61,22 +65,26 @@ export const SendCoachMessageModal: React.FC<SendMessageProps> = ({ open, onClos
       // Trainer per In-App Benachrichtigung informieren
       await sendNotificationIfEnabled({
         userId: coachId,
-        type: 'newOrUpdatedTrainingPlans', // Oder ein eigener Benachrichtigungstyp
-        title: 'Neue Nachricht von Spieler',
-        message: `${userProfile.nickname || userProfile.realName} hat dir eine Nachricht gesendet: "${subject}"`,
-        link: '/coach-messages',
+        type: "newOrUpdatedTrainingPlans",
+        title: "Neue Nachricht von Spieler",
+        message: `${
+          userProfile.nickname || userProfile.realName
+        } hat dir eine Nachricht gesendet: "${subject.trim()}"`,
+        link: "/coach-messages",
       });
 
       setSuccess(true);
       setTimeout(() => {
         setSuccess(false);
         onClose();
-        setSubject('');
-        setContent('');
+        setSubject("");
+        setContent("");
+        setStartDate("");
+        setEndDate("");
       }, 1500);
     } catch (err) {
-      console.error(err);
-      setError('Fehler beim Senden der Nachricht.');
+      console.error("Fehler beim Senden der Nachricht:", err);
+      setError("Fehler beim Senden der Nachricht.");
     } finally {
       setSubmitting(false);
     }
@@ -85,37 +93,52 @@ export const SendCoachMessageModal: React.FC<SendMessageProps> = ({ open, onClos
   return (
     <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
       <form onSubmit={handleSubmit}>
-        <DialogTitle className="font-bold">Nachricht an den Trainer hinterlassen</DialogTitle>
-        <DialogContent dividers className="flex flex-col gap-4">
-          {success && <Alert severity="success">Nachricht erfolgreich gesendet!</Alert>}
+        <DialogTitle className="font-bold">
+          Nachricht an den Trainer hinterlassen
+        </DialogTitle>
+        <DialogContent dividers className="flex flex-col gap-4 p-4 sm:p-6">
+          {success && (
+            <Alert severity="success">Nachricht erfolgreich gesendet!</Alert>
+          )}
           {error && <Alert severity="error">{error}</Alert>}
 
           <FormControl fullWidth required>
-            <InputLabel>Kategorie / Anlass</InputLabel>
+            <InputLabel id="message-category-label">
+              Kategorie / Anlass
+            </InputLabel>
             <Select
+              labelId="message-category-label"
               value={category}
               label="Kategorie / Anlass"
               onChange={(e) => setCategory(e.target.value as MessageCategory)}
             >
               <MenuItem value="absence">Urlaub / Abwesenheit</MenuItem>
-              <MenuItem value="tournament">Gespieltes Ligaspiel / Turnier</MenuItem>
-              <MenuItem value="general">Allgemeine Nachricht / Sonstiges</MenuItem>
+              <MenuItem value="tournament">
+                Gespieltes Ligaspiel / Turnier
+              </MenuItem>
+              <MenuItem value="general">
+                Allgemeine Nachricht / Sonstiges
+              </MenuItem>
             </Select>
           </FormControl>
 
-          {category === 'absence' && (
-            <div className="grid grid-cols-2 gap-4">
+          {category === "absence" && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <TextField
                 label="Von Datum"
                 type="date"
+                fullWidth
                 value={startDate}
                 onChange={(e) => setStartDate(e.target.value)}
+                slotProps={{ inputLabel: { shrink: true } }}
               />
               <TextField
                 label="Bis Datum"
                 type="date"
+                fullWidth
                 value={endDate}
                 onChange={(e) => setEndDate(e.target.value)}
+                slotProps={{ inputLabel: { shrink: true } }}
               />
             </div>
           )}
@@ -141,9 +164,16 @@ export const SendCoachMessageModal: React.FC<SendMessageProps> = ({ open, onClos
           />
         </DialogContent>
         <DialogActions className="p-4">
-          <Button onClick={onClose}>Abbrechen</Button>
-          <Button type="submit" variant="contained" color="primary" disabled={submitting}>
-            {submitting ? 'Sende...' : 'Nachricht senden'}
+          <Button onClick={onClose} disabled={submitting}>
+            Abbrechen
+          </Button>
+          <Button
+            type="submit"
+            variant="contained"
+            color="primary"
+            disabled={submitting}
+          >
+            {submitting ? "Sende..." : "Nachricht senden"}
           </Button>
         </DialogActions>
       </form>

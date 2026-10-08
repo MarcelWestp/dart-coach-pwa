@@ -26,7 +26,10 @@ import {
   Alert, 
   CircularProgress,
   useTheme,
-  Tooltip
+  useMediaQuery,
+  Tooltip,
+  Divider,
+  Box
 } from '@mui/material';
 import DeleteIcon from '@mui/icons-material/Delete';
 import LightbulbIcon from '@mui/icons-material/Lightbulb';
@@ -49,7 +52,9 @@ export const FeedbackManagement: React.FC = () => {
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+
   const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
 
   const fetchFeedback = async () => {
     setLoading(true);
@@ -138,44 +143,117 @@ export const FeedbackManagement: React.FC = () => {
   }
 
   return (
-    <div className="flex flex-col gap-4">
-      <Typography variant="h6" className="font-bold" color="text.primary">
+    <div className="flex flex-col gap-3 sm:gap-4 p-1 sm:p-0">
+      <Typography variant="h6" className="font-bold text-base sm:text-lg" color="text.primary">
         Feedback & Bug-Reports ({feedbackList.length})
       </Typography>
 
       {error && <Alert severity="error" onClose={() => setError(null)}>{error}</Alert>}
       {success && <Alert severity="success" onClose={() => setSuccess(null)}>{success}</Alert>}
 
-      <TableContainer component={Paper} className="shadow-lg">
-        <Table>
-          <TableHead sx={{ bgcolor: theme.palette.mode === 'dark' ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.04)' }}>
-            <TableRow>
-              <TableCell><strong>Kategorie</strong></TableCell>
-              <TableCell><strong>Absender</strong></TableCell>
-              <TableCell><strong>Nachricht</strong></TableCell>
-              <TableCell><strong>Datum</strong></TableCell>
-              <TableCell><strong>Status</strong></TableCell>
-              <TableCell align="center"><strong>Aktionen</strong></TableCell>
-            </TableRow>
-          </TableHead>
-          <TableBody>
-            {feedbackList.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={6} align="center" className="py-8">
-                  <Typography variant="body2" color="textSecondary">
-                    Bisher wurden keine Feedback-Einträge eingereicht.
+      {feedbackList.length === 0 ? (
+        <Paper variant="outlined" sx={{ p: 4, textAlign: 'center', bgcolor: 'background.paper', borderColor: 'divider' }}>
+          <Typography variant="body2" color="text.secondary">
+            Bisher wurden keine Feedback-Einträge eingereicht.
+          </Typography>
+        </Paper>
+      ) : isMobile ? (
+        /* MOBIL-ANSICHT: Kompakte Karten */
+        <div className="flex flex-col gap-3">
+          {feedbackList.map((item) => (
+            <Paper 
+              key={item.id} 
+              variant="outlined" 
+              sx={{ p: 2, bgcolor: 'background.paper', borderColor: 'divider' }}
+              className="flex flex-col gap-3 shadow-sm"
+            >
+              <div className="flex justify-between items-start gap-2">
+                <div>
+                  {getTypeChip(item.type)}
+                  <Typography variant="subtitle2" className="font-bold mt-1" color="text.primary">
+                    {item.userNickname}
                   </Typography>
-                </TableCell>
+                  <Typography variant="caption" color="text.secondary" className="block">
+                    {item.userEmail}
+                  </Typography>
+                </div>
+                <Typography variant="caption" color="text.secondary" className="text-right whitespace-nowrap">
+                  {new Date(item.createdAt).toLocaleDateString('de-DE', {
+                    day: '2-digit',
+                    month: '2-digit',
+                    year: '2-digit',
+                  })}
+                </Typography>
+              </div>
+
+              {/* Nachrichtenbox angepasst an Darkmode */}
+              <Box 
+                sx={{ 
+                  p: 1.5, 
+                  bgcolor: 'action.hover', 
+                  borderRadius: 1, 
+                  border: 1, 
+                  borderColor: 'divider' 
+                }}
+              >
+                <Typography variant="body2" className="whitespace-pre-wrap" color="text.primary">
+                  {item.message}
+                </Typography>
+              </Box>
+
+              <Divider />
+
+              <div className="flex items-center justify-between gap-2">
+                <FormControl size="small" variant="standard" className="min-w-[130px]">
+                  <Select
+                    value={item.status}
+                    onChange={(e) => handleStatusChange(item.id, e.target.value as any)}
+                    renderValue={(val) => (
+                      <Chip 
+                        label={val === 'open' ? 'Offen' : val === 'in_review' ? 'In Bearbeitung' : 'Erledigt'} 
+                        color={getStatusChipColor(val as any)} 
+                        size="small" 
+                      />
+                    )}
+                  >
+                    <MenuItem value="open">Offen</MenuItem>
+                    <MenuItem value="in_review">In Bearbeitung</MenuItem>
+                    <MenuItem value="done">Erledigt</MenuItem>
+                  </Select>
+                </FormControl>
+
+                <Tooltip title="Eintrag löschen">
+                  <IconButton color="error" size="small" onClick={() => handleDeleteFeedback(item.id)}>
+                    <DeleteIcon fontSize="small" />
+                  </IconButton>
+                </Tooltip>
+              </div>
+            </Paper>
+          ))}
+        </div>
+      ) : (
+        /* DESKTOP-ANSICHT: Tabelle */
+        <TableContainer component={Paper} variant="outlined" sx={{ bgcolor: 'background.paper', borderColor: 'divider' }}>
+          <Table>
+            <TableHead sx={{ bgcolor: theme.palette.action.hover }}>
+              <TableRow>
+                <TableCell color="text.primary"><strong>Kategorie</strong></TableCell>
+                <TableCell color="text.primary"><strong>Absender</strong></TableCell>
+                <TableCell color="text.primary"><strong>Nachricht</strong></TableCell>
+                <TableCell color="text.primary"><strong>Datum</strong></TableCell>
+                <TableCell color="text.primary"><strong>Status</strong></TableCell>
+                <TableCell align="center" color="text.primary"><strong>Aktionen</strong></TableCell>
               </TableRow>
-            ) : (
-              feedbackList.map((item) => (
+            </TableHead>
+            <TableBody>
+              {feedbackList.map((item) => (
                 <TableRow key={item.id} hover>
                   <TableCell>{getTypeChip(item.type)}</TableCell>
                   <TableCell>
                     <Typography variant="body2" className="font-bold" color="text.primary">
                       {item.userNickname}
                     </Typography>
-                    <Typography variant="caption" color="textSecondary">
+                    <Typography variant="caption" color="text.secondary">
                       {item.userEmail}
                     </Typography>
                   </TableCell>
@@ -185,7 +263,7 @@ export const FeedbackManagement: React.FC = () => {
                     </Typography>
                   </TableCell>
                   <TableCell>
-                    <Typography variant="caption" color="textSecondary">
+                    <Typography variant="caption" color="text.secondary">
                       {new Date(item.createdAt).toLocaleDateString('de-DE', {
                         day: '2-digit',
                         month: '2-digit',
@@ -222,11 +300,11 @@ export const FeedbackManagement: React.FC = () => {
                     </Tooltip>
                   </TableCell>
                 </TableRow>
-              ))
-            )}
-          </TableBody>
-        </Table>
-      </TableContainer>
+              ))}
+            </TableBody>
+          </Table>
+        </TableContainer>
+      )}
     </div>
   );
 };

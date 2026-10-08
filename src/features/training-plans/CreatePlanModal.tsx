@@ -36,7 +36,6 @@ import {
   AccordionDetails,
   FormControlLabel,
   Checkbox,
-  Box,
 } from "@mui/material";
 import DeleteIcon from "@mui/icons-material/Delete";
 import AddIcon from "@mui/icons-material/Add";
@@ -103,12 +102,12 @@ export const CreatePlanModal: React.FC<CreatePlanModalProps> = ({
 
         const fetchedExercises: Exercise[] = [];
         exSnap.forEach((d) =>
-          fetchedExercises.push({ id: d.id, ...d.data() } as Exercise)
+          fetchedExercises.push({ id: d.id, ...d.data() } as Exercise),
         );
 
         const fetchedTests: PerformanceTest[] = [];
         testSnap.forEach((d) =>
-          fetchedTests.push({ id: d.id, ...d.data() } as PerformanceTest)
+          fetchedTests.push({ id: d.id, ...d.data() } as PerformanceTest),
         );
 
         const fetchedTemplates: TrainingPlan[] = [];
@@ -200,7 +199,7 @@ export const CreatePlanModal: React.FC<CreatePlanModalProps> = ({
           return { ...b, exercises: [...b.exercises, newEx] };
         }
         return b;
-      })
+      }),
     );
   };
 
@@ -215,7 +214,7 @@ export const CreatePlanModal: React.FC<CreatePlanModalProps> = ({
           };
         }
         return b;
-      })
+      }),
     );
   };
 
@@ -223,7 +222,7 @@ export const CreatePlanModal: React.FC<CreatePlanModalProps> = ({
   const handleUpdateExerciseNote = (
     blockId: string,
     exIndex: number,
-    note: string
+    note: string,
   ) => {
     setBlocks((prev) =>
       prev.map((b) => {
@@ -233,7 +232,7 @@ export const CreatePlanModal: React.FC<CreatePlanModalProps> = ({
           return { ...b, exercises: updatedExs };
         }
         return b;
-      })
+      }),
     );
   };
 
@@ -411,7 +410,7 @@ export const CreatePlanModal: React.FC<CreatePlanModalProps> = ({
                 value={year}
                 onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
                   setYear(
-                    parseInt(e.target.value, 10) || new Date().getFullYear()
+                    parseInt(e.target.value, 10) || new Date().getFullYear(),
                   )
                 }
               />
@@ -487,8 +486,8 @@ export const CreatePlanModal: React.FC<CreatePlanModalProps> = ({
                     const newTitle = e.target.value;
                     setBlocks((prev) =>
                       prev.map((b) =>
-                        b.id === block.id ? { ...b, title: newTitle } : b
-                      )
+                        b.id === block.id ? { ...b, title: newTitle } : b,
+                      ),
                     );
                   }}
                 />
@@ -513,8 +512,8 @@ export const CreatePlanModal: React.FC<CreatePlanModalProps> = ({
                   const newNote = e.target.value;
                   setBlocks((prev) =>
                     prev.map((b) =>
-                      b.id === block.id ? { ...b, coachNote: newNote } : b
-                    )
+                      b.id === block.id ? { ...b, coachNote: newNote } : b,
+                    ),
                   );
                 }}
               />
@@ -548,7 +547,7 @@ export const CreatePlanModal: React.FC<CreatePlanModalProps> = ({
               {/* Liste der Übungen in diesem Block */}
               {block.exercises.map((bEx, exIndex) => {
                 const exerciseObj = allExercises.find(
-                  (e) => e.id === bEx.exerciseId
+                  (e) => e.id === bEx.exerciseId,
                 );
                 return (
                   <Accordion
@@ -595,7 +594,7 @@ export const CreatePlanModal: React.FC<CreatePlanModalProps> = ({
                           handleUpdateExerciseNote(
                             block.id,
                             exIndex,
-                            e.target.value
+                            e.target.value,
                           )
                         }
                         placeholder="z. B. 3 Serien absolvieren, Fokus auf Wurf-Rhythmus..."
@@ -621,8 +620,8 @@ export const CreatePlanModal: React.FC<CreatePlanModalProps> = ({
               }
               label={
                 <Typography variant="body2" color="text.primary">
-                  Diesen Plan zusätzlich als wiederverwendbare Vorlage (Template)
-                  speichern
+                  Diesen Plan zusätzlich als wiederverwendbare Vorlage
+                  (Template) speichern
                 </Typography>
               }
             />
@@ -655,8 +654,8 @@ export const CreatePlanModal: React.FC<CreatePlanModalProps> = ({
             {loading
               ? "Speichert..."
               : planToEdit
-              ? "Änderungen Speichern"
-              : "Plan Zuweisen"}
+                ? "Änderungen Speichern"
+                : "Plan Zuweisen"}
           </Button>
         </DialogActions>
       </form>

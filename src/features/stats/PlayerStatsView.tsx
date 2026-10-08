@@ -2,7 +2,11 @@ import React, { useEffect, useState } from "react";
 import { collection, getDocs, query, where } from "firebase/firestore";
 import { db } from "../../firebase/config";
 import { useAuth } from "../../context/AuthContext";
-import type { TestResult, Exercise } from "../../types/exercise";
+import type {
+  TestResult,
+  Exercise,
+  ExerciseResultType,
+} from "../../types/exercise";
 import type { DateRangeOption } from "../../types/stats";
 import { getDateRangeBounds } from "../../types/stats";
 import { TrendBadge } from "../../components/stats/TrendBadge";
@@ -22,6 +26,7 @@ import {
   TableContainer,
   TableHead,
   TableRow,
+  Chip,
 } from "@mui/material";
 import BarChartIcon from "@mui/icons-material/BarChart";
 import TrendingUpIcon from "@mui/icons-material/TrendingUp";
@@ -37,6 +42,21 @@ import {
   Tooltip,
   CartesianGrid,
 } from "recharts";
+
+// Hilfsfunktion zur Ermittlung des passenden Ergebnislabels
+const getScoreLabel = (resultType?: ExerciseResultType): string => {
+  switch (resultType) {
+    case "attempts":
+      return "Versuche / Darts";
+    case "hits":
+      return "Treffer";
+    case "highestScore":
+      return "Highscore";
+    case "points":
+    default:
+      return "Punkte";
+  }
+};
 
 export const PlayerStatsView: React.FC = () => {
   const { userProfile } = useAuth();
@@ -105,7 +125,7 @@ export const PlayerStatsView: React.FC = () => {
     return fallbackType || "Allgemeine Übung";
   };
 
-  // Hilfsfunktion zur Ermittlung der ID
+  // Hilfsfunktion zur Ermittlung der ID eines Testergebnisses
   const getResultExerciseId = (res: TestResult) => {
     return (res as any).exerciseId || res.testId || "unknown";
   };
@@ -124,6 +144,11 @@ export const PlayerStatsView: React.FC = () => {
       ),
     };
   });
+
+  // Gefundenes Objekt der aktuell gefilterten Übung aus der Bibliothek
+  const selectedExerciseObj = exercises.find(
+    (e) => e.id === selectedExerciseId
+  );
 
   // 1. Gefilterte Ergebnisse nach Datum
   const dateFilteredResults = results.filter((res) => {
@@ -167,9 +192,14 @@ export const PlayerStatsView: React.FC = () => {
             totalCompleted
         )
       : 0;
-  const maxPoints =
+
+  // Bestwert berechnen: Bei 'lower_is_better' ist das Minimum der Bestwert
+  const isLowerBetter = selectedExerciseObj?.scoreDirection === "lower_is_better";
+  const bestScore =
     totalCompleted > 0
-      ? Math.max(...finalFilteredResults.map((r) => r.totalPoints))
+      ? isLowerBetter
+        ? Math.min(...finalFilteredResults.map((r) => r.totalPoints))
+        : Math.max(...finalFilteredResults.map((r) => r.totalPoints))
       : 0;
 
   // Gruppierung nach Übungs-ID für die zusammenfassende Übersichtstabelle
@@ -181,10 +211,6 @@ export const PlayerStatsView: React.FC = () => {
     acc[key].push(res);
     return acc;
   }, {} as Record<string, TestResult[]>);
-
-  const selectedExerciseObj = availableExercises.find(
-    (e) => e.id === selectedExerciseId
-  );
 
   if (loading) {
     return (
@@ -295,7 +321,7 @@ export const PlayerStatsView: React.FC = () => {
               color="text.secondary"
               className="font-bold block"
             >
-              Ø Punkte / Score
+              Ø {getScoreLabel(selectedExerciseObj?.resultType)}
             </Typography>
             <div className="flex items-center gap-2 flex-wrap">
               <Typography
@@ -324,14 +350,14 @@ export const PlayerStatsView: React.FC = () => {
               color="text.secondary"
               className="font-bold block"
             >
-              Höchstwert im Zeitraum
+              Bestwert ({isLowerBetter ? "Niedrigster Wert" : "Höchstwert"})
             </Typography>
             <Typography
               variant="h5"
               className="font-bold"
               color="text.primary"
             >
-              {maxPoints}
+              {bestScore}
             </Typography>
           </div>
         </Paper>
@@ -357,16 +383,32 @@ export const PlayerStatsView: React.FC = () => {
             sx={{ bgcolor: "background.paper", borderColor: "divider" }}
             className="p-4 sm:p-6 shadow-sm"
           >
-            <Typography
-              variant="h6"
-              className="font-bold mb-4 flex items-center gap-2"
-              color="text.primary"
-            >
-              <FitnessCenterIcon color="primary" />
-              {selectedExerciseId === "all"
-                ? "Gesamter Punkteverlauf"
-                : `Verlauf: ${selectedExerciseObj?.name}`}
-            </Typography>
+            <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-4 gap-2">
+              <Typography
+                variant="h6"
+                className="font-bold flex items-center gap-2"
+                color="text.primary"
+              >
+                <FitnessCenterIcon color="primary" />
+                {selectedExerciseId === "all"
+                  ? "Gesamter Punkteverlauf"
+                  : `Verlauf: ${selectedExerciseObj?.title || "Übung"}`}
+              </Typography>
+
+              {selectedExerciseObj?.scoreDirection && (
+                <Chip
+                  label={
+                    selectedExerciseObj.scoreDirection === "lower_is_better"
+                      ? "Niedrigerer Wert ist besser"
+                      : "Höherer Wert ist besser"
+                  }
+                  size="small"
+                  color="info"
+                  variant="outlined"
+                />
+              )}
+            </div>
+
             <Box className="h-72 w-full">
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={chartData}>
@@ -384,7 +426,7 @@ export const PlayerStatsView: React.FC = () => {
                   <Line
                     type="monotone"
                     dataKey="points"
-                    name="Punkte"
+                    name={getScoreLabel(selectedExerciseObj?.resultType)}
                     stroke="#5156B0"
                     strokeWidth={3}
                     dot={{ r: 4 }}
@@ -407,7 +449,7 @@ export const PlayerStatsView: React.FC = () => {
                   className="font-bold"
                   color="text.primary"
                 >
-                  Historie: {selectedExerciseObj?.name}
+                  Historie: {selectedExerciseObj?.title || "Übung"}
                 </Typography>
               </Box>
               <TableContainer>
@@ -416,7 +458,7 @@ export const PlayerStatsView: React.FC = () => {
                     <TableRow>
                       <TableCell className="font-bold">Datum & Uhrzeit</TableCell>
                       <TableCell className="font-bold" align="center">
-                        Erzielte Punkte
+                        {getScoreLabel(selectedExerciseObj?.resultType)}
                       </TableCell>
                       <TableCell className="font-bold" align="left">
                         Notizen / Anmerkungen
@@ -443,7 +485,7 @@ export const PlayerStatsView: React.FC = () => {
                             className="font-bold"
                             color="primary.main"
                           >
-                            {res.totalPoints} Pkt.
+                            {res.totalPoints}
                           </Typography>
                         </TableCell>
                         <TableCell align="left">
@@ -491,7 +533,7 @@ export const PlayerStatsView: React.FC = () => {
                         Anzahl
                       </TableCell>
                       <TableCell className="font-bold" align="center">
-                        Ø Punkte
+                        Durchschnitt
                       </TableCell>
                       <TableCell className="font-bold" align="center">
                         Tendenz / Form
@@ -503,6 +545,7 @@ export const PlayerStatsView: React.FC = () => {
                   </TableHead>
                   <TableBody>
                     {Object.entries(exercisesGrouped).map(([exId, list]) => {
+                      const exObj = exercises.find((e) => e.id === exId);
                       const typeScores = list
                         .sort(
                           (a, b) =>
@@ -510,13 +553,19 @@ export const PlayerStatsView: React.FC = () => {
                             new Date(b.completedAt).getTime()
                         )
                         .map((r) => r.totalPoints);
+
                       const typeAvg = Math.round(
                         list.reduce((acc, r) => acc + r.totalPoints, 0) /
                           list.length
                       );
-                      const typeMax = Math.max(
-                        ...list.map((r) => r.totalPoints)
-                      );
+
+                      const isTypeLowerBetter =
+                        exObj?.scoreDirection === "lower_is_better";
+
+                      const typeBest = isTypeLowerBetter
+                        ? Math.min(...list.map((r) => r.totalPoints))
+                        : Math.max(...list.map((r) => r.totalPoints));
+
                       const sampleRes = list[0];
                       const exName = getExerciseName(
                         (sampleRes as any)?.exerciseId,
@@ -545,12 +594,9 @@ export const PlayerStatsView: React.FC = () => {
                               {list.length}
                             </Typography>
                           </TableCell>
-                          <TableCell
-                            align="center"
-                            className="font-semibold"
-                          >
+                          <TableCell align="center" className="font-semibold">
                             <Typography variant="body2" color="text.primary">
-                              {typeAvg} Pkt.
+                              {typeAvg} {getScoreLabel(exObj?.resultType)}
                             </Typography>
                           </TableCell>
                           <TableCell align="center">
@@ -568,7 +614,7 @@ export const PlayerStatsView: React.FC = () => {
                           </TableCell>
                           <TableCell align="right">
                             <Typography variant="body2" color="text.primary">
-                              {typeMax} Pkt.
+                              {typeBest}
                             </Typography>
                           </TableCell>
                         </TableRow>

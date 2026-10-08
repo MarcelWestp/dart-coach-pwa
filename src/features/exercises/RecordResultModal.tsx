@@ -2,7 +2,11 @@ import React, { useState, useEffect } from "react";
 import { collection, addDoc } from "firebase/firestore";
 import { db } from "../../firebase/config";
 import { useAuth } from "../../context/AuthContext";
-import type { Exercise, PerformanceTest } from "../../types/exercise";
+import type {
+  Exercise,
+  PerformanceTest,
+  ExerciseResultType,
+} from "../../types/exercise";
 import {
   Dialog,
   DialogTitle,
@@ -18,6 +22,9 @@ import {
   AccordionSummary,
   AccordionDetails,
   Box,
+  Chip,
+  useMediaQuery,
+  useTheme,
 } from "@mui/material";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import HelpIcon from "@mui/icons-material/Help";
@@ -31,6 +38,21 @@ interface RecordResultModalProps {
   onResultRecorded: () => void;
 }
 
+// Hilfsfunktion zur Ermittlung des passenden Eingabelabels
+const getScoreInputLabel = (resultType?: ExerciseResultType): string => {
+  switch (resultType) {
+    case "attempts":
+      return "Benötigte Versuche / Darts";
+    case "hits":
+      return "Anzahl Treffer";
+    case "highestScore":
+      return "Höchstes Ergebnis";
+    case "points":
+    default:
+      return "Erreichte Punkte";
+  }
+};
+
 export const RecordResultModal: React.FC<RecordResultModalProps> = ({
   open,
   onClose,
@@ -40,6 +62,8 @@ export const RecordResultModal: React.FC<RecordResultModalProps> = ({
   onResultRecorded,
 }) => {
   const { userProfile } = useAuth();
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
 
   const [scores, setScores] = useState<{ [key: string]: number }>({});
   const [loading, setLoading] = useState(false);
@@ -121,7 +145,21 @@ export const RecordResultModal: React.FC<RecordResultModalProps> = ({
   };
 
   return (
-    <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
+    <Dialog
+      open={open}
+      onClose={onClose}
+      maxWidth="sm"
+      fullWidth
+      fullScreen={isMobile}
+      slotProps={{
+        paper: {
+          sx: {
+            bgcolor: "background.paper",
+            backgroundImage: "none",
+          },
+        },
+      }}
+    >
       <DialogTitle className="font-bold">
         {test
           ? `Ergebnis eintragen: ${test.title}`
@@ -130,7 +168,7 @@ export const RecordResultModal: React.FC<RecordResultModalProps> = ({
           : "Ergebnis eintragen"}
       </DialogTitle>
 
-      <form onSubmit={handleSubmit}>
+      <form onSubmit={handleSubmit} className="flex flex-col flex-1">
         <DialogContent dividers className="flex flex-col gap-4">
           {error && <Alert severity="error">{error}</Alert>}
 
@@ -138,13 +176,14 @@ export const RecordResultModal: React.FC<RecordResultModalProps> = ({
           {test && (
             <Box className="space-y-4">
               <Typography variant="body2" color="text.secondary">
-                Trage bitte die erreichten Punkte für jede enthaltene Übung ein:
+                Trage bitte das Ergebnis für jede im Leistungstest enthaltene Übung ein:
               </Typography>
 
               <div className="flex flex-col gap-4">
                 {test.exerciseIds.map((exId, index) => {
                   const ex = allExercises.find((e) => e.id === exId);
                   const key = `${index}_${exId}`;
+                  const inputLabel = getScoreInputLabel(ex?.resultType);
 
                   return (
                     <Paper
@@ -157,20 +196,29 @@ export const RecordResultModal: React.FC<RecordResultModalProps> = ({
                       }}
                       className="flex flex-col gap-2"
                     >
-                      <div className="flex justify-between items-center gap-2">
-                        <Typography
-                          variant="subtitle2"
-                          className="font-bold"
-                          color="text.primary"
-                        >
-                          {index + 1}. {ex ? ex.title : "Übung"}
-                        </Typography>
+                      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2">
+                        <div>
+                          <Typography
+                            variant="subtitle2"
+                            className="font-bold"
+                            color="text.primary"
+                          >
+                            {index + 1}. {ex ? ex.title : "Übung"}
+                          </Typography>
+                          {ex?.scoreDirection && (
+                            <Typography variant="caption" color="text.secondary">
+                              {ex.scoreDirection === "lower_is_better"
+                                ? " (Niedrigerer Wert ist besser)"
+                                : " (Höherer Wert ist besser)"}
+                            </Typography>
+                          )}
+                        </div>
 
                         <TextField
-                          label="Punkte"
+                          label={inputLabel}
                           type="number"
                           size="small"
-                          className="w-28"
+                          className="w-full sm:w-44"
                           required
                           slotProps={{
                             htmlInput: { min: 0 },
@@ -186,7 +234,11 @@ export const RecordResultModal: React.FC<RecordResultModalProps> = ({
                         <Accordion
                           elevation={0}
                           variant="outlined"
-                          sx={{ bgcolor: "action.hover", mt: 1 }}
+                          sx={{
+                            bgcolor: "action.hover",
+                            borderColor: "divider",
+                            mt: 1,
+                          }}
                         >
                           <AccordionSummary expandIcon={<ExpandMoreIcon />}>
                             <Typography
@@ -202,7 +254,7 @@ export const RecordResultModal: React.FC<RecordResultModalProps> = ({
                             <Typography
                               variant="caption"
                               color="text.secondary"
-                              className="whitespace-pre-line"
+                              className="whitespace-pre-line dark:text-gray-100"
                             >
                               {ex.instructions}
                             </Typography>
@@ -214,7 +266,7 @@ export const RecordResultModal: React.FC<RecordResultModalProps> = ({
                 })}
               </div>
 
-              <Divider />
+              <Divider sx={{ borderColor: "divider" }} />
 
               <div className="flex justify-between items-center px-2">
                 <Typography
@@ -222,7 +274,7 @@ export const RecordResultModal: React.FC<RecordResultModalProps> = ({
                   className="font-bold"
                   color="text.primary"
                 >
-                  Gesamtpunkte:
+                  Gesamtergebnis:
                 </Typography>
                 <Typography
                   variant="h6"
@@ -243,8 +295,22 @@ export const RecordResultModal: React.FC<RecordResultModalProps> = ({
             <Box className="space-y-3">
               <Typography variant="body2" color="text.secondary">
                 {exercise.description ||
-                  "Trage deine erreichte Punktzahl für diese Übung ein."}
+                  "Trage dein Ergebnis für diese Übung ein."}
               </Typography>
+
+              {exercise.scoreDirection && (
+                <Chip
+                  label={
+                    exercise.scoreDirection === "lower_is_better"
+                      ? "Niedrigerer Wert ist besser"
+                      : "Höherer Wert ist besser"
+                  }
+                  size="small"
+                  color="info"
+                  variant="outlined"
+                  className="mb-1"
+                />
+              )}
 
               {exercise.instructions && (
                 <Accordion
@@ -253,6 +319,8 @@ export const RecordResultModal: React.FC<RecordResultModalProps> = ({
                   sx={{
                     bgcolor: "action.hover",
                     borderColor: "divider",
+                    mt: 1,
+                    mb: 2,
                   }}
                 >
                   <AccordionSummary expandIcon={<ExpandMoreIcon />}>
@@ -269,7 +337,7 @@ export const RecordResultModal: React.FC<RecordResultModalProps> = ({
                     <Typography
                       variant="body2"
                       color="text.secondary"
-                      className="whitespace-pre-line text-xs sm:text-sm"
+                      className="whitespace-pre-line text-xs sm:text-sm dark:text-gray-100"
                     >
                       {exercise.instructions}
                     </Typography>
@@ -278,7 +346,7 @@ export const RecordResultModal: React.FC<RecordResultModalProps> = ({
               )}
 
               <TextField
-                label="Erreichte Punkte"
+                label={getScoreInputLabel(exercise.resultType)}
                 type="number"
                 variant="outlined"
                 fullWidth
@@ -295,7 +363,7 @@ export const RecordResultModal: React.FC<RecordResultModalProps> = ({
           )}
         </DialogContent>
 
-        <DialogActions className="p-4">
+        <DialogActions className="p-4 mt-auto">
           <Button onClick={onClose} disabled={loading} color="inherit">
             Abbrechen
           </Button>

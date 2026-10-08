@@ -1,4 +1,6 @@
 export type ExerciseType = 'scoring' | 'check' | 'rules' | 'technique';
+export type ExerciseResultType = 'points' | 'attempts' | 'hits' | 'highestScore';
+export type ScoreDirection = 'higher_is_better' | 'lower_is_better';
 
 export interface Tag {
   id: string;
@@ -13,6 +15,8 @@ export interface Exercise {
   description: string;
   instructions?: string;
   type: ExerciseType;
+  resultType: ExerciseResultType;
+  scoreDirection: ScoreDirection;
   tagIds: string[];
   createdBy: string;
   isSystemStandard: boolean;
@@ -34,12 +38,12 @@ export interface PerformanceTest {
 export interface TestResult {
   id?: string;
   testId?: string;
-  exerciseId?: string; // Für direkte Übungsergebnisse (z. B. Liga / Übung des Monats)
+  exerciseId?: string;
   userId: string;
   assignedByCoachId?: string;
   exerciseType: ExerciseType;
   totalPoints: number;
-  playerNote?: string; // Neu: Optionale Notiz/Anmerkung des Spielers
+  playerNote?: string;
   exerciseScores: {
     exerciseId: string;
     points: number;

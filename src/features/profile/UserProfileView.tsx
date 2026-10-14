@@ -27,6 +27,7 @@ import type {
   ThemePreference,
   EquipmentSettings,
   NotificationSettings,
+  TrainerLicense,
 } from "../../types/user";
 import {
   Paper,
@@ -53,6 +54,9 @@ import {
   DialogContent,
   DialogContentText,
   DialogActions,
+  Chip,
+  Card,
+  CardContent,
 } from "@mui/material";
 import PersonIcon from "@mui/icons-material/Person";
 import SportsMartsIcon from "@mui/icons-material/Sports";
@@ -64,6 +68,12 @@ import LockIcon from "@mui/icons-material/Lock";
 import NotificationsIcon from "@mui/icons-material/Notifications";
 import FeedbackIcon from "@mui/icons-material/Feedback";
 import SendIcon from "@mui/icons-material/Send";
+import VerifiedUserIcon from "@mui/icons-material/VerifiedUser";
+import PendingIcon from "@mui/icons-material/HourglassEmpty";
+import CancelIcon from "@mui/icons-material/Cancel";
+import DeleteIcon from "@mui/icons-material/Delete";
+import CloudUploadIcon from "@mui/icons-material/CloudUpload";
+import VisibilityIcon from "@mui/icons-material/Visibility";
 import { SendCoachMessageModal } from "./SendCoachMessageModal";
 
 export const UserProfileView: React.FC = () => {
@@ -84,6 +94,13 @@ export const UserProfileView: React.FC = () => {
   const [scoringSystem, setScoringSystem] =
     useState<EquipmentSettings["scoringSystem"]>("none");
   const [systemUsername, setSystemUsername] = useState("");
+
+  // Trainer-Lizenz Upload State
+  const [licenseTitle, setLicenseTitle] = useState("");
+  const [licenseIssuer, setLicenseIssuer] = useState("");
+  const [licenseValidUntil, setLicenseValidUntil] = useState("");
+  const [licenseFile, setLicenseFile] = useState<File | null>(null);
+  const [licenseUploading, setLicenseUploading] = useState(false);
 
   // Benachrichtigungen States
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
@@ -123,6 +140,9 @@ export const UserProfileView: React.FC = () => {
   // Message States
   const [isMessageModalOpen, setIsMessageModalOpen] = useState(false);
 
+  const isCoachOrAdmin =
+    userProfile?.roles?.includes("coach") || userProfile?.roles?.includes("admin");
+
   useEffect(() => {
     if (userProfile) {
       setRealName(userProfile.realName || "");
@@ -154,6 +174,102 @@ export const UserProfileView: React.FC = () => {
       }
     }
   }, [userProfile]);
+
+  // Trainer-Lizenz hochladen
+  const handleUploadLicenseSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!userProfile || !licenseFile || !licenseTitle.trim() || !licenseIssuer.trim()) {
+      setError("Bitte fülle alle Pflichtfelder aus und wähle eine Datei aus.");
+      return;
+    }
+
+    try {
+      setLicenseUploading(true);
+      setError(null);
+      setSuccess(null);
+
+      const fileExt = licenseFile.name.split(".").pop()?.toLowerCase();
+      const isPdf = fileExt === "pdf";
+      const storageRef = ref(
+        storage,
+        `licenses/${userProfile.uid}/${Date.now()}_${licenseFile.name}`
+      );
+
+      await uploadBytes(storageRef, licenseFile);
+      const downloadURL = await getDownloadURL(storageRef);
+
+      const newLicense: TrainerLicense = {
+        id: crypto.randomUUID(),
+        title: licenseTitle.trim(),
+        issuer: licenseIssuer.trim(),
+        validUntil: licenseValidUntil || undefined,
+        fileUrl: downloadURL,
+        fileType: isPdf ? "pdf" : "image",
+        status: "pending",
+        createdAt: new Date().toISOString(),
+      };
+
+      const updatedLicenses = [
+        ...(userProfile.trainerLicenses || []),
+        newLicense,
+      ];
+
+      await updateDoc(doc(db, "users", userProfile.uid), {
+        trainerLicenses: updatedLicenses,
+      });
+
+      await refreshUserProfile();
+
+      // Formular zurücksetzen
+      setLicenseTitle("");
+      setLicenseIssuer("");
+      setLicenseValidUntil("");
+      setLicenseFile(null);
+
+      setSuccess(
+        "Lizenz erfolgreich hochgeladen! Sie wird nach Prüfung durch einen Admin freigeschaltet."
+      );
+    } catch (err) {
+      console.error(err);
+      setError("Fehler beim Hochladen der Trainer-Lizenz.");
+    } finally {
+      setLicenseUploading(false);
+    }
+  };
+
+  // Trainer-Lizenz löschen
+  const handleDeleteLicense = async (license: TrainerLicense) => {
+    if (!userProfile) return;
+
+    try {
+      setLoading(true);
+      setError(null);
+
+      // Storage-Datei versuchen zu löschen
+      try {
+        const fileRef = ref(storage, license.fileUrl);
+        await deleteObject(fileRef);
+      } catch (e) {
+        console.warn("Datei konnte nicht aus Storage gelöscht werden:", e);
+      }
+
+      const updatedLicenses = (userProfile.trainerLicenses || []).filter(
+        (l) => l.id !== license.id
+      );
+
+      await updateDoc(doc(db, "users", userProfile.uid), {
+        trainerLicenses: updatedLicenses,
+      });
+
+      await refreshUserProfile();
+      setSuccess("Lizenz erfolgreich entfernt.");
+    } catch (err) {
+      console.error(err);
+      setError("Fehler beim Löschen der Lizenz.");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleAvatarChange = async (
     e: React.ChangeEvent<HTMLInputElement>
@@ -502,7 +618,194 @@ export const UserProfileView: React.FC = () => {
           </FormControl>
         </Paper>
 
-        {/* 2. Nachricht an Trainer */}
+        {/* 2. Trainer-Lizenzen (Nur sichtbar für Coaches / Admins) */}
+        {isCoachOrAdmin && (
+          <Paper
+            variant="outlined"
+            sx={{ bgcolor: "background.paper", borderColor: "divider" }}
+            className="p-4 sm:p-6 shadow-md flex flex-col gap-6"
+          >
+            <Box className="flex items-center gap-2">
+              <VerifiedUserIcon color="primary" />
+              <Typography
+                variant="h6"
+                className="font-bold"
+                color="text.primary"
+              >
+                Trainer-Lizenzen & Zertifikate
+              </Typography>
+            </Box>
+
+            <Typography variant="body2" color="text.secondary">
+              Lade deine offiziellen Trainer-Lizenzen (z. B. DOSB C/B/A-Lizenz) hoch.
+              Nach einer Prüfung durch einen Administrator wird deine Lizenz im Profil
+              öffentlich für deine Spieler sichtbar geschaltet.
+            </Typography>
+
+            {/* Formular zum Hochladen */}
+            <Paper
+              variant="outlined"
+              sx={{ bgcolor: "action.hover", borderColor: "divider", p: 2.5 }}
+              className="flex flex-col gap-4 rounded-lg"
+            >
+              <Typography variant="subtitle2" className="font-bold" color="text.primary">
+                Neue Lizenz einreichen
+              </Typography>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <TextField
+                  label="Bezeichnung der Lizenz"
+                  placeholder="z. B. DOSB Trainer C Darts"
+                  size="small"
+                  fullWidth
+                  required
+                  value={licenseTitle}
+                  onChange={(e) => setLicenseTitle(e.target.value)}
+                />
+                <TextField
+                  label="Ausstellender Verband / Organisation"
+                  placeholder="z. B. DDV / Landesverband"
+                  size="small"
+                  fullWidth
+                  required
+                  value={licenseIssuer}
+                  onChange={(e) => setLicenseIssuer(e.target.value)}
+                />
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <TextField
+                  label="Gültig bis (Optional)"
+                  type="date"
+                  size="small"
+                  fullWidth
+                  slotProps={{ inputLabel: { shrink: true } }}
+                  value={licenseValidUntil}
+                  onChange={(e) => setLicenseValidUntil(e.target.value)}
+                />
+
+                <Button
+                  variant="outlined"
+                  component="label"
+                  color={licenseFile ? "success" : "primary"}
+                  startIcon={<CloudUploadIcon />}
+                  className="h-10 my-auto"
+                >
+                  {licenseFile ? licenseFile.name : "Nachweis auswählen (PDF / Bild)"}
+                  <input
+                    type="file"
+                    hidden
+                    accept="image/*,application/pdf"
+                    onChange={(e) => {
+                      if (e.target.files?.[0]) setLicenseFile(e.target.files[0]);
+                    }}
+                  />
+                </Button>
+              </div>
+
+              <Box className="flex justify-end mt-1">
+                <Button
+                  variant="contained"
+                  color="primary"
+                  onClick={handleUploadLicenseSubmit}
+                  disabled={
+                    licenseUploading ||
+                    !licenseFile ||
+                    !licenseTitle.trim() ||
+                    !licenseIssuer.trim()
+                  }
+                >
+                  {licenseUploading ? "Wird hochgeladen..." : "Lizenz Hochladen"}
+                </Button>
+              </Box>
+            </Paper>
+
+            <Divider />
+
+            {/* Übersicht vorhandener Lizenzen */}
+            <Typography variant="subtitle1" className="font-bold" color="text.primary">
+              Meine hinterlegten Lizenzen
+            </Typography>
+
+            {userProfile.trainerLicenses && userProfile.trainerLicenses.length > 0 ? (
+              <div className="grid grid-cols-1 gap-3">
+                {userProfile.trainerLicenses.map((license) => (
+                  <Card
+                    key={license.id}
+                    variant="outlined"
+                    sx={{ bgcolor: "background.paper", borderColor: "divider" }}
+                  >
+                    <CardContent className="p-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+                      <Box className="space-y-1">
+                        <Box className="flex items-center gap-2 flex-wrap">
+                          <Typography variant="subtitle2" className="font-bold" color="text.primary">
+                            {license.title}
+                          </Typography>
+
+                          {license.status === "approved" && (
+                            <Chip
+                              icon={<VerifiedUserIcon fontSize="small" />}
+                              label="Verifiziert"
+                              color="success"
+                              size="small"
+                            />
+                          )}
+                          {license.status === "pending" && (
+                            <Chip
+                              icon={<PendingIcon fontSize="small" />}
+                              label="Prüfung ausstehend"
+                              color="warning"
+                              size="small"
+                            />
+                          )}
+                          {license.status === "rejected" && (
+                            <Chip
+                              icon={<CancelIcon fontSize="small" />}
+                              label="Abgelehnt"
+                              color="error"
+                              size="small"
+                            />
+                          )}
+                        </Box>
+
+                        <Typography variant="caption" color="text.secondary" className="block">
+                          Ausgestellt von: <strong>{license.issuer}</strong>
+                          {license.validUntil && (
+                            <> • Gültig bis: {new Date(license.validUntil).toLocaleDateString("de-DE")}</>
+                          )}
+                        </Typography>
+                      </Box>
+
+                      <Box className="flex items-center gap-2 w-full sm:w-auto justify-end">
+                        <Button
+                          variant="outlined"
+                          size="small"
+                          startIcon={<VisibilityIcon />}
+                          onClick={() => window.open(license.fileUrl, "_blank")}
+                        >
+                          Ansehen
+                        </Button>
+                        <IconButton
+                          color="error"
+                          size="small"
+                          onClick={() => handleDeleteLicense(license)}
+                        >
+                          <DeleteIcon fontSize="small" />
+                        </IconButton>
+                      </Box>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            ) : (
+              <Typography variant="body2" color="text.secondary" className="italic">
+                Du hast bisher noch keine Lizenzen hinterlegt.
+              </Typography>
+            )}
+          </Paper>
+        )}
+
+        {/* 3. Nachricht an Trainer */}
         <Paper
           variant="outlined"
           sx={{ bgcolor: "background.paper", borderColor: "divider" }}
@@ -533,7 +836,7 @@ export const UserProfileView: React.FC = () => {
           </Box>
         </Paper>
 
-        {/* 3. Design & Erscheinungsbild */}
+        {/* 4. Design & Erscheinungsbild */}
         <Paper
           variant="outlined"
           sx={{ bgcolor: "background.paper", borderColor: "divider" }}
@@ -574,7 +877,7 @@ export const UserProfileView: React.FC = () => {
           </FormControl>
         </Paper>
 
-        {/* 4. Benachrichtigungen */}
+        {/* 5. Benachrichtigungen */}
         <Paper
           variant="outlined"
           sx={{ bgcolor: "background.paper", borderColor: "divider" }}
@@ -700,7 +1003,7 @@ export const UserProfileView: React.FC = () => {
           </div>
         </Paper>
 
-        {/* 5. Equipment & Dart Setup */}
+        {/* 6. Equipment & Dart Setup */}
         <Paper
           variant="outlined"
           sx={{ bgcolor: "background.paper", borderColor: "divider" }}
@@ -803,7 +1106,7 @@ export const UserProfileView: React.FC = () => {
         </Paper>
       </form>
 
-      {/* 6. Feedback & Ideen einreichen */}
+      {/* 7. Feedback & Ideen einreichen */}
       <Paper
         variant="outlined"
         sx={{ bgcolor: "background.paper", borderColor: "divider" }}
@@ -874,7 +1177,7 @@ export const UserProfileView: React.FC = () => {
         </form>
       </Paper>
 
-      {/* 7. Passwort ändern Kachel */}
+      {/* 8. Passwort ändern Kachel */}
       <Paper
         variant="outlined"
         sx={{ bgcolor: "background.paper", borderColor: "divider" }}
@@ -941,7 +1244,7 @@ export const UserProfileView: React.FC = () => {
         </form>
       </Paper>
 
-      {/* 8. DSGVO Datenschutz & Account Löschen */}
+      {/* 9. DSGVO Datenschutz & Account Löschen */}
       <Paper
         variant="outlined"
         sx={{

@@ -17,6 +17,7 @@ import SportsMartsIcon from "@mui/icons-material/Sports";
 import PersonIcon from "@mui/icons-material/Person";
 import StarIcon from "@mui/icons-material/Star";
 import ComputerIcon from "@mui/icons-material/Computer";
+import VerifiedUserIcon from "@mui/icons-material/VerifiedUser";
 
 interface PublicProfileModalProps {
   open: boolean;
@@ -39,6 +40,12 @@ export const PublicProfileModal: React.FC<PublicProfileModalProps> = ({
   };
 
   const showEquipment = user.privacySettings?.showEquipmentPublicly !== false;
+  const isCoachOrAdmin =
+    user.roles?.includes("coach") || user.roles?.includes("admin");
+
+  // Nur verifizierte ('approved') Trainer-Lizenzen herausfiltern
+  const approvedLicenses =
+    user.trainerLicenses?.filter((l) => l.status === "approved") || [];
 
   return (
     <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
@@ -63,11 +70,7 @@ export const PublicProfileModal: React.FC<PublicProfileModalProps> = ({
             {user.nickname ? user.nickname.substring(0, 2).toUpperCase() : "U"}
           </Avatar>
           <div>
-            <Typography
-              variant="h5"
-              className="font-bold"
-              color="text.primary"
-            >
+            <Typography variant="h5" className="font-bold" color="text.primary">
               {getDisplayName()}
             </Typography>
             <div className="flex flex-wrap gap-1 mt-1">
@@ -215,6 +218,87 @@ export const PublicProfileModal: React.FC<PublicProfileModalProps> = ({
               hinterlegt.
             </Typography>
           </Box>
+        )}
+
+        {/* Trainer-Qualifikationen (Sichtbar für Trainer/Admins mit Lizenzen) */}
+        {isCoachOrAdmin && (
+          <Paper
+            variant="outlined"
+            sx={{ bgcolor: "background.paper", borderColor: "divider", p: 2 }}
+            className="flex flex-col gap-3"
+          >
+            <Typography
+              variant="h6"
+              className="font-bold flex items-center gap-2"
+              color="primary"
+            >
+              <VerifiedUserIcon color="primary" /> Trainer-Qualifikationen
+            </Typography>
+
+            {approvedLicenses.length > 0 ? (
+              <div className="flex flex-col gap-2">
+                {approvedLicenses.map((license) => (
+                  <Paper
+                    key={license.id}
+                    variant="outlined"
+                    sx={{
+                      p: 2,
+                      bgcolor: "action.hover",
+                      borderColor: "divider",
+                    }}
+                    className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 rounded-md"
+                  >
+                    <Box>
+                      <Typography
+                        variant="subtitle2"
+                        className="font-bold"
+                        color="text.primary"
+                      >
+                        {license.title}
+                      </Typography>
+                      <Typography
+                        variant="caption"
+                        color="text.secondary"
+                        className="block"
+                      >
+                        Ausgestellt von: <strong>{license.issuer}</strong>
+                      </Typography>
+                      {license.validUntil && (
+                        <Typography
+                          variant="caption"
+                          color="text.secondary"
+                          className="block"
+                        >
+                          Gültig bis:{" "}
+                          {new Date(license.validUntil).toLocaleDateString(
+                            "de-DE"
+                          )}
+                        </Typography>
+                      )}
+                    </Box>
+
+                    <Button
+                      variant="outlined"
+                      size="small"
+                      color="primary"
+                      className="w-full sm:w-auto shrink-0"
+                      onClick={() => window.open(license.fileUrl, "_blank")}
+                    >
+                      Zertifikat einsehen
+                    </Button>
+                  </Paper>
+                ))}
+              </div>
+            ) : (
+              <Typography
+                variant="body2"
+                color="text.secondary"
+                className="italic"
+              >
+                Keine verifizierten Trainer-Lizenzen hinterlegt.
+              </Typography>
+            )}
+          </Paper>
         )}
       </DialogContent>
 

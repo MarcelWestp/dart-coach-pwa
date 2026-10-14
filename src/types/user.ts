@@ -13,6 +13,19 @@ export interface EquipmentSettings {
   systemUsername?: string;  // Nutzername beim jeweiligen System
 }
 
+export interface TrainerLicense {
+  id: string;
+  title: string;             // z. B. "DOSB Trainer B Leistungssport"
+  issuer: string;            // z. B. "Deutscher Dart Verband"
+  licenseNumber?: string;    // Lizenznummer (optional)
+  issuedAt?: string;         // Ausstellungsdatum
+  validUntil?: string;       // Gültig bis (optional)
+  fileUrl: string;           // URL der hochgeladenen Datei (Firebase Storage)
+  fileType: 'image' | 'pdf'; // Dateityp
+  status: 'pending' | 'approved' | 'rejected'; // Freigabestatus
+  createdAt: string;
+}
+
 export interface NotificationSettings {
   enabled: boolean;                      // Haupt-Schalter (Alle an/aus)
   newOrUpdatedTrainingPlans: boolean;    // Neue / bearbeitete Trainingspläne
@@ -50,4 +63,5 @@ export interface UserProfile {
   updatedAt: string;
   dashboardWidgets?: WidgetConfig[];
   favoriteExerciseIds?: string[]; // Liste der IDs der Lieblingsübungen
+  trainerLicenses?: TrainerLicense[]; // Neu: Liste der Lizenzen
 }

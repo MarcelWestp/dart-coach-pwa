@@ -1,5 +1,8 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
 import type { UserProfile } from "../../types/user";
+import type { DynamicAchievement, UserAchievementProgress, AchievementTier } from "../../types/achievement";
+import { collection, getDocs } from "firebase/firestore";
+import { db } from "../../firebase/config";
 import {
   Dialog,
   DialogTitle,
@@ -12,12 +15,22 @@ import {
   Chip,
   Paper,
   Box,
+  CircularProgress,
 } from "@mui/material";
 import SportsMartsIcon from "@mui/icons-material/Sports";
 import PersonIcon from "@mui/icons-material/Person";
 import StarIcon from "@mui/icons-material/Star";
 import ComputerIcon from "@mui/icons-material/Computer";
 import VerifiedUserIcon from "@mui/icons-material/VerifiedUser";
+import EmojiEventsIcon from "@mui/icons-material/EmojiEvents";
+
+const TIER_COLORS: Record<AchievementTier, { color: string; label: string }> = {
+  bronze: { color: "#CD7F32", label: "Bronze" },
+  silver: { color: "#C0C0C0", label: "Silber" },
+  gold: { color: "#FFD700", label: "Gold" },
+  platinum: { color: "#E5E4E2", label: "Platin" },
+  diamond: { color: "#B9F2FF", label: "Diamant" },
+};
 
 interface PublicProfileModalProps {
   open: boolean;
@@ -30,6 +43,39 @@ export const PublicProfileModal: React.FC<PublicProfileModalProps> = ({
   onClose,
   user,
 }) => {
+  const [achievements, setAchievements] = useState<DynamicAchievement[]>([]);
+  const [userProgress, setUserProgress] = useState<Record<string, UserAchievementProgress>>({});
+  const [loadingAchievements, setLoadingAchievements] = useState(false);
+
+  useEffect(() => {
+    if (!user?.uid || !open) return;
+
+    const fetchUserAchievements = async () => {
+      setLoadingAchievements(true);
+      try {
+        const [achSnap, progSnap] = await Promise.all([
+          getDocs(collection(db, "achievements")),
+          getDocs(collection(db, `users/${user.uid}/achievements`)),
+        ]);
+
+        const fetchedAch: DynamicAchievement[] = [];
+        achSnap.forEach((d) => fetchedAch.push({ id: d.id, ...d.data() } as DynamicAchievement));
+
+        const progMap: Record<string, UserAchievementProgress> = {};
+        progSnap.forEach((d) => (progMap[d.id] = d.data() as UserAchievementProgress));
+
+        setAchievements(fetchedAch);
+        setUserProgress(progMap);
+      } catch (err) {
+        console.error("Fehler beim Laden der User-Achievements:", err);
+      } finally {
+        setLoadingAchievements(false);
+      }
+    };
+
+    fetchUserAchievements();
+  }, [user?.uid, open]);
+
   if (!user) return null;
 
   const getDisplayName = () => {
@@ -43,9 +89,14 @@ export const PublicProfileModal: React.FC<PublicProfileModalProps> = ({
   const isCoachOrAdmin =
     user.roles?.includes("coach") || user.roles?.includes("admin");
 
-  // Nur verifizierte ('approved') Trainer-Lizenzen herausfiltern
   const approvedLicenses =
     user.trainerLicenses?.filter((l) => l.status === "approved") || [];
+
+  // Nur freigeschaltete Achievements herausfiltern
+  const unlockedAchievements = achievements.filter((ach) => {
+    const prog = userProgress[ach.id];
+    return prog && prog.unlockedTiers && prog.unlockedTiers.length > 0;
+  });
 
   return (
     <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
@@ -99,6 +150,66 @@ export const PublicProfileModal: React.FC<PublicProfileModalProps> = ({
         </div>
 
         <Divider />
+
+        {/* Freigeschaltete Achievements & Badges */}
+        <Paper
+          variant="outlined"
+          sx={{ bgcolor: "background.paper", borderColor: "divider", p: 2 }}
+          className="flex flex-col gap-3"
+        >
+          <Typography
+            variant="h6"
+            className="font-bold flex items-center gap-2"
+            color="primary"
+          >
+            <EmojiEventsIcon sx={{ color: "#FFD700" }} /> Erfolge & Auszeichnungen
+          </Typography>
+
+          {loadingAchievements ? (
+            <Box className="flex justify-center p-3">
+              <CircularProgress size={24} />
+            </Box>
+          ) : unlockedAchievements.length > 0 ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {unlockedAchievements.map((ach) => {
+                const prog = userProgress[ach.id];
+                const highestTier = prog.unlockedTiers[prog.unlockedTiers.length - 1];
+                const tierInfo = TIER_COLORS[highestTier] || { color: "#FFD700", label: highestTier };
+
+                return (
+                  <Paper
+                    key={ach.id}
+                    variant="outlined"
+                    sx={{ bgcolor: "action.hover", borderColor: "divider", p: 2 }}
+                    className="flex items-center gap-3"
+                  >
+                    <EmojiEventsIcon sx={{ fontSize: 32, color: tierInfo.color }} />
+                    <Box>
+                      <Typography variant="subtitle2" className="font-bold" color="text.primary">
+                        {ach.title}
+                      </Typography>
+                      <Chip
+                        label={tierInfo.label}
+                        size="small"
+                        sx={{
+                          bgcolor: tierInfo.color,
+                          color: "#000",
+                          fontWeight: "bold",
+                          fontSize: "0.65rem",
+                          height: 20,
+                        }}
+                      />
+                    </Box>
+                  </Paper>
+                );
+              })}
+            </div>
+          ) : (
+            <Typography variant="body2" color="text.secondary" className="italic">
+              Dieser Spieler hat bisher noch keine Erfolge freigeschaltet.
+            </Typography>
+          )}
+        </Paper>
 
         {/* Equipment & Info-Sektion */}
         {showEquipment && user.equipment ? (
@@ -220,7 +331,7 @@ export const PublicProfileModal: React.FC<PublicProfileModalProps> = ({
           </Box>
         )}
 
-        {/* Trainer-Qualifikationen (Sichtbar für Trainer/Admins mit Lizenzen) */}
+        {/* Trainer-Qualifikationen */}
         {isCoachOrAdmin && (
           <Paper
             variant="outlined"

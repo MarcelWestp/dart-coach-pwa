@@ -34,6 +34,7 @@ import FitnessCenterIcon from "@mui/icons-material/FitnessCenter";
 import MenuBookIcon from "@mui/icons-material/MenuBook";
 import SupervisorAccountIcon from "@mui/icons-material/SupervisorAccount";
 import AdminPanelSettingsIcon from "@mui/icons-material/AdminPanelSettings";
+import { PlayerAchievementsView } from "./features/achievements/PlayerAchievementsView";
 
 const MainContent: React.FC = () => {
   const { currentUser, userProfile, loading } = useAuth();
@@ -135,7 +136,9 @@ const MainContent: React.FC = () => {
               startIcon={<FitnessCenterIcon fontSize="small" />}
               endIcon={<KeyboardArrowDownIcon fontSize="small" />}
               variant={
-                ["dashboard", "player-plan", "league", "player-stats"].includes(activeView)
+                ["dashboard", "player-plan", "league", "player-stats"].includes(
+                  activeView,
+                )
                   ? "contained"
                   : "text"
               }
@@ -160,6 +163,9 @@ const MainContent: React.FC = () => {
               </MenuItem>
               <MenuItem onClick={() => handleSelectView("player-stats")}>
                 Meine Statistiken
+              </MenuItem>
+              <MenuItem onClick={() => handleSelectView("player-achievements")}>
+                Meine Erfolge & Badges
               </MenuItem>
             </Menu>
 
@@ -300,6 +306,7 @@ const MainContent: React.FC = () => {
             </ProtectedRoute>
           )}
           {activeView === "profile" && <UserProfileView />}
+          {activeView === "player-achievements" && <PlayerAchievementsView />}
         </main>
       </Box>
     </ProtectedRoute>

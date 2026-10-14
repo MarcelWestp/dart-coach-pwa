@@ -33,6 +33,7 @@ import PendingIcon from "@mui/icons-material/HourglassEmpty";
 import CancelIcon from "@mui/icons-material/Cancel";
 import VisibilityIcon from "@mui/icons-material/Visibility";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
+import { AchievementManagement } from "./AchievmentManagement";
 
 export const AdminDashboard: React.FC = () => {
   const [users, setUsers] = useState<UserProfile[]>([]);
@@ -127,14 +128,14 @@ export const AdminDashboard: React.FC = () => {
   const handleUpdateLicenseStatus = async (
     userId: string,
     licenseId: string,
-    newStatus: "approved" | "rejected" | "pending"
+    newStatus: "approved" | "rejected" | "pending",
   ) => {
     const targetUser = users.find((u) => u.uid === userId);
     if (!targetUser || !targetUser.trainerLicenses) return;
 
     try {
       const updatedLicenses = targetUser.trainerLicenses.map((l) =>
-        l.id === licenseId ? { ...l, status: newStatus } : l
+        l.id === licenseId ? { ...l, status: newStatus } : l,
       );
 
       const userRef = doc(db, "users", userId);
@@ -145,16 +146,16 @@ export const AdminDashboard: React.FC = () => {
 
       setUsers((prevUsers) =>
         prevUsers.map((u) =>
-          u.uid === userId ? { ...u, trainerLicenses: updatedLicenses } : u
-        )
+          u.uid === userId ? { ...u, trainerLicenses: updatedLicenses } : u,
+        ),
       );
 
       const statusText =
         newStatus === "approved"
           ? "verifiziert"
           : newStatus === "rejected"
-          ? "abgelehnt"
-          : "auf ausstehend gesetzt";
+            ? "abgelehnt"
+            : "auf ausstehend gesetzt";
 
       setActionSuccess(`Trainer-Lizenz wurde erfolgreich ${statusText}.`);
     } catch (err: any) {
@@ -170,11 +171,11 @@ export const AdminDashboard: React.FC = () => {
       userId: u.uid,
       userName: u.realName || u.nickname,
       userEmail: u.email,
-    }))
+    })),
   );
 
   const pendingLicensesCount = allUserLicenses.filter(
-    (l) => l.status === "pending"
+    (l) => l.status === "pending",
   ).length;
 
   if (loading) {
@@ -247,6 +248,10 @@ export const AdminDashboard: React.FC = () => {
             label="Feedback & Ideen"
             className="text-xs sm:text-sm shrink-0 whitespace-nowrap"
           />
+          <Tab
+            label="Achievements & Erfolge"
+            className="text-xs sm:text-sm shrink-0 whitespace-nowrap"
+          />
         </Tabs>
       </Paper>
 
@@ -296,7 +301,11 @@ export const AdminDashboard: React.FC = () => {
                     </div>
 
                     <div className="flex items-center gap-1 flex-wrap">
-                      <Typography variant="caption" color="text.secondary" className="mr-1">
+                      <Typography
+                        variant="caption"
+                        color="text.secondary"
+                        className="mr-1"
+                      >
                         Rollen:
                       </Typography>
                       {user.roles.map((role) => (
@@ -308,8 +317,8 @@ export const AdminDashboard: React.FC = () => {
                             role === "admin"
                               ? "error"
                               : role === "coach"
-                              ? "secondary"
-                              : "default"
+                                ? "secondary"
+                                : "default"
                           }
                         />
                       ))}
@@ -339,7 +348,11 @@ export const AdminDashboard: React.FC = () => {
                             />
                           }
                           label={
-                            <Typography variant="caption" className="font-semibold" color="text.primary">
+                            <Typography
+                              variant="caption"
+                              className="font-semibold"
+                              color="text.primary"
+                            >
                               Trainer
                             </Typography>
                           }
@@ -353,7 +366,11 @@ export const AdminDashboard: React.FC = () => {
             </div>
           ) : (
             /* DESKTOP-ANSICHT: Tabelle */
-            <TableContainer component={Paper} variant="outlined" sx={{ bgcolor: "background.paper", borderColor: "divider" }}>
+            <TableContainer
+              component={Paper}
+              variant="outlined"
+              sx={{ bgcolor: "background.paper", borderColor: "divider" }}
+            >
               <Table>
                 <TableHead
                   sx={{
@@ -405,8 +422,8 @@ export const AdminDashboard: React.FC = () => {
                                   role === "admin"
                                     ? "error"
                                     : role === "coach"
-                                    ? "secondary"
-                                    : "default"
+                                      ? "secondary"
+                                      : "default"
                                 }
                               />
                             ))}
@@ -471,15 +488,25 @@ export const AdminDashboard: React.FC = () => {
           </Typography>
 
           <Typography variant="body2" color="text.secondary">
-            Prüfe die hochgeladenen Zertifikate der Trainer und schalte sie für das öffentliche Spielerprofil frei.
+            Prüfe die hochgeladenen Zertifikate der Trainer und schalte sie für
+            das öffentliche Spielerprofil frei.
           </Typography>
 
           {allUserLicenses.length === 0 ? (
             <Paper
               variant="outlined"
-              sx={{ bgcolor: "background.paper", borderColor: "divider", p: 4, textAlign: "center" }}
+              sx={{
+                bgcolor: "background.paper",
+                borderColor: "divider",
+                p: 4,
+                textAlign: "center",
+              }}
             >
-              <Typography variant="body2" color="text.secondary" className="italic">
+              <Typography
+                variant="body2"
+                color="text.secondary"
+                className="italic"
+              >
                 Es wurden bisher keine Trainer-Lizenzen hochgeladen.
               </Typography>
             </Paper>
@@ -529,13 +556,24 @@ export const AdminDashboard: React.FC = () => {
                       </Box>
 
                       <Typography variant="body2" color="text.secondary">
-                        Trainer: <strong>{license.userName}</strong> ({license.userEmail})
+                        Trainer: <strong>{license.userName}</strong> (
+                        {license.userEmail})
                       </Typography>
 
-                      <Typography variant="caption" color="text.secondary" className="block">
+                      <Typography
+                        variant="caption"
+                        color="text.secondary"
+                        className="block"
+                      >
                         Ausgestellt von: <strong>{license.issuer}</strong>
                         {license.validUntil && (
-                          <> • Gültig bis: {new Date(license.validUntil).toLocaleDateString("de-DE")}</>
+                          <>
+                            {" "}
+                            • Gültig bis:{" "}
+                            {new Date(license.validUntil).toLocaleDateString(
+                              "de-DE",
+                            )}
+                          </>
                         )}
                       </Typography>
                     </Box>
@@ -560,7 +598,7 @@ export const AdminDashboard: React.FC = () => {
                             handleUpdateLicenseStatus(
                               license.userId,
                               license.id,
-                              "approved"
+                              "approved",
                             )
                           }
                         >
@@ -578,7 +616,7 @@ export const AdminDashboard: React.FC = () => {
                             handleUpdateLicenseStatus(
                               license.userId,
                               license.id,
-                              "rejected"
+                              "rejected",
                             )
                           }
                         >
@@ -599,6 +637,9 @@ export const AdminDashboard: React.FC = () => {
 
       {/* Tab 3: Feedback & Ideen */}
       {activeAdminTab === 3 && <FeedbackManagement />}
+
+      {/* Tab 4: Achievements & Erfolge */}
+      {activeAdminTab === 4 && <AchievementManagement />}
     </Box>
   );
 };

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { collection, addDoc } from "firebase/firestore";
 import { db } from "../../firebase/config";
 import { useAuth } from "../../context/AuthContext";
+import { triggerAchievementCheck } from "../../services/achievementService";
 import type {
   Exercise,
   PerformanceTest,
@@ -46,7 +47,7 @@ const getScoreInputLabel = (resultType?: ExerciseResultType): string => {
     case "hits":
       return "Anzahl Treffer";
     case "highestScore":
-      return "Höchstes Ergebnis";
+      return "Höchstes Ergebnis / Highscore";
     case "points":
     default:
       return "Erreichte Punkte";
@@ -107,6 +108,7 @@ export const RecordResultModal: React.FC<RecordResultModalProps> = ({
           };
         });
 
+        // 1. Ergebnis in Firestore speichern
         await addDoc(collection(db, "testResults"), {
           testId: test.id,
           userId: userProfile.uid,
@@ -115,9 +117,28 @@ export const RecordResultModal: React.FC<RecordResultModalProps> = ({
           exerciseScores,
           completedAt,
         });
+
+        // 2. Achievements für Leistungstest triggern
+        await triggerAchievementCheck(userProfile.uid, "total_exercises_count");
+
+        for (const exScore of exerciseScores) {
+          if (exScore.exerciseId) {
+            await triggerAchievementCheck(
+              userProfile.uid,
+              "specific_exercise_count",
+              { exerciseId: exScore.exerciseId }
+            );
+            await triggerAchievementCheck(
+              userProfile.uid,
+              "exercise_highscore",
+              { exerciseId: exScore.exerciseId, score: exScore.points }
+            );
+          }
+        }
       } else if (exercise) {
         const points = scores[exercise.id] || 0;
 
+        // 1. Ergebnis in Firestore speichern
         await addDoc(collection(db, "testResults"), {
           exerciseId: exercise.id,
           userId: userProfile.uid,
@@ -131,6 +152,19 @@ export const RecordResultModal: React.FC<RecordResultModalProps> = ({
           ],
           completedAt,
         });
+
+        // 2. Achievements für Einzelübung triggern
+        await triggerAchievementCheck(userProfile.uid, "total_exercises_count");
+        await triggerAchievementCheck(
+          userProfile.uid,
+          "specific_exercise_count",
+          { exerciseId: exercise.id }
+        );
+        await triggerAchievementCheck(
+          userProfile.uid,
+          "exercise_highscore",
+          { exerciseId: exercise.id, score: points }
+        );
       }
 
       setScores({});

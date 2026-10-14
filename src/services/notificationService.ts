@@ -6,6 +6,7 @@ export type NotificationType =
   | 'newOrUpdatedTrainingPlans'
   | 'newOrUpdatedPerformanceTest'
   | 'monthlyExerciseHighscore'
+  | 'achievementUnlocked'
   | 'trainingPlanReminder';
 
 interface SendNotificationParams {

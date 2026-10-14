@@ -5,6 +5,7 @@ import {
   deleteDoc,
   collection,
   addDoc,
+  getDocs,
 } from "firebase/firestore";
 import {
   ref,
@@ -29,6 +30,11 @@ import type {
   NotificationSettings,
   TrainerLicense,
 } from "../../types/user";
+import type {
+  DynamicAchievement,
+  UserAchievementProgress,
+  AchievementTier,
+} from "../../types/achievement";
 import {
   Paper,
   Typography,
@@ -74,9 +80,24 @@ import CancelIcon from "@mui/icons-material/Cancel";
 import DeleteIcon from "@mui/icons-material/Delete";
 import CloudUploadIcon from "@mui/icons-material/CloudUpload";
 import VisibilityIcon from "@mui/icons-material/Visibility";
+import EmojiEventsIcon from "@mui/icons-material/EmojiEvents";
 import { SendCoachMessageModal } from "./SendCoachMessageModal";
 
-export const UserProfileView: React.FC = () => {
+const TIER_COLORS: Record<AchievementTier, { color: string; label: string }> = {
+  bronze: { color: "#CD7F32", label: "Bronze" },
+  silver: { color: "#C0C0C0", label: "Silber" },
+  gold: { color: "#FFD700", label: "Gold" },
+  platinum: { color: "#E5E4E2", label: "Platin" },
+  diamond: { color: "#B9F2FF", label: "Diamant" },
+};
+
+interface UserProfileViewProps {
+  onNavigateToAchievements?: () => void;
+}
+
+export const UserProfileView: React.FC<UserProfileViewProps> = ({
+  onNavigateToAchievements,
+}) => {
   const { userProfile, refreshUserProfile, logout } = useAuth();
   const { mode, toggleTheme } = useThemeContext();
 
@@ -102,12 +123,20 @@ export const UserProfileView: React.FC = () => {
   const [licenseFile, setLicenseFile] = useState<File | null>(null);
   const [licenseUploading, setLicenseUploading] = useState(false);
 
+  // Achievements States
+  const [achievements, setAchievements] = useState<DynamicAchievement[]>([]);
+  const [userProgress, setUserProgress] = useState<
+    Record<string, UserAchievementProgress>
+  >({});
+  const [loadingAchievements, setLoadingAchievements] = useState(false);
+
   // Benachrichtigungen States
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
   const [notifyPlans, setNotifyPlans] = useState(true);
   const [notifyPerformanceTests, setNotifyPerformanceTests] = useState(true);
   const [notifyHighscores, setNotifyHighscores] = useState(true);
   const [notifyPlanReminder, setNotifyPlanReminder] = useState(true);
+  const [notifyAchievements, setNotifyAchievements] = useState(true);
   const [reminderDays, setReminderDays] = useState<number>(1);
 
   // Feedback & Ideen States
@@ -172,13 +201,48 @@ export const UserProfileView: React.FC = () => {
         setNotifyPlanReminder(notif.trainingPlanReminder ?? true);
         setReminderDays(notif.reminderDaysBefore ?? 1);
       }
+
+      fetchAchievementsData();
     }
   }, [userProfile]);
+
+  const fetchAchievementsData = async () => {
+    if (!userProfile?.uid) return;
+    setLoadingAchievements(true);
+    try {
+      const [achSnap, progSnap] = await Promise.all([
+        getDocs(collection(db, "achievements")),
+        getDocs(collection(db, `users/${userProfile.uid}/achievements`)),
+      ]);
+
+      const fetchedAch: DynamicAchievement[] = [];
+      achSnap.forEach((d) =>
+        fetchedAch.push({ id: d.id, ...d.data() } as DynamicAchievement)
+      );
+
+      const progMap: Record<string, UserAchievementProgress> = {};
+      progSnap.forEach(
+        (d) => (progMap[d.id] = d.data() as UserAchievementProgress)
+      );
+
+      setAchievements(fetchedAch);
+      setUserProgress(progMap);
+    } catch (err) {
+      console.error("Fehler beim Laden der Achievements im Profil:", err);
+    } finally {
+      setLoadingAchievements(false);
+    }
+  };
 
   // Trainer-Lizenz hochladen
   const handleUploadLicenseSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!userProfile || !licenseFile || !licenseTitle.trim() || !licenseIssuer.trim()) {
+    if (
+      !userProfile ||
+      !licenseFile ||
+      !licenseTitle.trim() ||
+      !licenseIssuer.trim()
+    ) {
       setError("Bitte fülle alle Pflichtfelder aus und wähle eine Datei aus.");
       return;
     }
@@ -245,7 +309,6 @@ export const UserProfileView: React.FC = () => {
       setLoading(true);
       setError(null);
 
-      // Storage-Datei versuchen zu löschen
       try {
         const fileRef = ref(storage, license.fileUrl);
         await deleteObject(fileRef);
@@ -340,6 +403,7 @@ export const UserProfileView: React.FC = () => {
         newOrUpdatedPerformanceTest: notifyPerformanceTests,
         monthlyExerciseHighscore: notifyHighscores,
         trainingPlanReminder: notifyPlanReminder,
+        achievementUnlocked: notifyAchievements,
         reminderDaysBefore: reminderDays,
       };
 
@@ -493,6 +557,16 @@ export const UserProfileView: React.FC = () => {
     );
   }
 
+  // Freigeschaltete Achievements filtern
+  const unlockedAchievements = achievements.filter((ach) => {
+    const prog = userProgress[ach.id];
+    return prog && prog.unlockedTiers && prog.unlockedTiers.length > 0;
+  });
+
+  const totalXp = Object.values(userProgress).reduce((sum, prog) => {
+    return sum + (prog.unlockedTiers?.length || 0) * 25;
+  }, 0);
+
   return (
     <Box className="p-4 sm:p-6 max-w-4xl mx-auto space-y-6">
       <Typography
@@ -618,7 +692,108 @@ export const UserProfileView: React.FC = () => {
           </FormControl>
         </Paper>
 
-        {/* 2. Trainer-Lizenzen (Nur sichtbar für Coaches / Admins) */}
+        {/* 2. NEU: Erfolge & Auszeichnungen (Achievements) */}
+        <Paper
+          variant="outlined"
+          sx={{ bgcolor: "background.paper", borderColor: "divider" }}
+          className="p-4 sm:p-6 shadow-md flex flex-col gap-4"
+        >
+          <div className="flex justify-between items-center flex-wrap gap-2">
+            <Typography
+              variant="h6"
+              className="font-bold flex items-center gap-2"
+              color="primary"
+            >
+              <EmojiEventsIcon sx={{ color: "#FFD700" }} /> Erfolge & Badges
+            </Typography>
+            <Chip
+              icon={<EmojiEventsIcon />}
+              label={`Gesamt XP: ${totalXp}`}
+              color="primary"
+              size="small"
+              className="font-bold"
+            />
+          </div>
+
+          {loadingAchievements ? (
+            <Box className="flex justify-center p-3">
+              <CircularProgress size={24} />
+            </Box>
+          ) : unlockedAchievements.length > 0 ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+              {unlockedAchievements.slice(0, 6).map((ach) => {
+                const prog = userProgress[ach.id];
+                const highestTier =
+                  prog.unlockedTiers[prog.unlockedTiers.length - 1];
+                const tierInfo = TIER_COLORS[highestTier] || {
+                  color: "#FFD700",
+                  label: highestTier,
+                };
+
+                return (
+                  <Paper
+                    key={ach.id}
+                    variant="outlined"
+                    sx={{
+                      bgcolor: "action.hover",
+                      borderColor: "divider",
+                      p: 2,
+                    }}
+                    className="flex items-center gap-3"
+                  >
+                    <EmojiEventsIcon
+                      sx={{ fontSize: 32, color: tierInfo.color }}
+                    />
+                    <Box>
+                      <Typography
+                        variant="subtitle2"
+                        className="font-bold text-xs sm:text-sm"
+                        color="text.primary"
+                      >
+                        {ach.title}
+                      </Typography>
+                      <Chip
+                        label={tierInfo.label}
+                        size="small"
+                        sx={{
+                          bgcolor: tierInfo.color,
+                          color: "#000",
+                          fontWeight: "bold",
+                          fontSize: "0.65rem",
+                          height: 18,
+                        }}
+                      />
+                    </Box>
+                  </Paper>
+                );
+              })}
+            </div>
+          ) : (
+            <Typography
+              variant="body2"
+              color="text.secondary"
+              className="italic"
+            >
+              Du hast noch keine Erfolge freigeschaltet. Absolviere Übungen,
+              um deine ersten Badges zu verdienen!
+            </Typography>
+          )}
+
+          {onNavigateToAchievements && (
+            <Box className="mt-2 flex justify-end">
+              <Button
+                variant="outlined"
+                size="small"
+                color="primary"
+                onClick={onNavigateToAchievements}
+              >
+                Alle Erfolge im Detail ansehen
+              </Button>
+            </Box>
+          )}
+        </Paper>
+
+        {/* 3. Trainer-Lizenzen (Nur sichtbar für Coaches / Admins) */}
         {isCoachOrAdmin && (
           <Paper
             variant="outlined"
@@ -637,9 +812,9 @@ export const UserProfileView: React.FC = () => {
             </Box>
 
             <Typography variant="body2" color="text.secondary">
-              Lade deine offiziellen Trainer-Lizenzen (z. B. DOSB C/B/A-Lizenz) hoch.
-              Nach einer Prüfung durch einen Administrator wird deine Lizenz im Profil
-              öffentlich für deine Spieler sichtbar geschaltet.
+              Lade deine offiziellen Trainer-Lizenzen (z. B. DOSB C/B/A-Lizenz)
+              hoch. Nach einer Prüfung durch einen Administrator wird deine Lizenz
+              im Profil öffentlich für deine Spieler sichtbar geschaltet.
             </Typography>
 
             {/* Formular zum Hochladen */}
@@ -648,7 +823,11 @@ export const UserProfileView: React.FC = () => {
               sx={{ bgcolor: "action.hover", borderColor: "divider", p: 2.5 }}
               className="flex flex-col gap-4 rounded-lg"
             >
-              <Typography variant="subtitle2" className="font-bold" color="text.primary">
+              <Typography
+                variant="subtitle2"
+                className="font-bold"
+                color="text.primary"
+              >
                 Neue Lizenz einreichen
               </Typography>
 
@@ -691,13 +870,16 @@ export const UserProfileView: React.FC = () => {
                   startIcon={<CloudUploadIcon />}
                   className="h-10 my-auto"
                 >
-                  {licenseFile ? licenseFile.name : "Nachweis auswählen (PDF / Bild)"}
+                  {licenseFile
+                    ? licenseFile.name
+                    : "Nachweis auswählen (PDF / Bild)"}
                   <input
                     type="file"
                     hidden
                     accept="image/*,application/pdf"
                     onChange={(e) => {
-                      if (e.target.files?.[0]) setLicenseFile(e.target.files[0]);
+                      if (e.target.files?.[0])
+                        setLicenseFile(e.target.files[0]);
                     }}
                   />
                 </Button>
@@ -715,7 +897,9 @@ export const UserProfileView: React.FC = () => {
                     !licenseIssuer.trim()
                   }
                 >
-                  {licenseUploading ? "Wird hochgeladen..." : "Lizenz Hochladen"}
+                  {licenseUploading
+                    ? "Wird hochgeladen..."
+                    : "Lizenz Hochladen"}
                 </Button>
               </Box>
             </Paper>
@@ -723,22 +907,34 @@ export const UserProfileView: React.FC = () => {
             <Divider />
 
             {/* Übersicht vorhandener Lizenzen */}
-            <Typography variant="subtitle1" className="font-bold" color="text.primary">
+            <Typography
+              variant="subtitle1"
+              className="font-bold"
+              color="text.primary"
+            >
               Meine hinterlegten Lizenzen
             </Typography>
 
-            {userProfile.trainerLicenses && userProfile.trainerLicenses.length > 0 ? (
+            {userProfile.trainerLicenses &&
+            userProfile.trainerLicenses.length > 0 ? (
               <div className="grid grid-cols-1 gap-3">
                 {userProfile.trainerLicenses.map((license) => (
                   <Card
                     key={license.id}
                     variant="outlined"
-                    sx={{ bgcolor: "background.paper", borderColor: "divider" }}
+                    sx={{
+                      bgcolor: "background.paper",
+                      borderColor: "divider",
+                    }}
                   >
                     <CardContent className="p-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
                       <Box className="space-y-1">
                         <Box className="flex items-center gap-2 flex-wrap">
-                          <Typography variant="subtitle2" className="font-bold" color="text.primary">
+                          <Typography
+                            variant="subtitle2"
+                            className="font-bold"
+                            color="text.primary"
+                          >
                             {license.title}
                           </Typography>
 
@@ -768,10 +964,20 @@ export const UserProfileView: React.FC = () => {
                           )}
                         </Box>
 
-                        <Typography variant="caption" color="text.secondary" className="block">
+                        <Typography
+                          variant="caption"
+                          color="text.secondary"
+                          className="block"
+                        >
                           Ausgestellt von: <strong>{license.issuer}</strong>
                           {license.validUntil && (
-                            <> • Gültig bis: {new Date(license.validUntil).toLocaleDateString("de-DE")}</>
+                            <>
+                              {" "}
+                              • Gültig bis:{" "}
+                              {new Date(license.validUntil).toLocaleDateString(
+                                "de-DE"
+                              )}
+                            </>
                           )}
                         </Typography>
                       </Box>
@@ -798,14 +1004,18 @@ export const UserProfileView: React.FC = () => {
                 ))}
               </div>
             ) : (
-              <Typography variant="body2" color="text.secondary" className="italic">
+              <Typography
+                variant="body2"
+                color="text.secondary"
+                className="italic"
+              >
                 Du hast bisher noch keine Lizenzen hinterlegt.
               </Typography>
             )}
           </Paper>
         )}
 
-        {/* 3. Nachricht an Trainer */}
+        {/* 4. Nachricht an Trainer */}
         <Paper
           variant="outlined"
           sx={{ bgcolor: "background.paper", borderColor: "divider" }}
@@ -836,7 +1046,7 @@ export const UserProfileView: React.FC = () => {
           </Box>
         </Paper>
 
-        {/* 4. Design & Erscheinungsbild */}
+        {/* 5. Design & Erscheinungsbild */}
         <Paper
           variant="outlined"
           sx={{ bgcolor: "background.paper", borderColor: "divider" }}
@@ -877,7 +1087,7 @@ export const UserProfileView: React.FC = () => {
           </FormControl>
         </Paper>
 
-        {/* 5. Benachrichtigungen */}
+        {/* 6. Benachrichtigungen */}
         <Paper
           variant="outlined"
           sx={{ bgcolor: "background.paper", borderColor: "divider" }}
@@ -963,6 +1173,22 @@ export const UserProfileView: React.FC = () => {
               }
             />
 
+            <FormControlLabel
+              control={
+                <Switch
+                  checked={notifyAchievements}
+                  onChange={(e) => setNotifyAchievements(e.target.checked)}
+                  color="primary"
+                  disabled={!notificationsEnabled}
+                />
+              }
+              label={
+                <Typography variant="body2" color="text.primary">
+                  Neuer Erfolg freigeschaltet
+                </Typography>
+              }
+            />
+
             <Divider className="my-1" />
 
             <div className="flex flex-col sm:flex-row sm:items-center gap-4">
@@ -1003,7 +1229,7 @@ export const UserProfileView: React.FC = () => {
           </div>
         </Paper>
 
-        {/* 6. Equipment & Dart Setup */}
+        {/* 7. Equipment & Dart Setup */}
         <Paper
           variant="outlined"
           sx={{ bgcolor: "background.paper", borderColor: "divider" }}
@@ -1106,7 +1332,7 @@ export const UserProfileView: React.FC = () => {
         </Paper>
       </form>
 
-      {/* 7. Feedback & Ideen einreichen */}
+      {/* 8. Feedback & Ideen einreichen */}
       <Paper
         variant="outlined"
         sx={{ bgcolor: "background.paper", borderColor: "divider" }}
@@ -1177,7 +1403,7 @@ export const UserProfileView: React.FC = () => {
         </form>
       </Paper>
 
-      {/* 8. Passwort ändern Kachel */}
+      {/* 9. Passwort ändern Kachel */}
       <Paper
         variant="outlined"
         sx={{ bgcolor: "background.paper", borderColor: "divider" }}
@@ -1244,7 +1470,7 @@ export const UserProfileView: React.FC = () => {
         </form>
       </Paper>
 
-      {/* 9. DSGVO Datenschutz & Account Löschen */}
+      {/* 10. DSGVO Datenschutz & Account Löschen */}
       <Paper
         variant="outlined"
         sx={{

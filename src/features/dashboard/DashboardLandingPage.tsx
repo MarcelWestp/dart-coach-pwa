@@ -10,6 +10,12 @@ import {
 import { db } from "../../firebase/config";
 import { useAuth } from "../../context/AuthContext";
 import { RecordResultModal } from "../exercises/RecordResultModal";
+import { SendCoachMessageModal } from "../profile/SendCoachMessageModal";
+import type {
+  DynamicAchievement,
+  UserAchievementProgress,
+  AchievementTier,
+} from "../../types/achievement";
 import {
   Paper,
   Typography,
@@ -46,6 +52,16 @@ import TrendingUpIcon from "@mui/icons-material/TrendingUp";
 import PlayArrowIcon from "@mui/icons-material/PlayArrow";
 import HelpIcon from "@mui/icons-material/Help";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
+import ChatIcon from "@mui/icons-material/Chat";
+import { MailOutlined } from "@mui/icons-material";
+
+const TIER_COLORS: Record<AchievementTier, { color: string; label: string }> = {
+  bronze: { color: "#CD7F32", label: "Bronze" },
+  silver: { color: "#C0C0C0", label: "Silber" },
+  gold: { color: "#FFD700", label: "Gold" },
+  platinum: { color: "#E5E4E2", label: "Platin" },
+  diamond: { color: "#B9F2FF", label: "Diamant" },
+};
 
 interface WidgetConfig {
   id: string;
@@ -63,6 +79,16 @@ const DEFAULT_WIDGETS: WidgetConfig[] = [
   },
   { id: "trainingPlan", title: "Fortschritt Trainingsplan", enabled: true },
   { id: "performanceTest", title: "Leistungstest", enabled: true },
+  {
+    id: "coachMessage",
+    title: "Trainer-Kommunikation",
+    enabled: true,
+  },
+  {
+    id: "achievements",
+    title: "Meine Erfolge & Badges",
+    enabled: true,
+  },
   {
     id: "exerciseOfTheMonth",
     title: "Übung des Monats (Top 3 & Platz)",
@@ -114,6 +140,15 @@ export const DashboardLandingPage: React.FC<DashboardLandingPageProps> = ({
   const [monthlyConfigs, setMonthlyConfigs] = useState<any[]>([]);
   const [users, setUsers] = useState<any[]>([]);
 
+  // Achievements Daten
+  const [achievements, setAchievements] = useState<DynamicAchievement[]>([]);
+  const [userProgress, setUserProgress] = useState<
+    Record<string, UserAchievementProgress>
+  >({});
+
+  // Trainer Nachrichten Modal State
+  const [isMessageModalOpen, setIsMessageModalOpen] = useState(false);
+
   // Vom Nutzer frei gewählte Lieblingsübungen (IDs, max. 3)
   const [selectedFavoriteIds, setSelectedFavoriteIds] = useState<string[]>([]);
 
@@ -129,12 +164,25 @@ export const DashboardLandingPage: React.FC<DashboardLandingPageProps> = ({
       Array.isArray(userProfile.dashboardWidgets)
     ) {
       const savedWidgets = userProfile.dashboardWidgets;
-      const merged = DEFAULT_WIDGETS.map((def) => {
-        const found = savedWidgets.find((s: WidgetConfig) => s.id === def.id);
-        return found ? { ...def, enabled: found.enabled } : def;
+
+      // 1. Nimm die gespeicherten Widgets in ihrer exakten Reihenfolge
+      const orderedWidgets: WidgetConfig[] = savedWidgets
+        .map((saved: WidgetConfig) => {
+          const def = DEFAULT_WIDGETS.find((d) => d.id === saved.id);
+          return def ? { ...def, enabled: saved.enabled } : null;
+        })
+        .filter(Boolean) as WidgetConfig[];
+
+      // 2. Falls neue Widgets im Code dazugekommen sind, hänge sie unten an
+      DEFAULT_WIDGETS.forEach((def) => {
+        if (!orderedWidgets.some((w) => w.id === def.id)) {
+          orderedWidgets.push(def);
+        }
       });
-      setWidgets(merged);
+
+      setWidgets(orderedWidgets);
     }
+
     if (
       userProfile?.favoriteExerciseIds &&
       Array.isArray(userProfile.favoriteExerciseIds)
@@ -233,6 +281,29 @@ export const DashboardLandingPage: React.FC<DashboardLandingPageProps> = ({
         setUsers(fetchedUsers);
       } catch (e) {
         console.warn("Fehler beim Laden der Nutzerliste", e);
+      }
+
+      // 8. Achievements & Fortschritt
+      try {
+        const [achSnap, progSnap] = await Promise.all([
+          getDocs(collection(db, "achievements")),
+          getDocs(collection(db, `users/${userProfile.uid}/achievements`)),
+        ]);
+
+        const fetchedAch: DynamicAchievement[] = [];
+        achSnap.forEach((d) =>
+          fetchedAch.push({ id: d.id, ...d.data() } as DynamicAchievement),
+        );
+
+        const progMap: Record<string, UserAchievementProgress> = {};
+        progSnap.forEach(
+          (d) => (progMap[d.id] = d.data() as UserAchievementProgress),
+        );
+
+        setAchievements(fetchedAch);
+        setUserProgress(progMap);
+      } catch (e) {
+        console.warn("Fehler beim Laden der Achievements", e);
       }
     } catch (err) {
       console.error("Genereller Fehler beim Laden der Dashboard-Daten:", err);
@@ -384,7 +455,17 @@ export const DashboardLandingPage: React.FC<DashboardLandingPageProps> = ({
     userMonthlyIndex !== -1 ? monthlyLeaderboard[userMonthlyIndex] : null;
   const userMonthlyRank = userMonthlyIndex !== -1 ? userMonthlyIndex + 1 : null;
 
-  // 4. Statistik letzte 7 Tage
+  // 4. Achievements Berechnungen
+  const unlockedAchievements = achievements.filter((ach) => {
+    const prog = userProgress[ach.id];
+    return prog && prog.unlockedTiers && prog.unlockedTiers.length > 0;
+  });
+
+  const totalXp = Object.values(userProgress).reduce((sum, prog) => {
+    return sum + (prog.unlockedTiers?.length || 0) * 25;
+  }, 0);
+
+  // 5. Statistik letzte 7 Tage
   const sevenDaysAgo = new Date();
   sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
   const recentResults = testResults.filter(
@@ -405,7 +486,7 @@ export const DashboardLandingPage: React.FC<DashboardLandingPageProps> = ({
         ).toFixed(1)
       : "0";
 
-  // 5. Lieblingsübungen
+  // 6. Lieblingsübungen
   const userFavoriteExercisesList = selectedFavoriteIds
     .map((id) => exercises.find((e) => e.id === id))
     .filter(Boolean);
@@ -588,7 +669,6 @@ export const DashboardLandingPage: React.FC<DashboardLandingPageProps> = ({
             }}
             className="shadow-sm flex flex-col gap-3 sm:gap-4"
           >
-            {/* Headerbereich */}
             <div className="flex justify-between items-start flex-wrap gap-2">
               <div className="flex items-center gap-2">
                 <EmojiEventsIcon
@@ -619,7 +699,6 @@ export const DashboardLandingPage: React.FC<DashboardLandingPageProps> = ({
 
             {monthlyExercise ? (
               <div className="grid grid-cols-1 md:grid-cols-3 gap-3 sm:gap-4">
-                {/* Spalte 1 & 2: Beschreibung, Anleitung & Button */}
                 <div className="md:col-span-2 flex flex-col justify-between gap-3">
                   <div>
                     <Typography
@@ -677,7 +756,6 @@ export const DashboardLandingPage: React.FC<DashboardLandingPageProps> = ({
                   </div>
                 </div>
 
-                {/* Spalte 3: Leaderboard */}
                 <Paper
                   variant="outlined"
                   sx={{ p: 2, bgcolor: "action.hover", borderColor: "divider" }}
@@ -768,6 +846,166 @@ export const DashboardLandingPage: React.FC<DashboardLandingPageProps> = ({
                 Admin festgelegt.
               </Typography>
             )}
+          </Paper>
+        );
+
+      case "achievements":
+        return (
+          <Paper
+            variant="outlined"
+            sx={{
+              p: { xs: 2, sm: 3 },
+              bgcolor: "background.paper",
+              borderColor: "divider",
+            }}
+            className="shadow-sm flex flex-col gap-3"
+          >
+            <div className="flex justify-between items-center flex-wrap gap-2">
+              <div className="flex items-center gap-2">
+                <EmojiEventsIcon
+                  sx={{ color: "#FFD700" }}
+                  fontSize={isMobile ? "small" : "medium"}
+                />
+                <Typography
+                  variant={isMobile ? "subtitle1" : "h6"}
+                  className="font-bold text-sm sm:text-base"
+                  color="text.primary"
+                >
+                  Meine Erfolge & Badges
+                </Typography>
+              </div>
+
+              <Chip
+                icon={<EmojiEventsIcon />}
+                label={`Gesamt XP: ${totalXp}`}
+                color="primary"
+                size="small"
+                className="font-bold text-xs"
+              />
+            </div>
+
+            {unlockedAchievements.length > 0 ? (
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2 sm:gap-3">
+                {unlockedAchievements.slice(0, 3).map((ach) => {
+                  const prog = userProgress[ach.id];
+                  const highestTier =
+                    prog.unlockedTiers[prog.unlockedTiers.length - 1];
+                  const tierInfo = TIER_COLORS[highestTier] || {
+                    color: "#FFD700",
+                    label: highestTier,
+                  };
+
+                  return (
+                    <Paper
+                      key={ach.id}
+                      variant="outlined"
+                      sx={{
+                        bgcolor: "action.hover",
+                        borderColor: "divider",
+                        p: 1.5,
+                      }}
+                      className="flex items-center gap-2.5"
+                    >
+                      <EmojiEventsIcon
+                        sx={{ fontSize: 28, color: tierInfo.color }}
+                      />
+                      <Box className="overflow-hidden">
+                        <Typography
+                          variant="subtitle2"
+                          className="font-bold text-xs truncate"
+                          color="text.primary"
+                        >
+                          {ach.title}
+                        </Typography>
+                        <Chip
+                          label={tierInfo.label}
+                          size="small"
+                          sx={{
+                            bgcolor: tierInfo.color,
+                            color: "#000",
+                            fontWeight: "bold",
+                            fontSize: "0.6rem",
+                            height: 16,
+                          }}
+                        />
+                      </Box>
+                    </Paper>
+                  );
+                })}
+              </div>
+            ) : (
+              <Typography
+                variant="body2"
+                color="text.secondary"
+                className="text-xs italic"
+              >
+                Du hast noch keine Erfolge freigeschaltet. Absolviere Übungen,
+                um deine ersten Badges zu verdienen!
+              </Typography>
+            )}
+
+            <Box className="flex justify-end pt-1">
+              <Button
+                variant="outlined"
+                size="small"
+                onClick={() => onNavigate("player-achievements")}
+                className="text-xs"
+              >
+                Alle Erfolge ansehen
+              </Button>
+            </Box>
+          </Paper>
+        );
+
+      case "coachMessage":
+        return (
+          <Paper
+            variant="outlined"
+            sx={{
+              p: { xs: 2, sm: 3 },
+              bgcolor: "background.paper",
+              borderColor: "divider",
+            }}
+            className="shadow-sm flex flex-col gap-3"
+          >
+            <div className="flex items-center gap-2">
+              <ChatIcon
+                color="primary"
+                fontSize={isMobile ? "small" : "medium"}
+              />
+              <Typography
+                variant={isMobile ? "subtitle1" : "h6"}
+                className="font-bold text-sm sm:text-base"
+                color="text.primary"
+              >
+                Trainer-Kommunikation
+              </Typography>
+            </div>
+
+            <Typography
+              variant="body2"
+              color="text.secondary"
+              className="text-xs sm:text-sm"
+            >
+              Informiere deinen Trainer direkt über Abwesenheiten, Urlaube,
+              Liga-Ergebnisse oder sonstige Anliegen.
+            </Typography>
+
+            <Box className="flex justify-start">
+              <Button
+                variant="contained"
+                color="primary"
+                size="small"
+                startIcon={<MailOutlined />}
+                disabled={!userProfile?.assignedCoachId}
+                onClick={() => setIsMessageModalOpen(true)}
+                className="text-xs sm:text-sm"
+              >
+                {userProfile?.assignedCoachId
+                  ? "Nachricht an Trainer schreiben"
+                  : "Kein Trainer zugewiesen"}
+              </Button>
+            </Box>
           </Paper>
         );
 
@@ -1252,6 +1490,13 @@ export const DashboardLandingPage: React.FC<DashboardLandingPageProps> = ({
           onResultRecorded={handleResultSaved}
         />
       )}
+
+      {/* Modal zur Nachricht an den Trainer */}
+      <SendCoachMessageModal
+        open={isMessageModalOpen}
+        onClose={() => setIsMessageModalOpen(false)}
+        coachId={userProfile?.assignedCoachId}
+      />
     </Box>
   );
 };

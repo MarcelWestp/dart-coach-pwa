@@ -13,7 +13,7 @@ import type {
   AchievementTriggerType,
   AchievementRequirement,
 } from "../../types/achievement";
-import type { Exercise } from "../../types/exercise";
+import type { Exercise, Tag } from "../../types/exercise";
 import {
   Paper,
   Typography,
@@ -50,6 +50,7 @@ import VisibilityOffIcon from "@mui/icons-material/VisibilityOff";
 const TRIGGER_LABELS: Record<AchievementTriggerType, string> = {
   total_exercises_count: "Anzahl aller absolvierten Übungen",
   specific_exercise_count: "Anzahl einer spezifischen Übung",
+  exercise_tag_count: "Anzahl eines spezifischen Übungstags",
   exercise_highscore: "Bestleistung in einer Übung",
   league_rank: "Platzierung in einer Liga",
   monthly_exercise_rank: "Platzierung in der Übung des Monats",
@@ -59,11 +60,11 @@ const TRIGGER_LABELS: Record<AchievementTriggerType, string> = {
 };
 
 const DEFAULT_REQUIREMENTS: AchievementRequirement[] = [
-  { tier: "bronze", threshold: 10, xpReward: 10 },
-  { tier: "silver", threshold: 25, xpReward: 25 },
-  { tier: "gold", threshold: 50, xpReward: 50 },
-  { tier: "platinum", threshold: 100, xpReward: 100 },
-  { tier: "diamond", threshold: 250, xpReward: 250 },
+  { tier: "bronze", threshold: 10, xpReward: 10, titleReward: "" },
+  { tier: "silver", threshold: 25, xpReward: 25, titleReward: "" },
+  { tier: "gold", threshold: 50, xpReward: 50, titleReward: "" },
+  { tier: "platinum", threshold: 100, xpReward: 100, titleReward: "" },
+  { tier: "diamond", threshold: 250, xpReward: 250, titleReward: "" },
 ];
 
 export const AchievementManagement: React.FC = () => {
@@ -72,6 +73,7 @@ export const AchievementManagement: React.FC = () => {
 
   const [achievements, setAchievements] = useState<DynamicAchievement[]>([]);
   const [exercises, setExercises] = useState<Exercise[]>([]);
+  const [tags, setTags] = useState<Tag[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
@@ -83,15 +85,17 @@ export const AchievementManagement: React.FC = () => {
   const [category, setCategory] = useState<DynamicAchievement["category"]>("training");
   const [triggerType, setTriggerType] = useState<AchievementTriggerType>("total_exercises_count");
   const [exerciseId, setExerciseId] = useState("");
+  const [tagId, setTagId] = useState("");
   const [isSecret, setIsSecret] = useState(false);
   const [requirements, setRequirements] = useState<AchievementRequirement[]>(DEFAULT_REQUIREMENTS);
 
   const fetchData = async () => {
     setLoading(true);
     try {
-      const [achSnap, exSnap] = await Promise.all([
+      const [achSnap, exSnap, tagSnap] = await Promise.all([
         getDocs(collection(db, "achievements")),
         getDocs(collection(db, "exercises")),
+        getDocs(collection(db, "tags")),
       ]);
 
       const fetchedAch: DynamicAchievement[] = [];
@@ -104,10 +108,16 @@ export const AchievementManagement: React.FC = () => {
         fetchedEx.push({ id: d.id, ...d.data() } as Exercise);
       });
 
+      const fetchedTags: Tag[] = [];
+      tagSnap.forEach((d) => {
+        fetchedTags.push({ id: d.id, ...d.data() } as Tag);
+      });
+
       setAchievements(fetchedAch);
       setExercises(fetchedEx);
+      setTags(fetchedTags);
     } catch (err) {
-      console.error("Fehler beim Laden der Achievements:", err);
+      console.error("Fehler beim Laden der Daten:", err);
       setError("Fehler beim Laden der Daten.");
     } finally {
       setLoading(false);
@@ -120,8 +130,8 @@ export const AchievementManagement: React.FC = () => {
 
   const handleRequirementChange = (
     index: number,
-    field: "threshold" | "xpReward",
-    val: number
+    field: "threshold" | "xpReward" | "titleReward",
+    val: string | number
   ) => {
     const updated = [...requirements];
     updated[index] = { ...updated[index], [field]: val };
@@ -138,12 +148,26 @@ export const AchievementManagement: React.FC = () => {
       return;
     }
 
+    if (triggerType === "exercise_tag_count" && !tagId) {
+      setError("Bitte wähle ein Tag aus.");
+      return;
+    }
+
+    if (
+      (triggerType === "specific_exercise_count" || triggerType === "exercise_highscore") &&
+      !exerciseId
+    ) {
+      setError("Bitte wähle eine zugehörige Übung aus.");
+      return;
+    }
+
     const payload = {
       title: title.trim(),
       description: description.trim(),
       category,
       triggerType,
       exerciseId: exerciseId || null,
+      tagId: tagId || null,
       isSecret,
       requirements,
       updatedAt: new Date().toISOString(),
@@ -175,8 +199,14 @@ export const AchievementManagement: React.FC = () => {
     setCategory(ach.category);
     setTriggerType(ach.triggerType);
     setExerciseId(ach.exerciseId || "");
+    setTagId((ach as any).tagId || "");
     setIsSecret(Boolean(ach.isSecret));
-    setRequirements(ach.requirements || DEFAULT_REQUIREMENTS);
+
+    const loadedReqs = (ach.requirements || DEFAULT_REQUIREMENTS).map((req) => ({
+      ...req,
+      titleReward: req.titleReward || "",
+    }));
+    setRequirements(loadedReqs);
   };
 
   const handleDelete = async (id: string) => {
@@ -198,6 +228,7 @@ export const AchievementManagement: React.FC = () => {
     setCategory("training");
     setTriggerType("total_exercises_count");
     setExerciseId("");
+    setTagId("");
     setIsSecret(false);
     setRequirements(DEFAULT_REQUIREMENTS);
   };
@@ -218,10 +249,10 @@ export const AchievementManagement: React.FC = () => {
       {/* Formular: Erstellen / Bearbeiten */}
       <Paper
         variant="outlined"
-        sx={{ bgcolor: "background.paper" }}
+        sx={{ bgcolor: "background.paper", borderColor: "divider" }}
         className="p-4 sm:p-6 shadow-md flex flex-col gap-4"
       >
-        <Typography variant="h6" className="font-bold flex items-center gap-2">
+        <Typography variant="h6" className="font-bold flex items-center gap-2" color="text.primary">
           <EmojiEventsIcon color="primary" />
           {editingId ? "Achievement bearbeiten" : "Neues Achievement anlegen"}
         </Typography>
@@ -269,7 +300,16 @@ export const AchievementManagement: React.FC = () => {
               <Select
                 value={triggerType}
                 label="Auslöser (Trigger)"
-                onChange={(e) => setTriggerType(e.target.value as AchievementTriggerType)}
+                onChange={(e) => {
+                  const newTrigger = e.target.value as AchievementTriggerType;
+                  setTriggerType(newTrigger);
+                  if (newTrigger !== "specific_exercise_count" && newTrigger !== "exercise_highscore") {
+                    setExerciseId("");
+                  }
+                  if (newTrigger !== "exercise_tag_count") {
+                    setTagId("");
+                  }
+                }}
               >
                 {Object.entries(TRIGGER_LABELS).map(([key, label]) => (
                   <MenuItem key={key} value={key}>
@@ -279,6 +319,7 @@ export const AchievementManagement: React.FC = () => {
               </Select>
             </FormControl>
 
+            {/* Spezifische Übung auswählen */}
             {(triggerType === "specific_exercise_count" || triggerType === "exercise_highscore") && (
               <FormControl fullWidth required>
                 <InputLabel>Zugehörige Übung</InputLabel>
@@ -290,6 +331,24 @@ export const AchievementManagement: React.FC = () => {
                   {exercises.map((ex) => (
                     <MenuItem key={ex.id} value={ex.id}>
                       {ex.title}
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+            )}
+
+            {/* Tag auswählen */}
+            {triggerType === "exercise_tag_count" && (
+              <FormControl fullWidth required>
+                <InputLabel>Zugehöriger Tag</InputLabel>
+                <Select
+                  value={tagId}
+                  label="Zugehöriger Tag"
+                  onChange={(e) => setTagId(e.target.value)}
+                >
+                  {tags.map((t) => (
+                    <MenuItem key={t.id} value={t.id}>
+                      {t.name}
                     </MenuItem>
                   ))}
                 </Select>
@@ -308,14 +367,14 @@ export const AchievementManagement: React.FC = () => {
             label="Geheimes Achievement (Titel & Beschreibung vor Freischaltung verbergen)"
           />
 
-          {/* Stufen-Konfiguration (Bronze, Silber, Gold, Platin, Diamant) */}
-          <Typography variant="subtitle2" className="font-bold mt-2">
-            Stufen-Schwellenwerte & XP-Belohnungen
+          {/* Stufen-Konfiguration */}
+          <Typography variant="subtitle2" className="font-bold mt-2" color="text.primary">
+            Stufen-Schwellenwerte, XP & Profil-Titel Belohnungen
           </Typography>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-3">
             {requirements.map((req, idx) => (
-              <Paper key={req.tier} variant="outlined" className="p-3 flex flex-col gap-2">
+              <Paper key={req.tier} variant="outlined" sx={{ bgcolor: "background.paper", borderColor: "divider" }} className="p-3 flex flex-col gap-2">
                 <Typography variant="caption" className="font-bold uppercase color-primary">
                   {req.tier}
                 </Typography>
@@ -335,6 +394,13 @@ export const AchievementManagement: React.FC = () => {
                   value={req.xpReward}
                   onChange={(e) => handleRequirementChange(idx, "xpReward", Number(e.target.value))}
                 />
+                <TextField
+                  label="Freischaltbarer Titel (Optional)"
+                  placeholder="z.B. Doppel-Meister"
+                  size="small"
+                  value={req.titleReward || ""}
+                  onChange={(e) => handleRequirementChange(idx, "titleReward", e.target.value)}
+                />
               </Paper>
             ))}
           </div>
@@ -353,47 +419,60 @@ export const AchievementManagement: React.FC = () => {
       </Paper>
 
       {/* Übersicht aller Achievements */}
-      <Paper variant="outlined" sx={{ bgcolor: "background.paper" }} className="p-4 sm:p-6 shadow-md">
-        <Typography variant="h6" className="font-bold mb-4">
+      <Paper variant="outlined" sx={{ bgcolor: "background.paper", borderColor: "divider" }} className="p-4 sm:p-6 shadow-md">
+        <Typography variant="h6" className="font-bold mb-4" color="text.primary">
           Vorhandene Achievements
         </Typography>
 
         {isMobile ? (
           <div className="flex flex-col gap-3">
-            {achievements.map((ach) => (
-              <Card key={ach.id} variant="outlined">
-                <CardContent className="p-4 flex flex-col gap-2">
-                  <div className="flex justify-between items-start">
-                    <Typography variant="subtitle1" className="font-bold">
-                      {ach.title}
+            {achievements.map((ach) => {
+              const matchedTag = tags.find((t) => t.id === (ach as any).tagId);
+              const matchedEx = exercises.find((ex) => ex.id === ach.exerciseId);
+
+              return (
+                <Card key={ach.id} variant="outlined" sx={{ bgcolor: "background.paper", borderColor: "divider" }}>
+                  <CardContent className="p-4 flex flex-col gap-2">
+                    <div className="flex justify-between items-start">
+                      <Typography variant="subtitle1" className="font-bold" color="text.primary">
+                        {ach.title}
+                      </Typography>
+                      {ach.isSecret && (
+                        <Chip icon={<VisibilityOffIcon />} label="Geheim" size="small" color="secondary" />
+                      )}
+                    </div>
+                    <Typography variant="body2" color="text.secondary">
+                      {ach.description}
                     </Typography>
-                    {ach.isSecret && (
-                      <Chip icon={<VisibilityOffIcon />} label="Geheim" size="small" color="secondary" />
-                    )}
-                  </div>
-                  <Typography variant="body2" color="text.secondary">
-                    {ach.description}
-                  </Typography>
-                  <Chip
-                    label={TRIGGER_LABELS[ach.triggerType] || ach.triggerType}
-                    size="small"
-                    variant="outlined"
-                    className="w-fit"
-                  />
-                </CardContent>
-                <CardActions className="justify-end p-2 border-t border-divider">
-                  <IconButton size="small" color="primary" onClick={() => handleEdit(ach)}>
-                    <EditIcon />
-                  </IconButton>
-                  <IconButton size="small" color="error" onClick={() => handleDelete(ach.id)}>
-                    <DeleteIcon />
-                  </IconButton>
-                </CardActions>
-              </Card>
-            ))}
+
+                    <div className="flex flex-wrap gap-1 mt-1">
+                      <Chip
+                        label={TRIGGER_LABELS[ach.triggerType] || ach.triggerType}
+                        size="small"
+                        variant="outlined"
+                      />
+                      {matchedTag && (
+                        <Chip label={`Tag: ${matchedTag.name}`} size="small" color="primary" variant="outlined" />
+                      )}
+                      {matchedEx && (
+                        <Chip label={`Übung: ${matchedEx.title}`} size="small" color="info" variant="outlined" />
+                      )}
+                    </div>
+                  </CardContent>
+                  <CardActions className="justify-end p-2 border-t border-divider">
+                    <IconButton size="small" color="primary" onClick={() => handleEdit(ach)}>
+                      <EditIcon />
+                    </IconButton>
+                    <IconButton size="small" color="error" onClick={() => handleDelete(ach.id)}>
+                      <DeleteIcon />
+                    </IconButton>
+                  </CardActions>
+                </Card>
+              );
+            })}
           </div>
         ) : (
-          <TableContainer component={Paper} variant="outlined">
+          <TableContainer component={Paper} variant="outlined" sx={{ borderColor: "divider" }}>
             <Table>
               <TableHead>
                 <TableRow>
@@ -405,41 +484,52 @@ export const AchievementManagement: React.FC = () => {
                 </TableRow>
               </TableHead>
               <TableBody>
-                {achievements.map((ach) => (
-                  <TableRow key={ach.id} hover>
-                    <TableCell>
-                      <Typography variant="subtitle2" className="font-bold">
-                        {ach.title}
-                      </Typography>
-                      <Typography variant="caption" color="text.secondary" className="block">
-                        {ach.description}
-                      </Typography>
-                    </TableCell>
-                    <TableCell>
-                      <Chip label={ach.category} size="small" variant="outlined" />
-                    </TableCell>
-                    <TableCell>
-                      <Typography variant="body2">
-                        {TRIGGER_LABELS[ach.triggerType] || ach.triggerType}
-                      </Typography>
-                    </TableCell>
-                    <TableCell>
-                      {ach.isSecret ? (
-                        <Chip icon={<VisibilityOffIcon />} label="Geheim" size="small" color="secondary" />
-                      ) : (
-                        <Chip label="Sichtbar" size="small" variant="outlined" />
-                      )}
-                    </TableCell>
-                    <TableCell align="right">
-                      <IconButton size="small" color="primary" onClick={() => handleEdit(ach)}>
-                        <EditIcon />
-                      </IconButton>
-                      <IconButton size="small" color="error" onClick={() => handleDelete(ach.id)}>
-                        <DeleteIcon />
-                      </IconButton>
-                    </TableCell>
-                  </TableRow>
-                ))}
+                {achievements.map((ach) => {
+                  const matchedTag = tags.find((t) => t.id === (ach as any).tagId);
+                  const matchedEx = exercises.find((ex) => ex.id === ach.exerciseId);
+
+                  return (
+                    <TableRow key={ach.id} hover>
+                      <TableCell>
+                        <Typography variant="subtitle2" className="font-bold" color="text.primary">
+                          {ach.title}
+                        </Typography>
+                        <Typography variant="caption" color="text.secondary" className="block">
+                          {ach.description}
+                        </Typography>
+                      </TableCell>
+                      <TableCell>
+                        <Chip label={ach.category} size="small" variant="outlined" />
+                      </TableCell>
+                      <TableCell>
+                        <Typography variant="body2" color="text.primary">
+                          {TRIGGER_LABELS[ach.triggerType] || ach.triggerType}
+                        </Typography>
+                        {matchedTag && (
+                          <Chip label={`Tag: ${matchedTag.name}`} size="small" color="primary" variant="outlined" className="mt-1" />
+                        )}
+                        {matchedEx && (
+                          <Chip label={`Übung: ${matchedEx.title}`} size="small" color="info" variant="outlined" className="mt-1" />
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        {ach.isSecret ? (
+                          <Chip icon={<VisibilityOffIcon />} label="Geheim" size="small" color="secondary" />
+                        ) : (
+                          <Chip label="Sichtbar" size="small" variant="outlined" />
+                        )}
+                      </TableCell>
+                      <TableCell align="right">
+                        <IconButton size="small" color="primary" onClick={() => handleEdit(ach)}>
+                          <EditIcon />
+                        </IconButton>
+                        <IconButton size="small" color="error" onClick={() => handleDelete(ach.id)}>
+                          <DeleteIcon />
+                        </IconButton>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
               </TableBody>
             </Table>
           </TableContainer>

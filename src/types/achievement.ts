@@ -3,6 +3,7 @@ export type AchievementTier = 'bronze' | 'silver' | 'gold' | 'platinum' | 'diamo
 export type AchievementTriggerType = 
   | 'total_exercises_count'       // Anzahl aller Übungen
   | 'specific_exercise_count'    // Anzahl einer spezifischen Übung
+  | 'exercise_tag_count'         // Anzahl eines spezifischen Übungtags
   | 'exercise_highscore'         // Bestleistung in einer Übung
   | 'league_rank'                // Platzierung in der Liga
   | 'monthly_exercise_rank'      // Platzierung in der Übung des Monats
@@ -14,6 +15,7 @@ export interface AchievementRequirement {
   tier: AchievementTier;
   threshold: number;             // Zielwert (z. B. 100 Übungen, Platz 1, 150 Punkte)
   xpReward: number;              // Punkte für dieses Level
+  titleReward?: string; // Optionaler Freischalt-Titel bei Erreichen der Stufe
 }
 
 export interface DynamicAchievement {

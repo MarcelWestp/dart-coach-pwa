@@ -1,6 +1,10 @@
 import React, { useState, useEffect } from "react";
 import type { UserProfile } from "../../types/user";
-import type { DynamicAchievement, UserAchievementProgress, AchievementTier } from "../../types/achievement";
+import type {
+  DynamicAchievement,
+  UserAchievementProgress,
+  AchievementTier,
+} from "../../types/achievement";
 import { collection, getDocs } from "firebase/firestore";
 import { db } from "../../firebase/config";
 import {
@@ -23,6 +27,7 @@ import StarIcon from "@mui/icons-material/Star";
 import ComputerIcon from "@mui/icons-material/Computer";
 import VerifiedUserIcon from "@mui/icons-material/VerifiedUser";
 import EmojiEventsIcon from "@mui/icons-material/EmojiEvents";
+import { calculateUserLevel } from "../../utils/level";
 
 const TIER_COLORS: Record<AchievementTier, { color: string; label: string }> = {
   bronze: { color: "#CD7F32", label: "Bronze" },
@@ -44,7 +49,9 @@ export const PublicProfileModal: React.FC<PublicProfileModalProps> = ({
   user,
 }) => {
   const [achievements, setAchievements] = useState<DynamicAchievement[]>([]);
-  const [userProgress, setUserProgress] = useState<Record<string, UserAchievementProgress>>({});
+  const [userProgress, setUserProgress] = useState<
+    Record<string, UserAchievementProgress>
+  >({});
   const [loadingAchievements, setLoadingAchievements] = useState(false);
 
   useEffect(() => {
@@ -59,10 +66,14 @@ export const PublicProfileModal: React.FC<PublicProfileModalProps> = ({
         ]);
 
         const fetchedAch: DynamicAchievement[] = [];
-        achSnap.forEach((d) => fetchedAch.push({ id: d.id, ...d.data() } as DynamicAchievement));
+        achSnap.forEach((d) =>
+          fetchedAch.push({ id: d.id, ...d.data() } as DynamicAchievement),
+        );
 
         const progMap: Record<string, UserAchievementProgress> = {};
-        progSnap.forEach((d) => (progMap[d.id] = d.data() as UserAchievementProgress));
+        progSnap.forEach(
+          (d) => (progMap[d.id] = d.data() as UserAchievementProgress),
+        );
 
         setAchievements(fetchedAch);
         setUserProgress(progMap);
@@ -85,6 +96,13 @@ export const PublicProfileModal: React.FC<PublicProfileModalProps> = ({
     return user.nickname || user.realName;
   };
 
+  // Gesamt-XP berechnen & Level ermitteln
+  const totalXp = Object.values(userProgress).reduce((sum, prog) => {
+    return sum + (prog.unlockedTiers?.length || 0) * 25;
+  }, 0);
+
+  const levelInfo = calculateUserLevel(totalXp);
+
   const showEquipment = user.privacySettings?.showEquipmentPublicly !== false;
   const isCoachOrAdmin =
     user.roles?.includes("coach") || user.roles?.includes("admin");
@@ -105,7 +123,7 @@ export const PublicProfileModal: React.FC<PublicProfileModalProps> = ({
       </DialogTitle>
 
       <DialogContent dividers className="flex flex-col gap-6 p-4 sm:p-6">
-        {/* Header mit Avatar & Name */}
+        {/* Header mit Avatar, Name, Level-Badge & Titel */}
         <div className="flex items-center gap-4 flex-wrap sm:flex-nowrap">
           <Avatar
             src={user.photoURL}
@@ -116,14 +134,36 @@ export const PublicProfileModal: React.FC<PublicProfileModalProps> = ({
               bgcolor: "primary.main",
               color: "primary.contrastText",
             }}
-            className="shadow-md"
+            className="shadow-md shrink-0"
           >
             {user.nickname ? user.nickname.substring(0, 2).toUpperCase() : "U"}
           </Avatar>
-          <div>
+          <div className="flex flex-col gap-1">
             <Typography variant="h5" className="font-bold" color="text.primary">
               {getDisplayName()}
             </Typography>
+
+            <Box className="flex items-center gap-2 flex-wrap">
+              {/* Dynamisches Level-Badge */}
+              <Chip
+                label={`Lvl. ${levelInfo.level}`}
+                color="primary"
+                size="small"
+                className="font-bold"
+              />
+
+              {/* Freigeschalteter & gewählter Titel */}
+              {user.activeTitle && (
+                <Chip
+                  label={`🏆 ${user.activeTitle}`}
+                  variant="outlined"
+                  color="secondary"
+                  size="small"
+                  className="font-semibold text-xs"
+                />
+              )}
+            </Box>
+
             <div className="flex flex-wrap gap-1 mt-1">
               {user.roles.map((role) => (
                 <Chip
@@ -132,16 +172,16 @@ export const PublicProfileModal: React.FC<PublicProfileModalProps> = ({
                     role === "admin"
                       ? "Admin"
                       : role === "coach"
-                      ? "Trainer"
-                      : "Spieler"
+                        ? "Trainer"
+                        : "Spieler"
                   }
                   size="small"
                   color={
                     role === "admin"
                       ? "error"
                       : role === "coach"
-                      ? "secondary"
-                      : "default"
+                        ? "secondary"
+                        : "default"
                   }
                 />
               ))}
@@ -157,13 +197,23 @@ export const PublicProfileModal: React.FC<PublicProfileModalProps> = ({
           sx={{ bgcolor: "background.paper", borderColor: "divider", p: 2 }}
           className="flex flex-col gap-3"
         >
-          <Typography
-            variant="h6"
-            className="font-bold flex items-center gap-2"
-            color="primary"
-          >
-            <EmojiEventsIcon sx={{ color: "#FFD700" }} /> Erfolge & Auszeichnungen
-          </Typography>
+          <div className="flex justify-between items-center flex-wrap gap-2">
+            <Typography
+              variant="h6"
+              className="font-bold flex items-center gap-2"
+              color="primary"
+            >
+              <EmojiEventsIcon sx={{ color: "#FFD700" }} /> Erfolge &
+              Auszeichnungen
+            </Typography>
+            <Chip
+              icon={<EmojiEventsIcon />}
+              label={`${totalXp} XP`}
+              color="primary"
+              size="small"
+              className="font-bold text-xs"
+            />
+          </div>
 
           {loadingAchievements ? (
             <Box className="flex justify-center p-3">
@@ -173,19 +223,33 @@ export const PublicProfileModal: React.FC<PublicProfileModalProps> = ({
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               {unlockedAchievements.map((ach) => {
                 const prog = userProgress[ach.id];
-                const highestTier = prog.unlockedTiers[prog.unlockedTiers.length - 1];
-                const tierInfo = TIER_COLORS[highestTier] || { color: "#FFD700", label: highestTier };
+                const highestTier =
+                  prog.unlockedTiers[prog.unlockedTiers.length - 1];
+                const tierInfo = TIER_COLORS[highestTier] || {
+                  color: "#FFD700",
+                  label: highestTier,
+                };
 
                 return (
                   <Paper
                     key={ach.id}
                     variant="outlined"
-                    sx={{ bgcolor: "action.hover", borderColor: "divider", p: 2 }}
+                    sx={{
+                      bgcolor: "action.hover",
+                      borderColor: "divider",
+                      p: 2,
+                    }}
                     className="flex items-center gap-3"
                   >
-                    <EmojiEventsIcon sx={{ fontSize: 32, color: tierInfo.color }} />
-                    <Box>
-                      <Typography variant="subtitle2" className="font-bold" color="text.primary">
+                    <EmojiEventsIcon
+                      sx={{ fontSize: 32, color: tierInfo.color }}
+                    />
+                    <Box className="overflow-hidden">
+                      <Typography
+                        variant="subtitle2"
+                        className="font-bold truncate"
+                        color="text.primary"
+                      >
                         {ach.title}
                       </Typography>
                       <Chip
@@ -205,7 +269,11 @@ export const PublicProfileModal: React.FC<PublicProfileModalProps> = ({
               })}
             </div>
           ) : (
-            <Typography variant="body2" color="text.secondary" className="italic">
+            <Typography
+              variant="body2"
+              color="text.secondary"
+              className="italic"
+            >
               Dieser Spieler hat bisher noch keine Erfolge freigeschaltet.
             </Typography>
           )}
@@ -382,7 +450,7 @@ export const PublicProfileModal: React.FC<PublicProfileModalProps> = ({
                         >
                           Gültig bis:{" "}
                           {new Date(license.validUntil).toLocaleDateString(
-                            "de-DE"
+                            "de-DE",
                           )}
                         </Typography>
                       )}

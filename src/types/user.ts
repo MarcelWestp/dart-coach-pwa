@@ -65,4 +65,6 @@ export interface UserProfile {
   dashboardWidgets?: WidgetConfig[];
   favoriteExerciseIds?: string[]; // Liste der IDs der Lieblingsübungen
   trainerLicenses?: TrainerLicense[]; // Neu: Liste der Lizenzen
+  activeTitle?: string;         // Der vom Spieler gewählte, angezeigte Titel
+  unlockedTitles?: string[];    // Liste aller freigeschalteten Titel
 }

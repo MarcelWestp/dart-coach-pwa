@@ -98,10 +98,10 @@ export const PlayerPlanView: React.FC = () => {
         }
       });
 
+      // Korrektur: Dokumenten-ID für testResults erhalten
       const fetchedResults: TestResult[] = [];
       resultsSnap.forEach((d) => {
         const data = d.data();
-        delete data.id;
         fetchedResults.push({ id: d.id, ...data } as TestResult);
       });
 
@@ -260,14 +260,12 @@ export const PlayerPlanView: React.FC = () => {
     const { blockId, exIndex } = selectedExerciseToRecord;
     const nowIso = new Date().toISOString();
 
-    // 1. Blöcke im lokalen State kopieren und completedAt setzen
     const updatedBlocks = [...activePlan.blocks];
     const blockIdx = updatedBlocks.findIndex((b) => b.id === blockId);
     if (blockIdx !== -1) {
       updatedBlocks[blockIdx].exercises[exIndex].completedAt = nowIso;
     }
 
-    // 2. Prüfen, ob der gesamte Plan nun abgeschlossen ist
     const allExercisesCompleted = updatedBlocks.every((b) =>
       b.exercises.every((e) => !!e.completedAt)
     );
@@ -277,7 +275,6 @@ export const PlayerPlanView: React.FC = () => {
       allExercisesCompleted && testCompleted ? "completed" : "in_progress";
 
     try {
-      // 3. In Firestore aktualisieren (Collection: assignedPlans)
       const planRef = doc(db, "assignedPlans", activePlan.id);
       await updateDoc(planRef, {
         blocks: updatedBlocks,
@@ -285,7 +282,6 @@ export const PlayerPlanView: React.FC = () => {
         updatedAt: nowIso,
       });
 
-      // 4. UI-States aktualisieren
       const updatedPlan = {
         ...activePlan,
         blocks: updatedBlocks,
@@ -296,6 +292,7 @@ export const PlayerPlanView: React.FC = () => {
         prev.map((p) => (p.id === activePlan.id ? updatedPlan : p))
       );
       setSelectedExerciseToRecord(null);
+      await fetchData();
     } catch (err) {
       console.error(err);
       setError("Fehler beim Aktualisieren des Plan-Fortschritts.");
@@ -653,15 +650,15 @@ export const PlayerPlanView: React.FC = () => {
                       const isDone = !!bEx.completedAt;
                       const isEditable = canEditResult(bEx.completedAt);
 
+                      // Zuordnung des Testergebnisses über scoreResultId oder Übungs-ID
                       const matchingResult = testResults.find((r) => {
-                        if (
-                          bEx.scoreResultId &&
-                          r.id === bEx.scoreResultId
-                        )
+                        if (bEx.scoreResultId && r.id === bEx.scoreResultId) {
                           return true;
+                        }
                         return (
-                          r.exerciseId === bEx.exerciseId ||
-                          r.testId === bEx.exerciseId
+                          r.userId === userProfile?.uid &&
+                          (r.exerciseId === bEx.exerciseId || r.testId === bEx.exerciseId) &&
+                          r.completedAt === bEx.completedAt
                         );
                       });
 
@@ -705,7 +702,7 @@ export const PlayerPlanView: React.FC = () => {
                                 {exerciseObj ? exerciseObj.title : "Übung"}
                               </Typography>
 
-                              {/* ZEITVORGABE DES TRAINERS ANZEIGEN (falls gesetzt) */}
+                              {/* Zeitvorgabe des Trainers */}
                               {bEx.durationMinutes &&
                                 bEx.durationMinutes > 0 && (
                                   <Chip
@@ -718,7 +715,7 @@ export const PlayerPlanView: React.FC = () => {
                                 )}
                             </div>
 
-                            {/* ANZEIGE DER ERREICHTEN PUNKTZAHL UND/ODER DES DATUMS */}
+                            {/* Anzeige der Punktzahl / des Erledigungsdatums */}
                             {isDone && (
                               <div className="mt-1 flex items-center gap-1.5 flex-wrap">
                                 <Chip

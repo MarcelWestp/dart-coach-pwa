@@ -11,6 +11,11 @@ import { db } from "../../firebase/config";
 import { useAuth } from "../../context/AuthContext";
 import { RecordResultModal } from "../exercises/RecordResultModal";
 import { SendCoachMessageModal } from "../profile/SendCoachMessageModal";
+import {
+  getUserMonthlyChallenge,
+  getCurrentMonthYear,
+} from "../../services/challengeService";
+import type { UserMonthlyChallenge } from "../../types/challenge";
 import type {
   DynamicAchievement,
   UserAchievementProgress,
@@ -53,7 +58,9 @@ import PlayArrowIcon from "@mui/icons-material/PlayArrow";
 import HelpIcon from "@mui/icons-material/Help";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import ChatIcon from "@mui/icons-material/Chat";
+import MilitaryTechIcon from "@mui/icons-material/MilitaryTech";
 import { MailOutlined } from "@mui/icons-material";
+import type { WidgetConfig } from "../../types/user";
 
 const TIER_COLORS: Record<AchievementTier, { color: string; label: string }> = {
   bronze: { color: "#CD7F32", label: "Bronze" },
@@ -63,13 +70,6 @@ const TIER_COLORS: Record<AchievementTier, { color: string; label: string }> = {
   diamond: { color: "#B9F2FF", label: "Diamant" },
 };
 
-interface WidgetConfig {
-  id: string;
-  title: string;
-  enabled: boolean;
-  required?: boolean;
-}
-
 const DEFAULT_WIDGETS: WidgetConfig[] = [
   {
     id: "notifications",
@@ -78,6 +78,7 @@ const DEFAULT_WIDGETS: WidgetConfig[] = [
     required: true,
   },
   { id: "trainingPlan", title: "Fortschritt Trainingsplan", enabled: true },
+  { id: "monthlyChallenge", title: "Monatliche Challenge", enabled: true },
   { id: "performanceTest", title: "Leistungstest", enabled: true },
   {
     id: "coachMessage",
@@ -139,6 +140,8 @@ export const DashboardLandingPage: React.FC<DashboardLandingPageProps> = ({
   const [exercises, setExercises] = useState<any[]>([]);
   const [monthlyConfigs, setMonthlyConfigs] = useState<any[]>([]);
   const [users, setUsers] = useState<any[]>([]);
+  const [userMonthlyChallenge, setUserMonthlyChallenge] =
+    useState<UserMonthlyChallenge | null>(null);
 
   // Achievements Daten
   const [achievements, setAchievements] = useState<DynamicAchievement[]>([]);
@@ -201,7 +204,7 @@ export const DashboardLandingPage: React.FC<DashboardLandingPageProps> = ({
         const qNotif = query(
           collection(db, "notifications"),
           where("userId", "==", userProfile.uid),
-          where("read", "==", false),
+          where("read", "==", false)
         );
         const notifSnap = await getDocs(qNotif);
         const fetchedNotifs: any[] = [];
@@ -215,7 +218,7 @@ export const DashboardLandingPage: React.FC<DashboardLandingPageProps> = ({
       try {
         const qPlans = query(
           collection(db, "assignedPlans"),
-          where("playerId", "==", userProfile.uid),
+          where("playerId", "==", userProfile.uid)
         );
         const planSnap = await getDocs(qPlans);
         const fetchedPlans: any[] = [];
@@ -229,7 +232,7 @@ export const DashboardLandingPage: React.FC<DashboardLandingPageProps> = ({
       try {
         const qTests = query(
           collection(db, "assignedPerformanceTests"),
-          where("playerId", "==", userProfile.uid),
+          where("playerId", "==", userProfile.uid)
         );
         const testSnap = await getDocs(qTests);
         const fetchedTests: any[] = [];
@@ -264,26 +267,38 @@ export const DashboardLandingPage: React.FC<DashboardLandingPageProps> = ({
         const monthlySnap = await getDocs(collection(db, "monthlyExercises"));
         const fetchedMonthly: any[] = [];
         monthlySnap.forEach((d) =>
-          fetchedMonthly.push({ id: d.id, ...d.data() }),
+          fetchedMonthly.push({ id: d.id, ...d.data() })
         );
         setMonthlyConfigs(fetchedMonthly);
       } catch (e) {
         console.warn("Fehler beim Laden der Monatskonfigurationen", e);
       }
 
-      // 7. Nutzerliste
+      // 7. Monatliche Challenge
+      try {
+        const currentMonthYear = getCurrentMonthYear();
+        const challengeData = await getUserMonthlyChallenge(
+          userProfile.uid,
+          currentMonthYear
+        );
+        setUserMonthlyChallenge(challengeData);
+      } catch (e) {
+        console.warn("Fehler beim Laden der Monatlichen Challenge", e);
+      }
+
+      // 8. Nutzerliste
       try {
         const userSnap = await getDocs(collection(db, "users"));
         const fetchedUsers: any[] = [];
         userSnap.forEach((d) =>
-          fetchedUsers.push({ uid: d.id, id: d.id, ...d.data() }),
+          fetchedUsers.push({ uid: d.id, id: d.id, ...d.data() })
         );
         setUsers(fetchedUsers);
       } catch (e) {
         console.warn("Fehler beim Laden der Nutzerliste", e);
       }
 
-      // 8. Achievements & Fortschritt
+      // 9. Achievements & Fortschritt
       try {
         const [achSnap, progSnap] = await Promise.all([
           getDocs(collection(db, "achievements")),
@@ -292,12 +307,12 @@ export const DashboardLandingPage: React.FC<DashboardLandingPageProps> = ({
 
         const fetchedAch: DynamicAchievement[] = [];
         achSnap.forEach((d) =>
-          fetchedAch.push({ id: d.id, ...d.data() } as DynamicAchievement),
+          fetchedAch.push({ id: d.id, ...d.data() } as DynamicAchievement)
         );
 
         const progMap: Record<string, UserAchievementProgress> = {};
         progSnap.forEach(
-          (d) => (progMap[d.id] = d.data() as UserAchievementProgress),
+          (d) => (progMap[d.id] = d.data() as UserAchievementProgress)
         );
 
         setAchievements(fetchedAch);
@@ -321,7 +336,7 @@ export const DashboardLandingPage: React.FC<DashboardLandingPageProps> = ({
 
   const saveWidgetsToFirestore = async (
     updatedWidgets: WidgetConfig[],
-    updatedFavorites?: string[],
+    updatedFavorites?: string[]
   ) => {
     if (!userProfile) return;
     setSaving(true);
@@ -365,7 +380,7 @@ export const DashboardLandingPage: React.FC<DashboardLandingPageProps> = ({
 
   const handleToggleWidget = (id: string) => {
     const newWidgets = widgets.map((w) =>
-      w.id === id && !w.required ? { ...w, enabled: !w.enabled } : w,
+      w.id === id && !w.required ? { ...w, enabled: !w.enabled } : w
     );
     setWidgets(newWidgets);
     saveWidgetsToFirestore(newWidgets);
@@ -392,7 +407,7 @@ export const DashboardLandingPage: React.FC<DashboardLandingPageProps> = ({
         const hasResult = testResults.some(
           (r) =>
             r.userId === userProfile?.uid &&
-            (r.exerciseId === ex.exerciseId || r.testId === ex.exerciseId),
+            (r.exerciseId === ex.exerciseId || r.testId === ex.exerciseId)
         );
         if (hasResult || ex.completed || ex.completedAt) completedExercises++;
       });
@@ -414,10 +429,10 @@ export const DashboardLandingPage: React.FC<DashboardLandingPageProps> = ({
   const currentMonth = now.getMonth() + 1;
   const currentYear = now.getFullYear();
   const currentMonthlyConfig = monthlyConfigs.find(
-    (m) => m.month === currentMonth && m.year === currentYear,
+    (m) => m.month === currentMonth && m.year === currentYear
   );
   const monthlyExercise = exercises.find(
-    (e) => e.id === currentMonthlyConfig?.exerciseId,
+    (e) => e.id === currentMonthlyConfig?.exerciseId
   );
 
   const scoresByUser: { [userId: string]: number } = {};
@@ -449,7 +464,7 @@ export const DashboardLandingPage: React.FC<DashboardLandingPageProps> = ({
   const top3Monthly = monthlyLeaderboard.slice(0, 3);
   const userMonthlyIndex = monthlyLeaderboard.findIndex(
     (item) =>
-      item.user?.uid === userProfile?.uid || item.user?.id === userProfile?.uid,
+      item.user?.uid === userProfile?.uid || item.user?.id === userProfile?.uid
   );
   const userMonthlyEntry =
     userMonthlyIndex !== -1 ? monthlyLeaderboard[userMonthlyIndex] : null;
@@ -470,18 +485,18 @@ export const DashboardLandingPage: React.FC<DashboardLandingPageProps> = ({
   sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
   const recentResults = testResults.filter(
     (r) =>
-      r.userId === userProfile?.uid && new Date(r.completedAt) >= sevenDaysAgo,
+      r.userId === userProfile?.uid && new Date(r.completedAt) >= sevenDaysAgo
   );
   const totalPoints7Days = recentResults.reduce(
     (sum, r) => sum + (r.totalPoints || r.points || 0),
-    0,
+    0
   );
   const avgHitRate7Days =
     recentResults.length > 0
       ? (
           recentResults.reduce(
             (sum, r) => sum + (r.hitRate || r.accuracy || 0),
-            0,
+            0
           ) / recentResults.length
         ).toFixed(1)
       : "0";
@@ -607,6 +622,123 @@ export const DashboardLandingPage: React.FC<DashboardLandingPageProps> = ({
             )}
           </Paper>
         );
+
+      case "monthlyChallenge": {
+        const completedCount =
+          userMonthlyChallenge?.tasks.filter((t) => t.completed).length || 0;
+        const isFinished = completedCount === 7;
+
+        return (
+          <Paper
+            variant="outlined"
+            sx={{
+              p: { xs: 2, sm: 3 },
+              bgcolor: "background.paper",
+              borderColor: "divider",
+            }}
+            className="shadow-sm flex flex-col justify-between"
+          >
+            <div>
+              <div className="flex items-center justify-between gap-2 mb-3">
+                <div className="flex items-center gap-2">
+                  <MilitaryTechIcon color="primary" />
+                  <Typography
+                    variant={isMobile ? "subtitle1" : "h6"}
+                    className="font-bold text-sm sm:text-base"
+                    color="text.primary"
+                  >
+                    Monatliche Challenge
+                  </Typography>
+                </div>
+
+                {userMonthlyChallenge && (
+                  <Chip
+                    label={userMonthlyChallenge.difficulty.toUpperCase()}
+                    size="small"
+                    sx={{
+                      bgcolor:
+                        userMonthlyChallenge.difficulty === "gold"
+                          ? "#ffd700"
+                          : userMonthlyChallenge.difficulty === "silver"
+                          ? "#c0c0c0"
+                          : "#cd7f32",
+                      color:
+                        userMonthlyChallenge.difficulty === "silver"
+                          ? "#000"
+                          : "#fff",
+                      fontWeight: "bold",
+                    }}
+                  />
+                )}
+              </div>
+
+              {!userMonthlyChallenge ? (
+                <Typography
+                  variant="body2"
+                  color="text.secondary"
+                  className="mb-4 text-xs sm:text-sm"
+                >
+                  Du hast für diesen Monat noch keine Schwierigkeitsstufe gewählt.
+                  Starte jetzt deine 7 Monats-Aufgaben!
+                </Typography>
+              ) : (
+                <div className="space-y-2 mb-4">
+                  <div className="flex justify-between items-center text-xs sm:text-sm font-semibold">
+                    <span className="text-stone-600 dark:text-stone-300">
+                      Fortschritt:
+                    </span>
+                    <span className="text-primary font-bold">
+                      {completedCount} / 7 Aufgaben
+                    </span>
+                  </div>
+                  <LinearProgress
+                    variant="determinate"
+                    value={(completedCount / 7) * 100}
+                    color={isFinished ? "success" : "primary"}
+                    sx={{ height: 8, borderRadius: 4 }}
+                  />
+                  {isFinished && (
+                    <Typography
+                      variant="caption"
+                      color="success.main"
+                      className="font-bold block mt-1"
+                    >
+                      🎉 Alle Aufgaben erledigt in {userMonthlyChallenge.daysNeeded}{" "}
+                      Tag(en)!
+                    </Typography>
+                  )}
+                </div>
+              )}
+            </div>
+
+            <div className="flex gap-2 mt-2">
+              <Button
+                variant="contained"
+                color="primary"
+                size="small"
+                fullWidth
+                onClick={() => onNavigate("monthly-challenge")}
+                className="text-xs sm:text-sm"
+              >
+                {userMonthlyChallenge
+                  ? "Zur Trainingskarte"
+                  : "Challenge Starten"}
+              </Button>
+              {userMonthlyChallenge && isFinished && (
+                <Button
+                  variant="outlined"
+                  color="success"
+                  size="small"
+                  onClick={() => onNavigate("monthly-challenge-leaderboard")}
+                  className="text-xs sm:text-sm"
+                >
+                  Rangliste
+                </Button>
+              )}
+            </div>
+          </Paper>
+        );
+      }
 
       case "performanceTest":
         return (

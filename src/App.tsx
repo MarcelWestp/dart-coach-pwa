@@ -19,6 +19,12 @@ import { PlayerStatsView } from "./features/stats/PlayerStatsView";
 import { CoachStatsView } from "./features/stats/CoachStatsView";
 import { CoachMessagesView } from "./features/coach/CoachMessagesView";
 import { DashboardLandingPage } from "./features/dashboard/DashboardLandingPage";
+import { PlayerAchievementsView } from "./features/achievements/PlayerAchievementsView";
+import { MonthlyChallengeCard } from "./features/challenge/MonthlyChallengeCard";
+import { MonthlyChallengeLeaderboard } from "./features/challenge/MonthlyChallengeLeaderboard";
+import { AdminChallengeManager } from "./features/admin/AdminChallengeManager";
+import type { ChallengeDifficulty } from "./types/challenge";
+
 import {
   Paper,
   Box,
@@ -34,7 +40,6 @@ import FitnessCenterIcon from "@mui/icons-material/FitnessCenter";
 import MenuBookIcon from "@mui/icons-material/MenuBook";
 import SupervisorAccountIcon from "@mui/icons-material/SupervisorAccount";
 import AdminPanelSettingsIcon from "@mui/icons-material/AdminPanelSettings";
-import { PlayerAchievementsView } from "./features/achievements/PlayerAchievementsView";
 
 const MainContent: React.FC = () => {
   const { currentUser, userProfile, loading } = useAuth();
@@ -47,9 +52,13 @@ const MainContent: React.FC = () => {
   // Navigations-State
   const [activeView, setActiveView] = useState<string>("dashboard");
 
+  // State für die monatliche Challenge-Stufe (Rangliste)
+  const [challengeDifficulty, setChallengeDifficulty] =
+    useState<ChallengeDifficulty>("bronze");
+
   // Dropdown Menü-Anchors
   const [trainingAnchor, setTrainingAnchor] = useState<null | HTMLElement>(
-    null,
+    null
   );
   const [libraryAnchor, setLibraryAnchor] = useState<null | HTMLElement>(null);
   const [coachAnchor, setCoachAnchor] = useState<null | HTMLElement>(null);
@@ -136,9 +145,15 @@ const MainContent: React.FC = () => {
               startIcon={<FitnessCenterIcon fontSize="small" />}
               endIcon={<KeyboardArrowDownIcon fontSize="small" />}
               variant={
-                ["dashboard", "player-plan", "league", "player-stats"].includes(
-                  activeView,
-                )
+                [
+                  "dashboard",
+                  "player-plan",
+                  "league",
+                  "monthly-challenge",
+                  "monthly-challenge-leaderboard",
+                  "player-stats",
+                  "player-achievements",
+                ].includes(activeView)
                   ? "contained"
                   : "text"
               }
@@ -160,6 +175,10 @@ const MainContent: React.FC = () => {
               </MenuItem>
               <MenuItem onClick={() => handleSelectView("league")}>
                 Trainingsliga & Ranglisten
+              </MenuItem>
+              {/* NEU: Monatliche Herausforderung */}
+              <MenuItem onClick={() => handleSelectView("monthly-challenge")}>
+                Monatliche Herausforderung
               </MenuItem>
               <MenuItem onClick={() => handleSelectView("player-stats")}>
                 Meine Statistiken
@@ -252,7 +271,11 @@ const MainContent: React.FC = () => {
                   startIcon={<AdminPanelSettingsIcon fontSize="small" />}
                   endIcon={<KeyboardArrowDownIcon fontSize="small" />}
                   variant={
-                    ["admin-league", "admin-dashboard"].includes(activeView)
+                    [
+                      "admin-league",
+                      "admin-challenges",
+                      "admin-dashboard",
+                    ].includes(activeView)
                       ? "contained"
                       : "text"
                   }
@@ -268,6 +291,9 @@ const MainContent: React.FC = () => {
                 >
                   <MenuItem onClick={() => handleSelectView("admin-league")}>
                     Liga-Verwaltung
+                  </MenuItem>
+                  <MenuItem onClick={() => handleSelectView("admin-challenges")}>
+                    Challenge-Pool Verwaltung
                   </MenuItem>
                   <MenuItem onClick={() => handleSelectView("admin-dashboard")}>
                     Admin-Dashboard
@@ -289,6 +315,23 @@ const MainContent: React.FC = () => {
           )}
           {activeView === "player-plan" && <PlayerPlanView />}
           {activeView === "league" && <LeagueView />}
+
+          {/* MONATLICHE HERAUSFORDERUNG */}
+          {activeView === "monthly-challenge" && (
+            <MonthlyChallengeCard
+              onOpenLeaderboard={(diff) => {
+                setChallengeDifficulty(diff);
+                setActiveView("monthly-challenge-leaderboard");
+              }}
+            />
+          )}
+          {activeView === "monthly-challenge-leaderboard" && (
+            <MonthlyChallengeLeaderboard
+              initialDifficulty={challengeDifficulty}
+              onBackToCard={() => setActiveView("monthly-challenge")}
+            />
+          )}
+
           {activeView === "player-stats" && <PlayerStatsView />}
           {activeView === "exercises" && <ExerciseList />}
           {activeView === "tests" && <TestList />}
@@ -300,6 +343,11 @@ const MainContent: React.FC = () => {
           {isCoach && activeView === "coach-stats" && <CoachStatsView />}
           {isCoach && activeView === "coach-messages" && <CoachMessagesView />}
           {isAdmin && activeView === "admin-league" && <AdminLeagueManager />}
+          {isAdmin && activeView === "admin-challenges" && (
+            <ProtectedRoute allowedRoles={["admin"]}>
+              <AdminChallengeManager />
+            </ProtectedRoute>
+          )}
           {isAdmin && activeView === "admin-dashboard" && (
             <ProtectedRoute allowedRoles={["admin"]}>
               <AdminDashboard />

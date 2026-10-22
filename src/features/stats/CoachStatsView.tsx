@@ -117,6 +117,7 @@ export const CoachStatsView: React.FC = () => {
       const fetchedExercises: Exercise[] = [];
       exercisesSnap.forEach((d) => {
         const data = d.data();
+        delete data.id;
         fetchedExercises.push({ id: d.id, ...data } as Exercise);
       });
 
@@ -151,15 +152,14 @@ export const CoachStatsView: React.FC = () => {
   // Hilfsfunktion zur Ermittlung des Übungsnamens
   const getExerciseName = (
     exerciseId?: string,
-    testId?: string,
-    fallbackType?: string
+    testId?: string
   ) => {
     const idToFind = exerciseId || testId;
     if (idToFind) {
       const found = exercises.find((e) => e.id === idToFind);
       if (found) return found.title;
     }
-    return fallbackType || "Allgemeine Übung";
+    return "Allgemeine Übung";
   };
 
   // Hilfsfunktion zur Ermittlung der eindeutigen Übungs-ID
@@ -176,8 +176,7 @@ export const CoachStatsView: React.FC = () => {
       id,
       name: getExerciseName(
         (sampleRes as any)?.exerciseId,
-        sampleRes?.testId,
-        sampleRes?.exerciseType
+        sampleRes?.testId
       ),
     };
   });
@@ -191,7 +190,7 @@ export const CoachStatsView: React.FC = () => {
   const activeGroup = groups.find((g) => g.id === selectedGroupId);
   const filteredPlayers = players.filter((p) => {
     if (selectedGroupId !== "all") {
-      const isMember = activeGroup ? activeGroup.memberIds?.includes(p.uid) || activeGroup.memberIds?.includes(p.uid) : true;
+      const isMember = activeGroup ? activeGroup.memberIds?.includes(p.uid) : true;
       if (!isMember) return false;
     }
     if (selectedPlayerId !== "all") {
@@ -323,7 +322,7 @@ export const CoachStatsView: React.FC = () => {
   const selectablePlayers = players.filter((p) => {
     if (selectedGroupId === "all") return true;
     return activeGroup
-      ? activeGroup.memberIds?.includes(p.uid) || activeGroup.memberIds?.includes(p.uid)
+      ? activeGroup.memberIds?.includes(p.uid)
       : true;
   });
 

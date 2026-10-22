@@ -444,7 +444,7 @@ export const CreatePlanModal: React.FC<CreatePlanModalProps> = ({
               </MenuItem>
               {allTests.map((t) => (
                 <MenuItem key={t.id} value={t.id}>
-                  {t.title} ({t.exerciseType.toUpperCase()})
+                  {t.title}
                 </MenuItem>
               ))}
             </Select>
@@ -537,7 +537,7 @@ export const CreatePlanModal: React.FC<CreatePlanModalProps> = ({
                     </MenuItem>
                     {allExercises.map((ex) => (
                       <MenuItem key={ex.id} value={ex.id}>
-                        {ex.title} ({ex.type})
+                        {ex.title}
                       </MenuItem>
                     ))}
                   </Select>

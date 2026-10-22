@@ -607,7 +607,7 @@ export const AdminLeagueManager: React.FC = () => {
               >
                 {exercises.map((ex) => (
                   <MenuItem key={ex.id} value={ex.id}>
-                    {ex.title} ({ex.type})
+                    {ex.title}
                   </MenuItem>
                 ))}
               </Select>

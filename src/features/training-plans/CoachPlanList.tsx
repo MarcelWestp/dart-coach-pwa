@@ -1452,7 +1452,7 @@ export const CoachPlanList: React.FC<CoachPlanListProps> = () => {
                   >
                     {exercises.map((e) => (
                       <MenuItem key={e.id} value={e.id}>
-                        {e.title} ({e.type})
+                        {e.title}
                       </MenuItem>
                     ))}
                   </Select>

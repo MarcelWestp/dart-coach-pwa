@@ -10,7 +10,6 @@ import { db } from "../../firebase/config";
 import { useAuth } from "../../context/AuthContext";
 import type {
   Tag,
-  ExerciseType,
   Exercise,
   ExerciseResultType,
   ScoreDirection,
@@ -55,7 +54,6 @@ export const CreateExerciseModal: React.FC<CreateExerciseModalProps> = ({
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [instructions, setInstructions] = useState("");
-  const [type, setType] = useState<ExerciseType>("scoring");
   const [resultType, setResultType] = useState<ExerciseResultType>("points");
   const [scoreDirection, setScoreDirection] =
     useState<ScoreDirection>("higher_is_better");
@@ -85,15 +83,15 @@ export const CreateExerciseModal: React.FC<CreateExerciseModalProps> = ({
         setTitle(exerciseToEdit.title || "");
         setDescription(exerciseToEdit.description || "");
         setInstructions(exerciseToEdit.instructions || "");
-        setType(exerciseToEdit.type || "scoring");
         setResultType(exerciseToEdit.resultType || "points");
-        setScoreDirection(exerciseToEdit.scoreDirection || "higher_is_better");
+        setScoreDirection(
+          exerciseToEdit.scoreDirection || "higher_is_better"
+        );
         setSelectedTagIds(exerciseToEdit.tagIds || []);
       } else {
         setTitle("");
         setDescription("");
         setInstructions("");
-        setType("scoring");
         setResultType("points");
         setScoreDirection("higher_is_better");
         setSelectedTagIds([]);
@@ -111,28 +109,26 @@ export const CreateExerciseModal: React.FC<CreateExerciseModalProps> = ({
 
     try {
       if (exerciseToEdit) {
-        // Bestehende Übung aktualisieren
+        // Bestehende Übung aktualisieren (ohne type)
         const exerciseRef = doc(db, "exercises", exerciseToEdit.id);
         await updateDoc(exerciseRef, {
           title: title.trim(),
           description: description.trim(),
           instructions: instructions.trim(),
-          type,
           resultType,
           scoreDirection,
           tagIds: selectedTagIds,
           updatedAt: new Date().toISOString(),
         });
       } else {
-        // Neue Übung erstellen
+        // Neue Übung erstellen (ohne type)
         const isSystemStandard = Boolean(
-          userProfile.roles && userProfile.roles.includes("admin"),
+          userProfile.roles && userProfile.roles.includes("admin")
         );
         await addDoc(collection(db, "exercises"), {
           title: title.trim(),
           description: description.trim(),
           instructions: instructions.trim(),
-          type,
           resultType,
           scoreDirection,
           tagIds: selectedTagIds,
@@ -184,21 +180,6 @@ export const CreateExerciseModal: React.FC<CreateExerciseModalProps> = ({
             value={title}
             onChange={(e) => setTitle(e.target.value)}
           />
-
-          <FormControl fullWidth required>
-            <InputLabel id="exercise-type-label">Übungskategorie</InputLabel>
-            <Select
-              labelId="exercise-type-label"
-              value={type}
-              label="Übungskategorie"
-              onChange={(e) => setType(e.target.value as ExerciseType)}
-            >
-              <MenuItem value="scoring">Scoring</MenuItem>
-              <MenuItem value="check">Check</MenuItem>
-              <MenuItem value="rules">Regeln/Sonstiges</MenuItem>
-              <MenuItem value="technique">Technik</MenuItem>
-            </Select>
-          </FormControl>
 
           {/* Ergebnistyp Auswahl */}
           <FormControl fullWidth required>
@@ -282,7 +263,7 @@ export const CreateExerciseModal: React.FC<CreateExerciseModalProps> = ({
                 setSelectedTagIds(
                   typeof e.target.value === "string"
                     ? e.target.value.split(",")
-                    : e.target.value,
+                    : e.target.value
                 )
               }
               input={<OutlinedInput label="Tags zuweisen" />}
@@ -324,8 +305,8 @@ export const CreateExerciseModal: React.FC<CreateExerciseModalProps> = ({
             {loading
               ? "Speichert..."
               : exerciseToEdit
-                ? "Änderungen Speichern"
-                : "Übung Erstellen"}
+              ? "Änderungen Speichern"
+              : "Übung Erstellen"}
           </Button>
         </DialogActions>
       </form>

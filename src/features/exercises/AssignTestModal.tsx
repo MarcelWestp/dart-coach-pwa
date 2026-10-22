@@ -191,7 +191,6 @@ export const AssignTestModal: React.FC<AssignTestModalProps> = ({
           testId: testToAssign.id,
           title: testToAssign.title,
           description: testToAssign.description || "",
-          exerciseType: testToAssign.exerciseType,
           exerciseIds: testToAssign.exerciseIds,
           coachId: userProfile.uid,
           playerId: pId,
@@ -230,7 +229,7 @@ export const AssignTestModal: React.FC<AssignTestModalProps> = ({
       <DialogTitle className="font-bold">
         Leistungstest zuweisen: {testToAssign?.title || "Unbekannter Test"}
       </DialogTitle>
-      
+
       <DialogContent dividers className="flex flex-col gap-4">
         {error && <Alert severity="error">{error}</Alert>}
 

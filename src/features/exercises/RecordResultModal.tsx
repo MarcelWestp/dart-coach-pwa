@@ -108,11 +108,10 @@ export const RecordResultModal: React.FC<RecordResultModalProps> = ({
           };
         });
 
-        // 1. Ergebnis in Firestore speichern
+        // 1. Ergebnis in Firestore speichern (ohne starres exerciseType)
         await addDoc(collection(db, "testResults"), {
           testId: test.id,
           userId: userProfile.uid,
-          exerciseType: test.exerciseType,
           totalPoints,
           exerciseScores,
           completedAt,
@@ -138,11 +137,10 @@ export const RecordResultModal: React.FC<RecordResultModalProps> = ({
       } else if (exercise) {
         const points = scores[exercise.id] || 0;
 
-        // 1. Ergebnis in Firestore speichern
+        // 1. Ergebnis für Einzelübung in Firestore speichern
         await addDoc(collection(db, "testResults"), {
           exerciseId: exercise.id,
           userId: userProfile.uid,
-          exerciseType: exercise.type,
           totalPoints: points,
           exerciseScores: [
             {

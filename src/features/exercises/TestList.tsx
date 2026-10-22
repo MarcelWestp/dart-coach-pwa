@@ -337,13 +337,6 @@ export const TestList: React.FC = () => {
                   )}
                 </div>
 
-                <Chip
-                  label={`Typ: ${test.exerciseType.toUpperCase()}`}
-                  size="small"
-                  color="secondary"
-                  className="mb-3"
-                />
-
                 <Typography
                   variant="body2"
                   color="text.secondary"

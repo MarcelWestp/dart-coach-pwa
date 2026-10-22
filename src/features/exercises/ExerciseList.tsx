@@ -41,7 +41,6 @@ export const ExerciseList: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
 
   const [selectedTagFilter, setSelectedTagFilter] = useState<string>("all");
-  const [selectedTypeFilter, setSelectedTypeFilter] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState<string>("");
 
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
@@ -115,29 +114,12 @@ export const ExerciseList: React.FC = () => {
     const matchesTag =
       selectedTagFilter === "all" ||
       (ex.tagIds && ex.tagIds.includes(selectedTagFilter));
-    const matchesType =
-      selectedTypeFilter === "all" || ex.type === selectedTypeFilter;
     const matchesSearch =
       ex.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
       (ex.description &&
         ex.description.toLowerCase().includes(searchQuery.toLowerCase()));
-    return matchesTag && matchesType && matchesSearch;
+    return matchesTag && matchesSearch;
   });
-
-  const getTypeName = (type: string) => {
-    switch (type) {
-      case "scoring":
-        return "Scoring";
-      case "check":
-        return "Check";
-      case "rules":
-        return "Regeln/Sonstiges";
-      case "technique":
-        return "Technik";
-      default:
-        return type;
-    }
-  };
 
   if (loading) {
     return (
@@ -187,7 +169,7 @@ export const ExerciseList: React.FC = () => {
       )}
 
       {/* Filterbereich */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <TextField
           label="Suche"
           variant="outlined"
@@ -211,22 +193,6 @@ export const ExerciseList: React.FC = () => {
                 {tag.name}
               </MenuItem>
             ))}
-          </Select>
-        </FormControl>
-
-        <FormControl size="small" fullWidth>
-          <InputLabel id="type-filter-label">Filter nach Typ</InputLabel>
-          <Select
-            labelId="type-filter-label"
-            value={selectedTypeFilter}
-            label="Filter nach Typ"
-            onChange={(e) => setSelectedTypeFilter(e.target.value)}
-          >
-            <MenuItem value="all">Alle Typen</MenuItem>
-            <MenuItem value="scoring">Scoring</MenuItem>
-            <MenuItem value="check">Check</MenuItem>
-            <MenuItem value="rules">Regeln/Sonstiges</MenuItem>
-            <MenuItem value="technique">Technik</MenuItem>
           </Select>
         </FormControl>
       </div>
@@ -288,13 +254,6 @@ export const ExerciseList: React.FC = () => {
                     )}
                   </div>
 
-                  <Chip
-                    label={getTypeName(exercise.type)}
-                    size="small"
-                    color="secondary"
-                    className="mb-3"
-                  />
-
                   <Typography
                     variant="body2"
                     color="text.secondary"
@@ -308,7 +267,7 @@ export const ExerciseList: React.FC = () => {
                     <Accordion
                       elevation={0}
                       variant="outlined"
-                      sx={{ bgcolor: "action.hover" }}
+                      sx={{ bgcolor: "action.hover", borderColor: "divider" }}
                       className="mb-3 rounded"
                     >
                       <AccordionSummary expandIcon={<ExpandMoreIcon />}>

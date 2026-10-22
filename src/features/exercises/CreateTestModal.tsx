@@ -9,11 +9,7 @@ import {
 import { db } from "../../firebase/config";
 import { useAuth } from "../../context/AuthContext";
 import { sendNotificationIfEnabled } from "../../services/notificationService";
-import type {
-  Exercise,
-  ExerciseType,
-  PerformanceTest,
-} from "../../types/exercise";
+import type { Exercise, PerformanceTest } from "../../types/exercise";
 import {
   Dialog,
   DialogTitle,
@@ -52,7 +48,6 @@ export const CreateTestModal: React.FC<CreateTestModalProps> = ({
   const { userProfile } = useAuth();
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
-  const [exerciseType, setExerciseType] = useState<ExerciseType>("scoring");
 
   const [allExercises, setAllExercises] = useState<Exercise[]>([]);
   const [selectedExerciseIds, setSelectedExerciseIds] = useState<string[]>([]);
@@ -81,28 +76,16 @@ export const CreateTestModal: React.FC<CreateTestModalProps> = ({
       if (testToEdit) {
         setTitle(testToEdit.title || "");
         setDescription(testToEdit.description || "");
-        setExerciseType(testToEdit.exerciseType || "scoring");
         setSelectedExerciseIds(testToEdit.exerciseIds || []);
       } else {
         setTitle("");
         setDescription("");
-        setExerciseType("scoring");
         setSelectedExerciseIds([]);
       }
       setSelectedExerciseToAdd("");
       setError(null);
     }
   }, [open, testToEdit]);
-
-  const handleTypeChange = (newType: ExerciseType) => {
-    setExerciseType(newType);
-    setSelectedExerciseIds([]);
-    setSelectedExerciseToAdd("");
-  };
-
-  const availableExercisesForType = allExercises.filter(
-    (e) => e.type === exerciseType
-  );
 
   const handleAddExercise = () => {
     if (!selectedExerciseToAdd) return;
@@ -130,12 +113,11 @@ export const CreateTestModal: React.FC<CreateTestModalProps> = ({
       const cleanTitle = title.trim();
 
       if (testToEdit) {
-        // Test aktualisieren
+        // Test aktualisieren (ohne exerciseType)
         const testRef = doc(db, "performanceTests", testToEdit.id);
         await updateDoc(testRef, {
           title: cleanTitle,
           description: description.trim(),
-          exerciseType,
           exerciseIds: selectedExerciseIds,
           updatedAt: new Date().toISOString(),
         });
@@ -148,11 +130,10 @@ export const CreateTestModal: React.FC<CreateTestModalProps> = ({
           link: "/performance-tests",
         });
       } else {
-        // Neuen Test erstellen
+        // Neuen Test erstellen (ohne exerciseType)
         await addDoc(collection(db, "performanceTests"), {
           title: cleanTitle,
           description: description.trim(),
-          exerciseType,
           exerciseIds: selectedExerciseIds,
           createdBy: userProfile.uid,
           createdAt: new Date().toISOString(),
@@ -208,29 +189,6 @@ export const CreateTestModal: React.FC<CreateTestModalProps> = ({
             onChange={(e) => setDescription(e.target.value)}
           />
 
-          <FormControl fullWidth required>
-            <InputLabel id="exercise-type-test-label">
-              Übungstyp des Tests
-            </InputLabel>
-            <Select
-              labelId="exercise-type-test-label"
-              value={exerciseType}
-              label="Übungstyp des Tests"
-              onChange={(e) =>
-                handleTypeChange(e.target.value as ExerciseType)
-              }
-            >
-              <MenuItem value="scoring">Scoring</MenuItem>
-              <MenuItem value="check">Check</MenuItem>
-              <MenuItem value="rules">Regeln/Sonstiges</MenuItem>
-              <MenuItem value="technique">Technik</MenuItem>
-            </Select>
-          </FormControl>
-
-          <Alert severity="info">
-            Ein Leistungstest kann nur Übungen desselben Übungstyps enthalten.
-          </Alert>
-
           <div className="flex gap-2 items-center mt-2">
             <FormControl fullWidth size="small">
               <InputLabel id="add-exercise-select-label">
@@ -242,12 +200,12 @@ export const CreateTestModal: React.FC<CreateTestModalProps> = ({
                 label="Übung zum Test hinzufügen"
                 onChange={(e) => setSelectedExerciseToAdd(e.target.value)}
               >
-                {availableExercisesForType.length === 0 ? (
+                {allExercises.length === 0 ? (
                   <MenuItem disabled value="">
-                    Keine Übungen für diesen Typ vorhanden
+                    Keine Übungen vorhanden
                   </MenuItem>
                 ) : (
-                  availableExercisesForType.map((ex) => (
+                  allExercises.map((ex) => (
                     <MenuItem key={ex.id} value={ex.id}>
                       {ex.title}
                     </MenuItem>

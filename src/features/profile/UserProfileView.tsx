@@ -35,6 +35,11 @@ import type {
   UserAchievementProgress,
   AchievementTier,
 } from "../../types/achievement";
+import { notifyAllAdmins } from "../../services/notificationService";
+import {
+  requestAndSavePushToken,
+  disablePushNotifications,
+} from "../../services/pushNotificationService";
 import {
   Paper,
   Typography,
@@ -104,7 +109,7 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
   const { userProfile, refreshUserProfile, logout } = useAuth();
   const { mode, toggleTheme } = useThemeContext();
 
-  // Tab State (0: Profil & Equipment, 1: Erfolge & Lizenzen, 2: Design & Benachrichtigungen, 3: Sicherheit & Feedback)
+  // Tab State (0: Profil & Equipment, 1: Erfolge & Lizenzen, 2: Design & Benachrichtigungen, 3: Sicherheit & Support)
   const [activeTab, setActiveTab] = useState(0);
 
   // Stammdaten & Profil-Titel
@@ -145,10 +150,11 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
   const [notifyPlanReminder, setNotifyPlanReminder] = useState(true);
   const [notifyAchievements, setNotifyAchievements] = useState(true);
   const [reminderDays, setReminderDays] = useState<number>(1);
+  const [pushLoading, setPushLoading] = useState(false);
 
   // Feedback & Ideen States
   const [feedbackType, setFeedbackType] = useState<"idea" | "bug" | "other">(
-    "idea",
+    "idea"
   );
   const [feedbackMessage, setFeedbackMessage] = useState("");
   const [feedbackSubmitting, setFeedbackSubmitting] = useState(false);
@@ -186,10 +192,10 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
       setNickname(userProfile.nickname || "");
       setSelectedTitle(userProfile.activeTitle || "");
       setVisibility(
-        userProfile.privacySettings?.leaderboardVisibility || "nickname",
+        userProfile.privacySettings?.leaderboardVisibility || "nickname"
       );
       setShowEquipmentPublicly(
-        userProfile.privacySettings?.showEquipmentPublicly !== false,
+        userProfile.privacySettings?.showEquipmentPublicly !== false
       );
 
       if (userProfile.equipment) {
@@ -227,12 +233,12 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
 
       const fetchedAch: DynamicAchievement[] = [];
       achSnap.forEach((d) =>
-        fetchedAch.push({ id: d.id, ...d.data() } as DynamicAchievement),
+        fetchedAch.push({ id: d.id, ...d.data() } as DynamicAchievement)
       );
 
       const progMap: Record<string, UserAchievementProgress> = {};
       progSnap.forEach(
-        (d) => (progMap[d.id] = d.data() as UserAchievementProgress),
+        (d) => (progMap[d.id] = d.data() as UserAchievementProgress)
       );
 
       setAchievements(fetchedAch);
@@ -250,6 +256,42 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
   }, 0);
 
   const levelInfo = calculateUserLevel(totalXp);
+
+  /**
+   * Hauptschalter für Benachrichtigungen inkl. FCM-Push Token-Registrierung
+   */
+  const handleToggleGlobalNotifications = async (enabled: boolean) => {
+    if (!userProfile) return;
+
+    setPushLoading(true);
+    setError(null);
+    setSuccess(null);
+
+    try {
+      if (enabled) {
+        const successToken = await requestAndSavePushToken(userProfile.uid);
+        if (successToken) {
+          setNotificationsEnabled(true);
+          setSuccess("Push-Benachrichtigungen erfolgreich auf diesem Gerät aktiviert!");
+        } else {
+          setNotificationsEnabled(false);
+          setError(
+            "Benachrichtigungen konnten nicht aktiviert werden. Bitte erlaube Benachrichtigungen in deinem Browser."
+          );
+        }
+      } else {
+        await disablePushNotifications(userProfile.uid);
+        setNotificationsEnabled(false);
+        setSuccess("Push-Benachrichtigungen deaktiviert.");
+      }
+      await refreshUserProfile();
+    } catch (err) {
+      console.error("Fehler beim Umschalten der Push-Benachrichtigungen:", err);
+      setError("Fehler beim Ändern der Benachrichtigungseinstellungen.");
+    } finally {
+      setPushLoading(false);
+    }
+  };
 
   const handleUploadLicenseSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -272,7 +314,7 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
       const isPdf = fileExt === "pdf";
       const storageRef = ref(
         storage,
-        `licenses/${userProfile.uid}/${Date.now()}_${licenseFile.name}`,
+        `licenses/${userProfile.uid}/${Date.now()}_${licenseFile.name}`
       );
 
       await uploadBytes(storageRef, licenseFile);
@@ -306,7 +348,7 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
       setLicenseFile(null);
 
       setSuccess(
-        "Lizenz erfolgreich hochgeladen! Sie wird nach Prüfung durch einen Admin freigeschaltet.",
+        "Lizenz erfolgreich hochgeladen! Sie wird nach Prüfung durch einen Admin freigeschaltet."
       );
     } catch (err) {
       console.error(err);
@@ -331,7 +373,7 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
       }
 
       const updatedLicenses = (userProfile.trainerLicenses || []).filter(
-        (l) => l.id !== license.id,
+        (l) => l.id !== license.id
       );
 
       await updateDoc(doc(db, "users", userProfile.uid), {
@@ -458,14 +500,28 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
         createdAt: new Date().toISOString(),
       });
 
+      const categoryLabel =
+        feedbackType === "bug"
+          ? "Bug / Fehler"
+          : feedbackType === "idea"
+          ? "Neue Idee"
+          : "Feedback";
+
+      await notifyAllAdmins({
+        type: "newFeedback",
+        title: `Neues Feedback: ${categoryLabel}`,
+        message: `${userProfile.nickname || userProfile.realName} hat folgenden Eintrag übermittelt: "${feedbackMessage.trim().substring(0, 80)}..."`,
+        link: "/admin",
+      });
+
       setFeedbackSuccess(
-        "Vielen Dank! Dein Feedback wurde erfolgreich übermittelt.",
+        "Vielen Dank! Dein Feedback wurde erfolgreich übermittelt."
       );
       setFeedbackMessage("");
     } catch (err) {
       console.error(err);
       setFeedbackError(
-        "Fehler beim Senden des Feedbacks. Bitte versuche es später erneut.",
+        "Fehler beim Senden des Feedbacks. Bitte versuche es später erneut."
       );
     } finally {
       setFeedbackSubmitting(false);
@@ -484,7 +540,7 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
 
     if (newPassword.length < 6) {
       setPasswordError(
-        "Das neue Passwort muss mindestens 6 Zeichen lang sein.",
+        "Das neue Passwort muss mindestens 6 Zeichen lang sein."
       );
       return;
     }
@@ -499,7 +555,7 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
     try {
       const credential = EmailAuthProvider.credential(
         auth.currentUser.email,
-        currentPassword,
+        currentPassword
       );
       await reauthenticateWithCredential(auth.currentUser, credential);
 
@@ -520,7 +576,7 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
         setPasswordError("Das neue Passwort ist zu schwach.");
       } else {
         setPasswordError(
-          "Fehler beim Ändern des Passworts. Bitte versuche es später erneut.",
+          "Fehler beim Ändern des Passworts. Bitte versuche es später erneut."
         );
       }
     } finally {
@@ -550,7 +606,7 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
       console.error(err);
       if (err.code === "auth/requires-recent-login") {
         setError(
-          "Sicherheits-Hinweis: Bitte melde dich erneut an, bevor du deinen Account löschen kannst.",
+          "Sicherheits-Hinweis: Bitte melde dich erneut an, bevor du deinen Account löschen kannst."
         );
       } else {
         setError("Fehler beim Löschen des Accounts.");
@@ -563,7 +619,7 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
 
   if (!userProfile) {
     return (
-      <Box className="flex justify-center items-center p-8">
+      <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', p: 8 }}>
         <CircularProgress />
       </Box>
     );
@@ -575,15 +631,13 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
   });
 
   return (
-    <Box className="p-4 sm:p-6 max-w-4xl mx-auto space-y-6">
+    <Box sx={{ p: { xs: 2, sm: 3 }, maxWidth: 1024, mx: 'auto', display: 'flex', flexDirection: 'column', gap: 3 }}>
       <Typography
         variant="h4"
         component="h1"
-        className="font-bold flex items-center gap-2"
-        color="text.primary"
+        sx={{ fontWeight: "bold", display: "flex", alignItems: "center", gap: 1.5, color: "text.primary" }}
       >
-        <PersonIcon fontSize="large" color="primary" /> Mein Profil &
-        Einstellungen
+        <PersonIcon fontSize="large" color="primary" /> Mein Profil & Einstellungen
       </Typography>
 
       {error && (
@@ -598,7 +652,7 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
       )}
 
       {/* Unter-Navigation per Tabs */}
-      <Paper variant="outlined" sx={{ bgcolor: "background.paper" }}>
+      <Paper variant="outlined" sx={{ bgcolor: "background.paper", borderColor: "divider" }}>
         <Tabs
           value={activeTab}
           onChange={(_, newValue) => setActiveTab(newValue)}
@@ -616,15 +670,14 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
 
       {/* TAB 0: Profil & Equipment */}
       {activeTab === 0 && (
-        <form onSubmit={handleSaveProfile} className="flex flex-col gap-6">
+        <Box component="form" onSubmit={handleSaveProfile} sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
           {/* 1. Profilbild, Level-Badge & Stammdaten */}
           <Paper
             variant="outlined"
-            sx={{ bgcolor: "background.paper", borderColor: "divider" }}
-            className="p-4 sm:p-6 shadow-md flex flex-col gap-6"
+            sx={{ bgcolor: "background.paper", borderColor: "divider", p: { xs: 2.5, sm: 3 } }}
           >
-            <div className="flex items-center gap-6 flex-wrap sm:flex-nowrap">
-              <div className="relative shrink-0">
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 3, flexWrap: { xs: 'wrap', sm: 'nowrap' }, mb: 3 }}>
+              <Box sx={{ position: 'relative', shrink: 0 }}>
                 <Avatar
                   src={userProfile.photoURL}
                   sx={{
@@ -632,8 +685,8 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
                     height: 96,
                     bgcolor: "primary.main",
                     color: "primary.contrastText",
+                    boxShadow: 2
                   }}
-                  className="shadow-md"
                 >
                   {userProfile.nickname
                     ? userProfile.nickname.substring(0, 2).toUpperCase()
@@ -642,10 +695,16 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
                 <IconButton
                   color="primary"
                   component="label"
-                  sx={{ bgcolor: "background.paper" }}
-                  className="absolute bottom-0 right-0 shadow"
                   size="small"
                   disabled={uploading}
+                  sx={{
+                    position: 'absolute',
+                    bottom: 0,
+                    right: 0,
+                    bgcolor: 'background.paper',
+                    boxShadow: 1,
+                    '&:hover': { bgcolor: 'action.hover' }
+                  }}
                 >
                   <input
                     hidden
@@ -655,33 +714,27 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
                   />
                   <PhotoCameraIcon fontSize="small" />
                 </IconButton>
-              </div>
-              <div className="flex flex-col gap-1">
-                <Typography
-                  variant="h6"
-                  className="font-bold"
-                  color="text.primary"
-                >
+              </Box>
+              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+                <Typography variant="h6" sx={{ fontWeight: 'bold', color: 'text.primary' }}>
                   {userProfile.nickname}
                 </Typography>
 
-                <Box className="flex items-center gap-2 flex-wrap">
-                  {/* Dynamisches Level-Badge */}
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
                   <Chip
                     label={`Lvl. ${levelInfo.level}`}
                     color="primary"
                     size="small"
-                    className="font-bold"
+                    sx={{ fontWeight: 'bold' }}
                   />
 
-                  {/* Freigeschalteter & gewählter Titel */}
                   {userProfile.activeTitle && (
                     <Chip
                       label={`🏆 ${userProfile.activeTitle}`}
                       variant="outlined"
                       color="secondary"
                       size="small"
-                      className="font-semibold text-xs"
+                      sx={{ fontWeight: 600, fontSize: '0.75rem' }}
                     />
                   )}
                 </Box>
@@ -689,12 +742,12 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
                 <Typography variant="body2" color="text.secondary">
                   {userProfile.email}
                 </Typography>
-              </div>
-            </div>
+              </Box>
+            </Box>
 
-            <Divider />
+            <Divider sx={{ my: 2 }} />
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' }, gap: 2, mb: 2 }}>
               <TextField
                 label="Klarname"
                 fullWidth
@@ -709,58 +762,40 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
                 value={nickname}
                 onChange={(e) => setNickname(e.target.value)}
               />
-            </div>
+            </Box>
 
-            {/* Auswahl des aktiven Titels */}
-            {userProfile?.unlockedTitles &&
-              userProfile.unlockedTitles.length > 0 && (
-                <FormControl fullWidth size="small" className="mt-1">
-                  <InputLabel id="active-title-label">
-                    Mein Profil-Titel
-                  </InputLabel>
-                  <Select
-                    labelId="active-title-label"
-                    value={selectedTitle}
-                    label="Mein Profil-Titel"
-                    onChange={(e) => setSelectedTitle(e.target.value)}
-                  >
-                    <MenuItem value="">
-                      <em>Kein Titel (Ausgeblendet)</em>
+            {userProfile?.unlockedTitles && userProfile.unlockedTitles.length > 0 && (
+              <FormControl fullWidth size="small" sx={{ mb: 2 }}>
+                <InputLabel id="active-title-label">Mein Profil-Titel</InputLabel>
+                <Select
+                  labelId="active-title-label"
+                  value={selectedTitle}
+                  label="Mein Profil-Titel"
+                  onChange={(e) => setSelectedTitle(e.target.value)}
+                >
+                  <MenuItem value="">
+                    <em>Kein Titel (Ausgeblendet)</em>
+                  </MenuItem>
+                  {userProfile.unlockedTitles.map((title) => (
+                    <MenuItem key={title} value={title}>
+                      🏆 {title}
                     </MenuItem>
-                    {userProfile.unlockedTitles.map((title) => (
-                      <MenuItem key={title} value={title}>
-                        🏆 {title}
-                      </MenuItem>
-                    ))}
-                  </Select>
-                </FormControl>
-              )}
+                  ))}
+                </Select>
+              </FormControl>
+            )}
 
             <FormControl component="fieldset">
-              <FormLabel component="legend">
+              <FormLabel component="legend" sx={{ color: 'text.primary', fontWeight: 600, mb: 0.5 }}>
                 Anzeige in öffentlichen Ranglisten:
               </FormLabel>
               <RadioGroup
                 value={visibility}
-                onChange={(e) =>
-                  setVisibility(e.target.value as VisibilitySetting)
-                }
+                onChange={(e) => setVisibility(e.target.value as VisibilitySetting)}
               >
-                <FormControlLabel
-                  value="nickname"
-                  control={<Radio />}
-                  label="Nur Nickname anzeigen"
-                />
-                <FormControlLabel
-                  value="realName"
-                  control={<Radio />}
-                  label="Nur Klarnamen anzeigen"
-                />
-                <FormControlLabel
-                  value="both"
-                  control={<Radio />}
-                  label="Klarname und Nickname anzeigen"
-                />
+                <FormControlLabel value="nickname" control={<Radio size="small" />} label="Nur Nickname anzeigen" />
+                <FormControlLabel value="realName" control={<Radio size="small" />} label="Nur Klarnamen anzeigen" />
+                <FormControlLabel value="both" control={<Radio size="small" />} label="Klarname und Nickname anzeigen" />
               </RadioGroup>
             </FormControl>
           </Paper>
@@ -768,18 +803,13 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
           {/* 2. Equipment & Dart Setup */}
           <Paper
             variant="outlined"
-            sx={{ bgcolor: "background.paper", borderColor: "divider" }}
-            className="p-4 sm:p-6 shadow-md flex flex-col gap-4"
+            sx={{ bgcolor: "background.paper", borderColor: "divider", p: { xs: 2.5, sm: 3 } }}
           >
-            <Typography
-              variant="h6"
-              className="font-bold flex items-center gap-2"
-              color="primary"
-            >
+            <Typography variant="h6" sx={{ fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: 1, mb: 2, color: 'primary.main' }}>
               <SportsMartsIcon /> Mein Equipment & Setup
             </Typography>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: 'repeat(3, 1fr)' }, gap: 2, mb: 2 }}>
               <TextField
                 label="Darts / Barrels"
                 placeholder="z. B. Target Gabriel Clemens 21g"
@@ -801,9 +831,9 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
                 value={dartFlight}
                 onChange={(e) => setDartFlight(e.target.value)}
               />
-            </div>
+            </Box>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-2">
+            <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: 'repeat(3, 1fr)' }, gap: 2, mb: 2 }}>
               <TextField
                 label="Lieblingsspieler"
                 placeholder="z. B. Phil Taylor, Martin Schindler"
@@ -813,9 +843,7 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
               />
 
               <FormControl fullWidth>
-                <InputLabel id="scoring-system-label">
-                  Scoring System
-                </InputLabel>
+                <InputLabel id="scoring-system-label">Scoring System</InputLabel>
                 <Select
                   labelId="scoring-system-label"
                   value={scoringSystem}
@@ -838,9 +866,9 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
                 onChange={(e) => setSystemUsername(e.target.value)}
                 disabled={scoringSystem === "none"}
               />
-            </div>
+            </Box>
 
-            <Divider className="my-2" />
+            <Divider sx={{ my: 2 }} />
 
             <FormControlLabel
               control={
@@ -857,35 +885,25 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
               }
             />
 
-            <Box className="mt-2">
-              <Button
-                type="submit"
-                variant="contained"
-                color="primary"
-                disabled={loading}
-              >
+            <Box sx={{ mt: 2 }}>
+              <Button type="submit" variant="contained" color="primary" disabled={loading}>
                 {loading ? "Speichert..." : "Profil & Equipment Speichern"}
               </Button>
             </Box>
           </Paper>
-        </form>
+        </Box>
       )}
 
       {/* TAB 1: Erfolge & Lizenzen */}
       {activeTab === 1 && (
-        <div className="flex flex-col gap-6">
+        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
           {/* Erfolge & Badges */}
           <Paper
             variant="outlined"
-            sx={{ bgcolor: "background.paper", borderColor: "divider" }}
-            className="p-4 sm:p-6 shadow-md flex flex-col gap-4"
+            sx={{ bgcolor: "background.paper", borderColor: "divider", p: { xs: 2.5, sm: 3 } }}
           >
-            <div className="flex justify-between items-center flex-wrap gap-2">
-              <Typography
-                variant="h6"
-                className="font-bold flex items-center gap-2"
-                color="primary"
-              >
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 1, mb: 2 }}>
+              <Typography variant="h6" sx={{ fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: 1, color: 'primary.main' }}>
                 <EmojiEventsIcon sx={{ color: "#FFD700" }} /> Erfolge & Badges
               </Typography>
               <Chip
@@ -893,45 +911,30 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
                 label={`Gesamt XP: ${totalXp}`}
                 color="primary"
                 size="small"
-                className="font-bold"
+                sx={{ fontWeight: 'bold' }}
               />
-            </div>
+            </Box>
 
             {loadingAchievements ? (
-              <Box className="flex justify-center p-3">
+              <Box sx={{ display: 'flex', justifyContent: 'center', p: 3 }}>
                 <CircularProgress size={24} />
               </Box>
             ) : unlockedAchievements.length > 0 ? (
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+              <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)', md: 'repeat(3, 1fr)' }, gap: 2 }}>
                 {unlockedAchievements.slice(0, 6).map((ach) => {
                   const prog = userProgress[ach.id];
-                  const highestTier =
-                    prog.unlockedTiers[prog.unlockedTiers.length - 1];
-                  const tierInfo = TIER_COLORS[highestTier] || {
-                    color: "#FFD700",
-                    label: highestTier,
-                  };
+                  const highestTier = prog.unlockedTiers[prog.unlockedTiers.length - 1];
+                  const tierInfo = TIER_COLORS[highestTier] || { color: "#FFD700", label: highestTier };
 
                   return (
                     <Paper
                       key={ach.id}
                       variant="outlined"
-                      sx={{
-                        bgcolor: "action.hover",
-                        borderColor: "divider",
-                        p: 2,
-                      }}
-                      className="flex items-center gap-3"
+                      sx={{ bgcolor: "action.hover", borderColor: "divider", p: 2, display: 'flex', alignItems: 'center', gap: 1.5 }}
                     >
-                      <EmojiEventsIcon
-                        sx={{ fontSize: 32, color: tierInfo.color }}
-                      />
+                      <EmojiEventsIcon sx={{ fontSize: 32, color: tierInfo.color }} />
                       <Box>
-                        <Typography
-                          variant="subtitle2"
-                          className="font-bold text-xs sm:text-sm"
-                          color="text.primary"
-                        >
+                        <Typography variant="subtitle2" sx={{ fontWeight: 'bold', fontSize: '0.875rem', color: 'text.primary' }}>
                           {ach.title}
                         </Typography>
                         <Chip
@@ -949,26 +952,16 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
                     </Paper>
                   );
                 })}
-              </div>
+              </Box>
             ) : (
-              <Typography
-                variant="body2"
-                color="text.secondary"
-                className="italic"
-              >
-                Du hast noch keine Erfolge freigeschaltet. Absolviere Übungen,
-                um deine ersten Badges zu verdienen!
+              <Typography variant="body2" color="text.secondary" sx={{ fontStyle: 'italic' }}>
+                Du hast noch keine Erfolge freigeschaltet. Absolviere Übungen, um deine ersten Badges zu verdienen!
               </Typography>
             )}
 
             {onNavigateToAchievements && (
-              <Box className="mt-2 flex justify-end">
-                <Button
-                  variant="outlined"
-                  size="small"
-                  color="primary"
-                  onClick={onNavigateToAchievements}
-                >
+              <Box sx={{ mt: 2, display: 'flex', justifyContent: 'flex-end' }}>
+                <Button variant="outlined" size="small" color="primary" onClick={onNavigateToAchievements}>
                   Alle Erfolge im Detail ansehen
                 </Button>
               </Box>
@@ -979,41 +972,28 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
           {isCoachOrAdmin && (
             <Paper
               variant="outlined"
-              sx={{ bgcolor: "background.paper", borderColor: "divider" }}
-              className="p-4 sm:p-6 shadow-md flex flex-col gap-6"
+              sx={{ bgcolor: "background.paper", borderColor: "divider", p: { xs: 2.5, sm: 3 } }}
             >
-              <Box className="flex items-center gap-2">
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
                 <VerifiedUserIcon color="primary" />
-                <Typography
-                  variant="h6"
-                  className="font-bold"
-                  color="text.primary"
-                >
+                <Typography variant="h6" sx={{ fontWeight: 'bold', color: 'text.primary' }}>
                   Trainer-Lizenzen & Zertifikate
                 </Typography>
               </Box>
 
-              <Typography variant="body2" color="text.secondary">
-                Lade deine offiziellen Trainer-Lizenzen (z. B. DOSB
-                C/B/A-Lizenz) hoch. Nach einer Prüfung durch einen Administrator
-                wird deine Lizenz im Profil öffentlich für deine Spieler
-                sichtbar geschaltet.
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+                Lade deine offiziellen Trainer-Lizenzen (z. B. DOSB C/B/A-Lizenz) hoch. Nach einer Prüfung durch einen Administrator wird deine Lizenz im Profil öffentlich für deine Spieler sichtbar geschaltet.
               </Typography>
 
               <Paper
                 variant="outlined"
-                sx={{ bgcolor: "action.hover", borderColor: "divider", p: 2.5 }}
-                className="flex flex-col gap-4 rounded-lg"
+                sx={{ bgcolor: "action.hover", borderColor: "divider", p: 2.5, mb: 3, borderRadius: 2 }}
               >
-                <Typography
-                  variant="subtitle2"
-                  className="font-bold"
-                  color="text.primary"
-                >
+                <Typography variant="subtitle2" sx={{ fontWeight: 'bold', mb: 2, color: 'text.primary' }}>
                   Neue Lizenz einreichen
                 </Typography>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' }, gap: 2, mb: 2 }}>
                   <TextField
                     label="Bezeichnung der Lizenz"
                     placeholder="z. B. DOSB Trainer C Darts"
@@ -1032,9 +1012,9 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
                     value={licenseIssuer}
                     onChange={(e) => setLicenseIssuer(e.target.value)}
                   />
-                </div>
+                </Box>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' }, gap: 2, mb: 2 }}>
                   <TextField
                     label="Gültig bis (Optional)"
                     type="date"
@@ -1050,326 +1030,175 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
                     component="label"
                     color={licenseFile ? "success" : "primary"}
                     startIcon={<CloudUploadIcon />}
-                    className="h-10 my-auto"
+                    sx={{ height: 40, my: 'auto' }}
                   >
-                    {licenseFile
-                      ? licenseFile.name
-                      : "Nachweis auswählen (PDF / Bild)"}
+                    {licenseFile ? licenseFile.name : "Nachweis auswählen (PDF / Bild)"}
                     <input
                       type="file"
                       hidden
                       accept="image/*,application/pdf"
                       onChange={(e) => {
-                        if (e.target.files?.[0])
-                          setLicenseFile(e.target.files[0]);
+                        if (e.target.files?.[0]) setLicenseFile(e.target.files[0]);
                       }}
                     />
                   </Button>
-                </div>
+                </Box>
 
-                <Box className="flex justify-end mt-1">
+                <Box sx={{ display: 'flex', justifyContent: 'flex-end' }}>
                   <Button
                     variant="contained"
                     color="primary"
                     onClick={handleUploadLicenseSubmit}
-                    disabled={
-                      licenseUploading ||
-                      !licenseFile ||
-                      !licenseTitle.trim() ||
-                      !licenseIssuer.trim()
-                    }
+                    disabled={licenseUploading || !licenseFile || !licenseTitle.trim() || !licenseIssuer.trim()}
                   >
-                    {licenseUploading
-                      ? "Wird hochgeladen..."
-                      : "Lizenz Hochladen"}
+                    {licenseUploading ? "Wird hochgeladen..." : "Lizenz Hochladen"}
                   </Button>
                 </Box>
               </Paper>
 
-              <Divider />
+              <Divider sx={{ my: 2 }} />
 
-              <Typography
-                variant="subtitle1"
-                className="font-bold"
-                color="text.primary"
-              >
+              <Typography variant="subtitle1" sx={{ fontWeight: 'bold', mb: 2, color: 'text.primary' }}>
                 Meine hinterlegten Lizenzen
               </Typography>
 
-              {userProfile.trainerLicenses &&
-              userProfile.trainerLicenses.length > 0 ? (
-                <div className="grid grid-cols-1 gap-3">
+              {userProfile.trainerLicenses && userProfile.trainerLicenses.length > 0 ? (
+                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                   {userProfile.trainerLicenses.map((license) => (
-                    <Card
-                      key={license.id}
-                      variant="outlined"
-                      sx={{
-                        bgcolor: "background.paper",
-                        borderColor: "divider",
-                      }}
-                    >
-                      <CardContent className="p-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
-                        <Box className="space-y-1">
-                          <Box className="flex items-center gap-2 flex-wrap">
-                            <Typography
-                              variant="subtitle2"
-                              className="font-bold"
-                              color="text.primary"
-                            >
+                    <Card key={license.id} variant="outlined" sx={{ bgcolor: "background.paper", borderColor: "divider" }}>
+                      <CardContent sx={{ p: 2, display: 'flex', flexDirection: { xs: 'column', sm: 'row' }, justifyContent: 'space-between', alignItems: { xs: 'flex-start', sm: 'center' }, gap: 2 }}>
+                        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
+                            <Typography variant="subtitle2" sx={{ fontWeight: 'bold', color: 'text.primary' }}>
                               {license.title}
                             </Typography>
 
                             {license.status === "approved" && (
-                              <Chip
-                                icon={<VerifiedUserIcon fontSize="small" />}
-                                label="Verifiziert"
-                                color="success"
-                                size="small"
-                              />
+                              <Chip icon={<VerifiedUserIcon fontSize="small" />} label="Verifiziert" color="success" size="small" />
                             )}
                             {license.status === "pending" && (
-                              <Chip
-                                icon={<PendingIcon fontSize="small" />}
-                                label="Prüfung ausstehend"
-                                color="warning"
-                                size="small"
-                              />
+                              <Chip icon={<PendingIcon fontSize="small" />} label="Prüfung ausstehend" color="warning" size="small" />
                             )}
                             {license.status === "rejected" && (
-                              <Chip
-                                icon={<CancelIcon fontSize="small" />}
-                                label="Abgelehnt"
-                                color="error"
-                                size="small"
-                              />
+                              <Chip icon={<CancelIcon fontSize="small" />} label="Abgelehnt" color="error" size="small" />
                             )}
                           </Box>
 
-                          <Typography
-                            variant="caption"
-                            color="text.secondary"
-                            className="block"
-                          >
+                          <Typography variant="caption" color="text.secondary">
                             Ausgestellt von: <strong>{license.issuer}</strong>
                             {license.validUntil && (
-                              <>
-                                {" "}
-                                • Gültig bis:{" "}
-                                {new Date(
-                                  license.validUntil,
-                                ).toLocaleDateString("de-DE")}
-                              </>
+                              <> • Gültig bis: {new Date(license.validUntil).toLocaleDateString("de-DE")}</>
                             )}
                           </Typography>
                         </Box>
 
-                        <Box className="flex items-center gap-2 w-full sm:w-auto justify-end">
-                          <Button
-                            variant="outlined"
-                            size="small"
-                            startIcon={<VisibilityIcon />}
-                            onClick={() =>
-                              window.open(license.fileUrl, "_blank")
-                            }
-                          >
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, width: { xs: '100%', sm: 'auto' }, justifyContent: 'flex-end' }}>
+                          <Button variant="outlined" size="small" startIcon={<VisibilityIcon />} onClick={() => window.open(license.fileUrl, "_blank")}>
                             Ansehen
                           </Button>
-                          <IconButton
-                            color="error"
-                            size="small"
-                            onClick={() => handleDeleteLicense(license)}
-                          >
+                          <IconButton color="error" size="small" onClick={() => handleDeleteLicense(license)}>
                             <DeleteIcon fontSize="small" />
                           </IconButton>
                         </Box>
                       </CardContent>
                     </Card>
                   ))}
-                </div>
+                </Box>
               ) : (
-                <Typography
-                  variant="body2"
-                  color="text.secondary"
-                  className="italic"
-                >
+                <Typography variant="body2" color="text.secondary" sx={{ fontStyle: 'italic' }}>
                   Du hast bisher noch keine Lizenzen hinterlegt.
                 </Typography>
               )}
             </Paper>
           )}
-        </div>
+        </Box>
       )}
 
       {/* TAB 2: Design & Benachrichtigungen */}
       {activeTab === 2 && (
-        <form onSubmit={handleSaveProfile} className="flex flex-col gap-6">
+        <Box component="form" onSubmit={handleSaveProfile} sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
           {/* Design & Erscheinungsbild */}
-          <Paper
-            variant="outlined"
-            sx={{ bgcolor: "background.paper", borderColor: "divider" }}
-            className="p-4 sm:p-6 shadow-md"
-          >
-            <div className="flex items-center gap-2 mb-4">
+          <Paper variant="outlined" sx={{ bgcolor: "background.paper", borderColor: "divider", p: { xs: 2.5, sm: 3 } }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
               <PaletteIcon color="primary" />
-              <Typography
-                variant="h6"
-                className="font-bold"
-                color="text.primary"
-              >
+              <Typography variant="h6" sx={{ fontWeight: 'bold', color: 'text.primary' }}>
                 Design & Erscheinungsbild
               </Typography>
-            </div>
+            </Box>
 
             <FormControl component="fieldset">
-              <FormLabel component="legend">Bevorzugtes Farbschema:</FormLabel>
+              <FormLabel component="legend" sx={{ color: 'text.primary' }}>Bevorzugtes Farbschema:</FormLabel>
               <RadioGroup
                 row
                 value={mode}
-                onChange={(e) =>
-                  handleThemeChange(e.target.value as ThemePreference)
-                }
-                className="mt-2"
+                onChange={(e) => handleThemeChange(e.target.value as ThemePreference)}
+                sx={{ mt: 1 }}
               >
-                <FormControlLabel
-                  value="dark"
-                  control={<Radio />}
-                  label="Dunkles Design (Dark Mode)"
-                />
-                <FormControlLabel
-                  value="light"
-                  control={<Radio />}
-                  label="Helles Design (Light Mode)"
-                />
+                <FormControlLabel value="dark" control={<Radio size="small" />} label="Dunkles Design (Dark Mode)" />
+                <FormControlLabel value="light" control={<Radio size="small" />} label="Helles Design (Light Mode)" />
               </RadioGroup>
             </FormControl>
           </Paper>
 
-          {/* Benachrichtigungen */}
-          <Paper
-            variant="outlined"
-            sx={{ bgcolor: "background.paper", borderColor: "divider" }}
-            className="p-4 sm:p-6 shadow-md flex flex-col gap-4"
-          >
-            <Typography
-              variant="h6"
-              className="font-bold flex items-center gap-2"
-              color="primary"
-            >
-              <NotificationsIcon /> Benachrichtigungen
+          {/* Benachrichtigungen & Mobile Push */}
+          <Paper variant="outlined" sx={{ bgcolor: "background.paper", borderColor: "divider", p: { xs: 2.5, sm: 3 } }}>
+            <Typography variant="h6" sx={{ fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: 1, mb: 2, color: 'primary.main' }}>
+              <NotificationsIcon /> Benachrichtigungen & Mobile Push
             </Typography>
 
-            <FormControlLabel
-              control={
-                <Switch
-                  checked={notificationsEnabled}
-                  onChange={(e) => setNotificationsEnabled(e.target.checked)}
-                  color="primary"
-                />
-              }
-              label={
-                <Typography className="font-bold" color="text.primary">
-                  Benachrichtigungen grundsätzlich aktivieren
-                </Typography>
-              }
-            />
-
-            <Divider />
-
-            <div
-              className={`flex flex-col gap-3 ${
-                !notificationsEnabled ? "opacity-50 pointer-events-none" : ""
-              }`}
-            >
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
               <FormControlLabel
                 control={
                   <Switch
-                    checked={notifyPlans}
-                    onChange={(e) => setNotifyPlans(e.target.checked)}
+                    checked={notificationsEnabled}
+                    onChange={(e) => handleToggleGlobalNotifications(e.target.checked)}
                     color="primary"
-                    disabled={!notificationsEnabled}
+                    disabled={pushLoading}
                   />
                 }
                 label={
-                  <Typography variant="body2" color="text.primary">
-                    Neue oder bearbeitete Trainingspläne
+                  <Typography sx={{ fontWeight: 'bold', color: 'text.primary' }}>
+                    Push-Benachrichtigungen auf diesem Gerät aktivieren
                   </Typography>
                 }
+              />
+              {pushLoading && <CircularProgress size={20} />}
+            </Box>
+
+            <Divider sx={{ my: 2 }} />
+
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5, opacity: !notificationsEnabled ? 0.5 : 1, pointerEvents: !notificationsEnabled ? 'none' : 'auto' }}>
+              <FormControlLabel
+                control={<Switch checked={notifyPlans} onChange={(e) => setNotifyPlans(e.target.checked)} color="primary" disabled={!notificationsEnabled} />}
+                label={<Typography variant="body2" color="text.primary">Neue oder bearbeitete Trainingspläne</Typography>}
               />
 
               <FormControlLabel
-                control={
-                  <Switch
-                    checked={notifyPerformanceTests}
-                    onChange={(e) =>
-                      setNotifyPerformanceTests(e.target.checked)
-                    }
-                    color="primary"
-                    disabled={!notificationsEnabled}
-                  />
-                }
-                label={
-                  <Typography variant="body2" color="text.primary">
-                    Neuer oder geänderter Leistungstest
-                  </Typography>
-                }
+                control={<Switch checked={notifyPerformanceTests} onChange={(e) => setNotifyPerformanceTests(e.target.checked)} color="primary" disabled={!notificationsEnabled} />}
+                label={<Typography variant="body2" color="text.primary">Neuer oder geänderter Leistungstest</Typography>}
               />
 
               <FormControlLabel
-                control={
-                  <Switch
-                    checked={notifyHighscores}
-                    onChange={(e) => setNotifyHighscores(e.target.checked)}
-                    color="primary"
-                    disabled={!notificationsEnabled}
-                  />
-                }
-                label={
-                  <Typography variant="body2" color="text.primary">
-                    Neuer Highscore bei der Übung des Monats
-                  </Typography>
-                }
+                control={<Switch checked={notifyHighscores} onChange={(e) => setNotifyHighscores(e.target.checked)} color="primary" disabled={!notificationsEnabled} />}
+                label={<Typography variant="body2" color="text.primary">Neuer Highscore bei der Übung des Monats</Typography>}
               />
 
               <FormControlLabel
-                control={
-                  <Switch
-                    checked={notifyAchievements}
-                    onChange={(e) => setNotifyAchievements(e.target.checked)}
-                    color="primary"
-                    disabled={!notificationsEnabled}
-                  />
-                }
-                label={
-                  <Typography variant="body2" color="text.primary">
-                    Neuer Erfolg freigeschaltet
-                  </Typography>
-                }
+                control={<Switch checked={notifyAchievements} onChange={(e) => setNotifyAchievements(e.target.checked)} color="primary" disabled={!notificationsEnabled} />}
+                label={<Typography variant="body2" color="text.primary">Neuer Erfolg freigeschaltet</Typography>}
               />
 
-              <Divider className="my-1" />
+              <Divider sx={{ my: 1 }} />
 
-              <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+              <Box sx={{ display: 'flex', flexDirection: { xs: 'column', sm: 'row' }, alignItems: { xs: 'flex-start', sm: 'center' }, gap: 2 }}>
                 <FormControlLabel
-                  control={
-                    <Switch
-                      checked={notifyPlanReminder}
-                      onChange={(e) => setNotifyPlanReminder(e.target.checked)}
-                      color="primary"
-                      disabled={!notificationsEnabled}
-                    />
-                  }
-                  label={
-                    <Typography variant="body2" color="text.primary">
-                      Erinnerung an Trainingsplan bevor er abläuft
-                    </Typography>
-                  }
+                  control={<Switch checked={notifyPlanReminder} onChange={(e) => setNotifyPlanReminder(e.target.checked)} color="primary" disabled={!notificationsEnabled} />}
+                  label={<Typography variant="body2" color="text.primary">Erinnerung an Trainingsplan bevor er abläuft</Typography>}
                 />
 
                 {notifyPlanReminder && notificationsEnabled && (
-                  <FormControl size="small" className="w-48">
-                    <InputLabel id="reminder-days-label">
-                      Erinnerungsvorlauf
-                    </InputLabel>
+                  <FormControl size="small" sx={{ width: 180 }}>
+                    <InputLabel id="reminder-days-label">Erinnerungsvorlauf</InputLabel>
                     <Select
                       labelId="reminder-days-label"
                       value={reminderDays}
@@ -1382,102 +1211,67 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
                     </Select>
                   </FormControl>
                 )}
-              </div>
-            </div>
+              </Box>
+            </Box>
 
-            <Box className="mt-2">
-              <Button
-                type="submit"
-                variant="contained"
-                color="primary"
-                disabled={loading}
-              >
+            <Box sx={{ mt: 3 }}>
+              <Button type="submit" variant="contained" color="primary" disabled={loading}>
                 {loading ? "Speichert..." : "Einstellungen Speichern"}
               </Button>
             </Box>
           </Paper>
-        </form>
+        </Box>
       )}
 
       {/* TAB 3: Sicherheit & Support */}
       {activeTab === 3 && (
-        <div className="flex flex-col gap-6">
+        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
           {/* Nachricht an Trainer */}
-          <Paper
-            variant="outlined"
-            sx={{ bgcolor: "background.paper", borderColor: "divider" }}
-            className="p-4 sm:p-6 flex flex-col gap-3 shadow-sm"
-          >
-            <Typography
-              variant="h6"
-              className="font-bold flex items-center gap-2"
-              color="text.primary"
-            >
+          <Paper variant="outlined" sx={{ bgcolor: "background.paper", borderColor: "divider", p: { xs: 2.5, sm: 3 } }}>
+            <Typography variant="h6" sx={{ fontWeight: 'bold', mb: 1, color: 'text.primary' }}>
               Trainer-Kommunikation
             </Typography>
-            <Typography variant="body2" color="text.secondary">
-              Teile deinem Trainer Urlaube, Abwesenheiten oder Ergebnisse von
-              Turnieren und Ligaspielen mit.
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+              Teile deinem Trainer Urlaube, Abwesenheiten oder Ergebnisse von Turnieren und Ligaspielen mit.
             </Typography>
-            <Box>
-              <Button
-                variant="outlined"
-                color="primary"
-                disabled={!userProfile?.assignedCoachId}
-                onClick={() => setIsMessageModalOpen(true)}
-              >
-                {userProfile?.assignedCoachId
-                  ? "Nachricht an Trainer schreiben"
-                  : "Kein Trainer zugewiesen"}
-              </Button>
-            </Box>
+            <Button
+              variant="outlined"
+              color="primary"
+              disabled={!userProfile?.assignedCoachId}
+              onClick={() => setIsMessageModalOpen(true)}
+            >
+              {userProfile?.assignedCoachId ? "Nachricht an Trainer schreiben" : "Kein Trainer zugewiesen"}
+            </Button>
           </Paper>
 
           {/* Feedback & Ideen */}
-          <Paper
-            variant="outlined"
-            sx={{ bgcolor: "background.paper", borderColor: "divider" }}
-            className="p-4 sm:p-6 shadow-md flex flex-col gap-4"
-          >
-            <Typography
-              variant="h6"
-              className="font-bold flex items-center gap-2"
-              color="primary"
-            >
+          <Paper variant="outlined" sx={{ bgcolor: "background.paper", borderColor: "divider", p: { xs: 2.5, sm: 3 } }}>
+            <Typography variant="h6" sx={{ fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: 1, mb: 1, color: 'primary.main' }}>
               <FeedbackIcon /> Feedback & Ideen mitteilen
             </Typography>
-            <Typography variant="body2" color="text.secondary">
-              Hast du eine Idee für eine neue Funktion oder einen Fehler
-              gefunden? Teile es uns gerne mit!
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+              Hast du eine Idee für eine neue Funktion oder einen Fehler gefunden? Teile es uns gerne mit!
             </Typography>
 
             {feedbackError && (
-              <Alert severity="error" onClose={() => setFeedbackError(null)}>
+              <Alert severity="error" onClose={() => setFeedbackError(null)} sx={{ mb: 2 }}>
                 {feedbackError}
               </Alert>
             )}
             {feedbackSuccess && (
-              <Alert
-                severity="success"
-                onClose={() => setFeedbackSuccess(null)}
-              >
+              <Alert severity="success" onClose={() => setFeedbackSuccess(null)} sx={{ mb: 2 }}>
                 {feedbackSuccess}
               </Alert>
             )}
 
-            <form
-              onSubmit={handleSubmitFeedback}
-              className="flex flex-col gap-4"
-            >
+            <Box component="form" onSubmit={handleSubmitFeedback} sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
               <FormControl fullWidth size="small">
                 <InputLabel id="feedback-category-label">Kategorie</InputLabel>
                 <Select
                   labelId="feedback-category-label"
                   value={feedbackType}
                   label="Kategorie"
-                  onChange={(e) =>
-                    setFeedbackType(e.target.value as "idea" | "bug" | "other")
-                  }
+                  onChange={(e) => setFeedbackType(e.target.value as "idea" | "bug" | "other")}
                 >
                   <MenuItem value="idea">Idee / Feature-Wunsch</MenuItem>
                   <MenuItem value="bug">Fehler / Bug melden</MenuItem>
@@ -1496,7 +1290,7 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
                 onChange={(e) => setFeedbackMessage(e.target.value)}
               />
 
-              <Box>
+              <Box sx={{ display: 'flex', justifyContent: 'flex-start' }}>
                 <Button
                   type="submit"
                   variant="contained"
@@ -1504,46 +1298,30 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
                   startIcon={<SendIcon />}
                   disabled={feedbackSubmitting || !feedbackMessage.trim()}
                 >
-                  {feedbackSubmitting
-                    ? "Wird gesendet..."
-                    : "Feedback Absenden"}
+                  {feedbackSubmitting ? "Wird gesendet..." : "Feedback Absenden"}
                 </Button>
               </Box>
-            </form>
+            </Box>
           </Paper>
 
           {/* Passwort ändern */}
-          <Paper
-            variant="outlined"
-            sx={{ bgcolor: "background.paper", borderColor: "divider" }}
-            className="p-4 sm:p-6 shadow-md flex flex-col gap-4"
-          >
-            <Typography
-              variant="h6"
-              className="font-bold flex items-center gap-2"
-              color="primary"
-            >
+          <Paper variant="outlined" sx={{ bgcolor: "background.paper", borderColor: "divider", p: { xs: 2.5, sm: 3 } }}>
+            <Typography variant="h6" sx={{ fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: 1, mb: 2, color: 'primary.main' }}>
               <LockIcon /> Passwort ändern
             </Typography>
 
             {passwordError && (
-              <Alert severity="error" onClose={() => setPasswordError(null)}>
+              <Alert severity="error" onClose={() => setPasswordError(null)} sx={{ mb: 2 }}>
                 {passwordError}
               </Alert>
             )}
             {passwordSuccess && (
-              <Alert
-                severity="success"
-                onClose={() => setPasswordSuccess(null)}
-              >
+              <Alert severity="success" onClose={() => setPasswordSuccess(null)} sx={{ mb: 2 }}>
                 {passwordSuccess}
               </Alert>
             )}
 
-            <form
-              onSubmit={handleChangePassword}
-              className="flex flex-col gap-4"
-            >
+            <Box component="form" onSubmit={handleChangePassword} sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
               <TextField
                 label="Aktuelles Passwort"
                 type="password"
@@ -1553,7 +1331,7 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
                 onChange={(e) => setCurrentPassword(e.target.value)}
               />
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' }, gap: 2 }}>
                 <TextField
                   label="Neues Passwort"
                   type="password"
@@ -1570,41 +1348,23 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
                 />
-              </div>
+              </Box>
 
-              <Box>
-                <Button
-                  type="submit"
-                  variant="contained"
-                  color="primary"
-                  disabled={passwordLoading}
-                >
+              <Box sx={{ display: 'flex', justifyContent: 'flex-start' }}>
+                <Button type="submit" variant="contained" color="primary" disabled={passwordLoading}>
                   {passwordLoading ? "Wird geändert..." : "Passwort Ändern"}
                 </Button>
               </Box>
-            </form>
+            </Box>
           </Paper>
 
           {/* DSGVO & Account Löschen */}
-          <Paper
-            variant="outlined"
-            sx={{
-              bgcolor: "background.paper",
-              borderColor: "error.main",
-            }}
-            className="p-4 sm:p-6 shadow-md"
-          >
-            <Typography
-              variant="h6"
-              className="font-bold flex items-center gap-2 mb-2"
-              color="error"
-            >
+          <Paper variant="outlined" sx={{ bgcolor: "background.paper", borderColor: "error.main", p: { xs: 2.5, sm: 3 } }}>
+            <Typography variant="h6" sx={{ fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: 1, mb: 1, color: 'error.main' }}>
               <SecurityIcon /> DSGVO & Account löschen
             </Typography>
-            <Typography variant="body2" color="text.secondary" className="mb-4">
-              Hier kannst du dein Konto unwiderruflich löschen. Dabei werden
-              alle deine Personen- und Profil-Daten gemäß DSGVO dauerhaft
-              gelöscht.
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+              Hier kannst du dein Konto unwiderruflich löschen. Dabei werden alle deine Personen- und Profil-Daten gemäß DSGVO dauerhaft gelöscht.
             </Typography>
 
             <Button
@@ -1616,7 +1376,7 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
               Konto Endgültig Löschen
             </Button>
           </Paper>
-        </div>
+        </Box>
       )}
 
       {/* Message Modal */}
@@ -1631,17 +1391,15 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
         open={isDeleteModalOpen}
         onClose={() => setIsDeleteModalOpen(false)}
       >
-        <DialogTitle className="font-bold text-red-600">
+        <DialogTitle sx={{ fontWeight: 'bold', color: 'error.main' }}>
           Account unwiderruflich löschen?
         </DialogTitle>
         <DialogContent>
           <DialogContentText>
-            Möchtest du deinen Account und all deine gespeicherten Profildaten
-            wirklich dauerhaft löschen? Dieser Schritt kann nicht rückgängig
-            gemacht werden.
+            Möchtest du deinen Account und all deine gespeicherten Profildaten wirklich dauerhaft löschen? Dieser Schritt kann nicht rückgängig gemacht werden.
           </DialogContentText>
         </DialogContent>
-        <DialogActions className="p-4">
+        <DialogActions sx={{ p: 2 }}>
           <Button onClick={() => setIsDeleteModalOpen(false)}>Abbrechen</Button>
           <Button
             onClick={handleDeleteAccount}

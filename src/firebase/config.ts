@@ -12,8 +12,8 @@ const firebaseConfig = {
   appId: import.meta.env.VITE_FIREBASE_APP_ID,
 };
 
-// Initialisiere Firebase App
-const app = initializeApp(firebaseConfig);
+// Initialisiere Firebase App & exportiere sie direkt für Services (wie FCM Push)
+export const app = initializeApp(firebaseConfig);
 
 // Exportiere Firebase Services
 export const auth = getAuth(app);

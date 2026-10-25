@@ -3,6 +3,7 @@ import { createUserWithEmailAndPassword } from 'firebase/auth';
 import { doc, setDoc } from 'firebase/firestore';
 import { auth, db } from '../../firebase/config';
 import type { UserProfile, VisibilitySetting } from '../../types/user';
+import { notifyAllAdmins } from '../../services/notificationService';
 import { 
   Button, 
   TextField, 
@@ -14,7 +15,8 @@ import {
   Alert, 
   Card, 
   CardContent, 
-  Typography 
+  Typography,
+  Box
 } from '@mui/material';
 
 interface RegisterFormProps {
@@ -53,7 +55,17 @@ export const RegisterForm: React.FC<RegisterFormProps> = ({ onSwitchToLogin }) =
         updatedAt: new Date().toISOString(),
       };
 
+      // 1. Profil in Firestore speichern
       await setDoc(doc(db, 'users', user.uid), newUserProfile);
+
+      // 2. NEU: Benachrichtigung an alle Admins senden
+      await notifyAllAdmins({
+        type: 'newPlayerRegistration',
+        title: 'Neue Spielerregistrierung',
+        message: `Ein neuer Spieler (${nickname || realName} - ${email}) hat sich registriert und wartet auf Freischaltung.`,
+        link: '/admin',
+      });
+
     } catch (err: any) {
       console.error(err);
       setError(err.message || 'Fehler bei der Registrierung.');
@@ -63,15 +75,40 @@ export const RegisterForm: React.FC<RegisterFormProps> = ({ onSwitchToLogin }) =
   };
 
   return (
-    <Card className="max-w-md mx-auto my-8 shadow-lg">
-      <CardContent className="p-6">
-        <Typography variant="h5" component="h1" className="mb-4 text-center font-bold">
+    <Card 
+      variant="outlined"
+      sx={{ 
+        maxWidth: 440, 
+        mx: 'auto', 
+        my: { xs: 2, sm: 6 },
+        width: '100%',
+        bgcolor: 'background.paper',
+        borderColor: 'divider',
+        borderRadius: 2,
+        boxShadow: (theme) => theme.palette.mode === 'dark' ? 4 : 2
+      }}
+    >
+      <CardContent sx={{ p: { xs: 2.5, sm: 4 } }}>
+        <Typography 
+          variant="h5" 
+          component="h1" 
+          align="center"
+          sx={{ fontWeight: 'bold', mb: 3, color: 'text.primary' }}
+        >
           Dart-Coach Registrierung
         </Typography>
 
-        {error && <Alert severity="error" className="mb-4">{error}</Alert>}
+        {error && (
+          <Alert severity="error" sx={{ mb: 3 }}>
+            {error}
+          </Alert>
+        )}
 
-        <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+        <Box 
+          component="form" 
+          onSubmit={handleSubmit} 
+          sx={{ display: 'flex', flexDirection: 'column', gap: 2.5 }}
+        >
           <TextField
             label="Klarname (Vor- und Nachname)"
             variant="outlined"
@@ -110,15 +147,17 @@ export const RegisterForm: React.FC<RegisterFormProps> = ({ onSwitchToLogin }) =
             onChange={(e) => setPassword(e.target.value)}
           />
 
-          <FormControl component="fieldset" className="mt-2">
-            <FormLabel component="legend">Anzeige in öffentlichen Ranglisten:</FormLabel>
+          <FormControl component="fieldset" sx={{ mt: 1 }}>
+            <FormLabel component="legend" sx={{ fontSize: '0.875rem', fontWeight: 600, mb: 0.5 }}>
+              Anzeige in öffentlichen Ranglisten:
+            </FormLabel>
             <RadioGroup
               value={visibility}
               onChange={(e) => setVisibility(e.target.value as VisibilitySetting)}
             >
-              <FormControlLabel value="nickname" control={<Radio />} label="Nur Nickname anzeigen" />
-              <FormControlLabel value="realName" control={<Radio />} label="Nur Klarnamen anzeigen" />
-              <FormControlLabel value="both" control={<Radio />} label="Klarname und Nickname anzeigen" />
+              <FormControlLabel value="nickname" control={<Radio size="small" />} label="Nur Nickname anzeigen" />
+              <FormControlLabel value="realName" control={<Radio size="small" />} label="Nur Klarnamen anzeigen" />
+              <FormControlLabel value="both" control={<Radio size="small" />} label="Klarname und Nickname anzeigen" />
             </RadioGroup>
           </FormControl>
 
@@ -128,7 +167,8 @@ export const RegisterForm: React.FC<RegisterFormProps> = ({ onSwitchToLogin }) =
             color="primary"
             fullWidth
             disabled={loading}
-            className="mt-4"
+            size="large"
+            sx={{ mt: 1, py: 1.2, fontWeight: 'bold' }}
           >
             {loading ? 'Registriere...' : 'Konto anfragen'}
           </Button>
@@ -137,11 +177,11 @@ export const RegisterForm: React.FC<RegisterFormProps> = ({ onSwitchToLogin }) =
             variant="text"
             color="secondary"
             onClick={onSwitchToLogin}
-            className="mt-2"
+            sx={{ textTransform: 'none' }}
           >
             Bereits registriert? Zum Login
           </Button>
-        </form>
+        </Box>
       </CardContent>
     </Card>
   );

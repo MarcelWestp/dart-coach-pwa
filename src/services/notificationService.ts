@@ -1,13 +1,15 @@
-import { doc, getDoc, addDoc, collection } from 'firebase/firestore';
+import { doc, getDoc, addDoc, collection, query, where, getDocs } from 'firebase/firestore';
 import { db } from '../firebase/config';
 import type { UserProfile } from '../types/user';
 
-export type NotificationType = 
+export type NotificationType =
   | 'newOrUpdatedTrainingPlans'
   | 'newOrUpdatedPerformanceTest'
   | 'monthlyExerciseHighscore'
   | 'achievementUnlocked'
-  | 'trainingPlanReminder';
+  | 'trainingPlanReminder'
+  | 'newPlayerRegistration'
+  | 'newFeedback';
 
 interface SendNotificationParams {
   userId: string;
@@ -36,11 +38,12 @@ export const sendNotificationIfEnabled = async ({
     const settings = userProfile.notificationSettings;
 
     // 2. Prüfung: Sind Benachrichtigungen grundsätzlich oder für den spezifischen Typ erlaubt?
-    if (!settings || !settings.enabled) {
+    if (!settings || settings.enabled === false) {
       return false; // Benachrichtigungen global deaktiviert
     }
 
-    if (type !== 'trainingPlanReminder' && !settings[type]) {
+    // Sonderfälle oder spezifische Typ-Prüfung
+    if (type !== 'trainingPlanReminder' && type !== 'newPlayerRegistration' && type !== 'newFeedback' && settings[type] === false) {
       return false; // Spezifischer Typ vom User deaktiviert
     }
 
@@ -63,5 +66,39 @@ export const sendNotificationIfEnabled = async ({
   } catch (error) {
     console.error('Fehler beim Senden der Benachrichtigung:', error);
     return false;
+  }
+};
+
+/**
+ * Sendet eine Benachrichtigung an ALLE Benutzer mit der Rolle 'admin'.
+ * Verwendet gezieltes Firestore Querying, um Datenmengen und Ladezeiten gering zu halten.
+ */
+export const notifyAllAdmins = async ({
+  type,
+  title,
+  message,
+  link,
+}: Omit<SendNotificationParams, 'userId'>): Promise<void> => {
+  try {
+    // Gezielte Abfrage statt getDocs(collection(db, 'users')) -> Vermeidet Performance-Bottlenecks bei vielen Nutzern
+    const adminQuery = query(
+      collection(db, 'users'),
+      where('roles', 'array-contains', 'admin')
+    );
+    const adminSnaps = await getDocs(adminQuery);
+
+    const notificationPromises = adminSnaps.docs.map((docSnap) =>
+      sendNotificationIfEnabled({
+        userId: docSnap.id,
+        type,
+        title,
+        message,
+        link,
+      })
+    );
+
+    await Promise.all(notificationPromises);
+  } catch (error) {
+    console.error('Fehler beim Benachrichtigen der Admins:', error);
   }
 };

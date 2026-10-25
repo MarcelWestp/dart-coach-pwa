@@ -178,7 +178,7 @@ const MainContent: React.FC = () => {
               </MenuItem>
               {/* NEU: Monatliche Herausforderung */}
               <MenuItem onClick={() => handleSelectView("monthly-challenge")}>
-                Monatliche Herausforderung
+                Dart-Pass
               </MenuItem>
               <MenuItem onClick={() => handleSelectView("player-stats")}>
                 Meine Statistiken

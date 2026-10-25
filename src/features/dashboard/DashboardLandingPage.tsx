@@ -78,7 +78,7 @@ const DEFAULT_WIDGETS: WidgetConfig[] = [
     required: true,
   },
   { id: "trainingPlan", title: "Fortschritt Trainingsplan", enabled: true },
-  { id: "monthlyChallenge", title: "Monatliche Challenge", enabled: true },
+  { id: "monthlyChallenge", title: "Dart-Pass", enabled: true },
   { id: "performanceTest", title: "Leistungstest", enabled: true },
   {
     id: "coachMessage",
@@ -647,7 +647,7 @@ export const DashboardLandingPage: React.FC<DashboardLandingPageProps> = ({
                     className="font-bold text-sm sm:text-base"
                     color="text.primary"
                   >
-                    Monatliche Challenge
+                    Dart-Pass
                   </Typography>
                 </div>
 

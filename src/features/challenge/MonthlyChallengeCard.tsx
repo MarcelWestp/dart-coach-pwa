@@ -24,6 +24,8 @@ import {
   DialogContent,
   DialogActions,
   Box,
+  useTheme,
+  useMediaQuery,
 } from '@mui/material';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import EmojiEventsIcon from '@mui/icons-material/EmojiEvents';
@@ -37,6 +39,9 @@ interface MonthlyChallengeCardProps {
 
 export const MonthlyChallengeCard: React.FC<MonthlyChallengeCardProps> = ({ onOpenLeaderboard }) => {
   const { userProfile } = useAuth();
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
+
   const [challenge, setChallenge] = useState<UserMonthlyChallenge | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [actionLoading, setActionLoading] = useState<boolean>(false);
@@ -57,7 +62,7 @@ export const MonthlyChallengeCard: React.FC<MonthlyChallengeCardProps> = ({ onOp
       setChallenge(data);
     } catch (err) {
       console.error(err);
-      setError('Fehler beim Laden deiner monatlichen Challenge.');
+      setError('Fehler beim Laden deines Dart-Passes.');
     } finally {
       setLoading(false);
     }
@@ -74,7 +79,7 @@ export const MonthlyChallengeCard: React.FC<MonthlyChallengeCardProps> = ({ onOp
     try {
       const created = await startUserMonthlyChallenge(userProfile.uid, difficulty, currentMonthYear);
       setChallenge(created);
-      setSuccess(`Challenge auf Stufe '${difficulty.toUpperCase()}' erfolgreich gestartet!`);
+      setSuccess(`Challenge '${difficulty.toUpperCase()}' erfolgreich gestartet!`);
     } catch (err: any) {
       console.error(err);
       setError(err.message || 'Fehler beim Starten der Challenge.');
@@ -124,75 +129,136 @@ export const MonthlyChallengeCard: React.FC<MonthlyChallengeCardProps> = ({ onOp
   const getDifficultyBadge = (difficulty: ChallengeDifficulty) => {
     switch (difficulty) {
       case 'bronze':
-        return <Chip label="BRONZE / LEVEL 1" sx={{ bgcolor: '#cd7f32', color: '#fff', fontWeight: 'bold' }} />;
+        return <Chip label="BRONZE" sx={{ bgcolor: '#cd7f32', color: '#fff', fontWeight: 'bold' }} />;
       case 'silver':
-        return <Chip label="SILBER / LEVEL 2" sx={{ bgcolor: '#c0c0c0', color: '#000', fontWeight: 'bold' }} />;
+        return <Chip label="SILBER" sx={{ bgcolor: '#c0c0c0', color: '#000', fontWeight: 'bold' }} />;
       case 'gold':
-        return <Chip label="GOLD / LEVEL 3" sx={{ bgcolor: '#ffd700', color: '#000', fontWeight: 'bold' }} />;
+        return <Chip label="GOLD" sx={{ bgcolor: '#ffd700', color: '#000', fontWeight: 'bold' }} />;
     }
   };
 
   if (loading) {
     return (
-      <div className="flex justify-center items-center py-12">
+      <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', py: 8 }}>
         <CircularProgress />
-      </div>
+      </Box>
     );
   }
 
-  // 1. SCHRITT: AUSWAHL DER SCHWIERIGKEITSSTUFE
+  // 1. SCHRITT: AUSWAHL DER SCHWIERIGKEITSSTUFE (Nur Bronze / Silber / Gold)
   if (!challenge) {
     return (
-      <Paper className="p-8 max-w-2xl mx-auto shadow-md text-center flex flex-col gap-6">
-        <div>
-          <MilitaryTechIcon color="primary" sx={{ fontSize: 60 }} />
-          <Typography variant="h4" className="font-bold mt-2" color="text.primary">
-            Monatliche Challenge ({formatMonthYearDisplay(currentMonthYear)})
+      <Paper
+        elevation={2}
+        sx={{
+          p: { xs: 2.5, sm: 4 },
+          maxWidth: '600px',
+          mx: 'auto',
+          bgcolor: 'background.paper',
+          borderColor: 'divider',
+          textAlign: 'center',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 3,
+        }}
+      >
+        <Box>
+          <MilitaryTechIcon color="primary" sx={{ fontSize: { xs: 48, sm: 60 } }} />
+          <Typography variant="h5" component="h1" sx={{ fontWeight: 'bold', mt: 1 }} color="text.primary">
+            Dart-Pass ({formatMonthYearDisplay(currentMonthYear)})
           </Typography>
-          <Typography variant="body1" color="textSecondary" className="mt-2">
-            Wähle einmal im Monat deine gewünschte Schwierigkeitsstufe. Das System stellt dir anschließend zufällig 7 Aufgaben aus dem Pool.
+          <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+            Wähle deine gewünschte Schwierigkeitsstufe. Das System stellt dir anschließend zufällig 7 Aufgaben aus dem Pool zusammen.
           </Typography>
-        </div>
+        </Box>
 
         {error && <Alert severity="error">{error}</Alert>}
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
+        <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(3, 1fr)' }, gap: 2, mt: 1 }}>
           <Card
             variant="outlined"
-            className="p-4 flex flex-col justify-between hover:border-amber-700 transition-all cursor-pointer"
             onClick={() => !actionLoading && handleStartChallenge('bronze')}
+            sx={{
+              p: 2,
+              bgcolor: 'action.hover',
+              borderColor: 'divider',
+              display: 'flex',
+              flexDirection: 'column',
+              justify: 'space-between',
+              cursor: actionLoading ? 'not-allowed' : 'pointer',
+              transition: 'all 0.2s ease',
+              '&:hover': { borderColor: '#cd7f32' },
+            }}
           >
-            <Typography variant="h6" className="font-bold text-amber-800">BRONZE</Typography>
-            <Typography variant="caption" color="textSecondary" className="my-2">Anfänger Level</Typography>
-            <Button variant="contained" sx={{ bgcolor: '#cd7f32', '&:hover': { bgcolor: '#b86f28' } }} disabled={actionLoading}>
+            <Typography variant="h6" sx={{ fontWeight: 'bold', color: '#cd7f32', mb: 2 }}>
+              BRONZE
+            </Typography>
+            <Button
+              variant="contained"
+              size="small"
+              sx={{ bgcolor: '#cd7f32', '&:hover': { bgcolor: '#b86f28' } }}
+              disabled={actionLoading}
+            >
               Bronze Wählen
             </Button>
           </Card>
 
           <Card
             variant="outlined"
-            className="p-4 flex flex-col justify-between hover:border-slate-400 transition-all cursor-pointer"
             onClick={() => !actionLoading && handleStartChallenge('silver')}
+            sx={{
+              p: 2,
+              bgcolor: 'action.hover',
+              borderColor: 'divider',
+              display: 'flex',
+              flexDirection: 'column',
+              justify: 'space-between',
+              cursor: actionLoading ? 'not-allowed' : 'pointer',
+              transition: 'all 0.2s ease',
+              '&:hover': { borderColor: '#a0a0a0' },
+            }}
           >
-            <Typography variant="h6" className="font-bold text-slate-700">SILBER</Typography>
-            <Typography variant="caption" color="textSecondary" className="my-2">Fortgeschritten Level</Typography>
-            <Button variant="contained" sx={{ bgcolor: '#a0a0a0', '&:hover': { bgcolor: '#8a8a8a' } }} disabled={actionLoading}>
+            <Typography variant="h6" sx={{ fontWeight: 'bold', color: '#a0a0a0', mb: 2 }}>
+              SILBER
+            </Typography>
+            <Button
+              variant="contained"
+              size="small"
+              sx={{ bgcolor: '#a0a0a0', color: '#000', '&:hover': { bgcolor: '#8a8a8a' } }}
+              disabled={actionLoading}
+            >
               Silber Wählen
             </Button>
           </Card>
 
           <Card
             variant="outlined"
-            className="p-4 flex flex-col justify-between hover:border-yellow-600 transition-all cursor-pointer"
             onClick={() => !actionLoading && handleStartChallenge('gold')}
+            sx={{
+              p: 2,
+              bgcolor: 'action.hover',
+              borderColor: 'divider',
+              display: 'flex',
+              flexDirection: 'column',
+              justify: 'space-between',
+              cursor: actionLoading ? 'not-allowed' : 'pointer',
+              transition: 'all 0.2s ease',
+              '&:hover': { borderColor: '#ffd700' },
+            }}
           >
-            <Typography variant="h6" className="font-bold text-yellow-600">GOLD</Typography>
-            <Typography variant="caption" color="textSecondary" className="my-2">Profi Level</Typography>
-            <Button variant="contained" sx={{ bgcolor: '#ffd700', color: '#000', '&:hover': { bgcolor: '#e6c200' } }} disabled={actionLoading}>
+            <Typography variant="h6" sx={{ fontWeight: 'bold', color: '#ffd700', mb: 2 }}>
+              GOLD
+            </Typography>
+            <Button
+              variant="contained"
+              size="small"
+              sx={{ bgcolor: '#ffd700', color: '#000', '&:hover': { bgcolor: '#e6c200' } }}
+              disabled={actionLoading}
+            >
               Gold Wählen
             </Button>
           </Card>
-        </div>
+        </Box>
       </Paper>
     );
   }
@@ -202,127 +268,224 @@ export const MonthlyChallengeCard: React.FC<MonthlyChallengeCardProps> = ({ onOp
   const isAllCompleted = completedTasksCount === 7;
 
   return (
-    <div className="max-w-3xl mx-auto flex flex-col gap-6">
+    <Box sx={{ maxWidth: '800px', mx: 'auto', display: 'flex', flexDirection: 'column', gap: 2, px: { xs: 1, sm: 2 } }}>
       {error && <Alert severity="error" onClose={() => setError(null)}>{error}</Alert>}
       {success && <Alert severity="success" onClose={() => setSuccess(null)}>{success}</Alert>}
 
       {/* TRAININGSKARTE CONTAINER */}
       <Paper
-        elevation={4}
-        className="p-6 rounded-xl border-4 border-amber-900/30 bg-gradient-to-b from-stone-50 to-stone-100 dark:from-stone-900 dark:to-stone-950 shadow-xl"
+        elevation={3}
+        sx={{
+          p: { xs: 2, sm: 3.5 },
+          borderRadius: 3,
+          bgcolor: 'background.paper',
+          borderColor: 'divider',
+          borderWidth: 1,
+          borderStyle: 'solid',
+        }}
       >
         {/* HEADER BEREICH */}
-        <div className="flex justify-between items-center flex-wrap gap-4 border-b border-stone-300 dark:border-stone-800 pb-4">
-          <div className="flex items-center gap-3">
+        <Box
+          sx={{
+            display: 'flex',
+            justify: 'space-between',
+            alignItems: 'center',
+            flexWrap: 'wrap',
+            gap: 2,
+            borderBottom: 1,
+            borderColor: 'divider',
+            pb: 2,
+          }}
+        >
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
             {getDifficultyBadge(challenge.difficulty)}
-            <Typography variant="h5" className="font-extrabold tracking-wider" color="text.primary">
-              TRAININSKARTE
+            <Typography variant={isMobile ? 'h6' : 'h5'} sx={{ fontWeight: 800, tracking: '0.05em' }} color="text.primary">
+              Dart-Pass
             </Typography>
-          </div>
+          </Box>
 
-          <div className="flex items-center gap-4 text-sm font-semibold">
-            <Box className="flex items-center gap-1 bg-amber-100 dark:bg-amber-950/60 px-3 py-1 rounded-md border border-amber-300 dark:border-amber-800">
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, flexWrap: 'wrap' }}>
+            <Box
+              sx={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 0.5,
+                bgcolor: 'action.hover',
+                px: 1.5,
+                py: 0.5,
+                borderRadius: 1,
+                fontSize: '0.875rem',
+                fontWeight: 600,
+              }}
+            >
               <CalendarMonthIcon fontSize="small" color="primary" />
               <span>MONAT: {formatMonthYearDisplay(challenge.monthYear)}</span>
             </Box>
-            <Box className="bg-stone-200 dark:bg-stone-800 px-3 py-1 rounded-md">
+            <Box
+              sx={{
+                bgcolor: 'action.selected',
+                px: 1.5,
+                py: 0.5,
+                borderRadius: 1,
+                fontSize: '0.875rem',
+                fontWeight: 600,
+              }}
+            >
               SPIELER: {userProfile?.nickname || userProfile?.realName || 'Darter'}
             </Box>
-          </div>
-        </div>
+          </Box>
+        </Box>
 
         {/* JOKER / TAUSCH BEREICH */}
-        <div className="my-4 flex justify-between items-center flex-wrap gap-2 bg-stone-200/50 dark:bg-stone-800/50 p-3 rounded-lg">
-          <div className="flex items-center gap-2">
-            <Typography variant="subtitle2" className="font-bold" color="text.primary">
+        <Box
+          sx={{
+            my: 2.5,
+            display: 'flex',
+            justify: 'space-between',
+            alignItems: 'center',
+            flexWrap: 'wrap',
+            gap: 1.5,
+            bgcolor: 'action.hover',
+            p: 1.5,
+            borderRadius: 2,
+          }}
+        >
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
+            <Typography variant="subtitle2" sx={{ fontWeight: 'bold' }} color="text.primary">
               Neuwahl-Joker übrig: {challenge.swapsRemaining} / 2
             </Typography>
-            <Typography variant="caption" color="textSecondary">
+            <Typography variant="caption" color="text.secondary">
               (Du kannst max. 2 offene Aufgaben neu ziehen)
             </Typography>
-          </div>
+          </Box>
 
           <Chip
             label={`Fortschritt: ${completedTasksCount} / 7 Erledigt`}
             color={isAllCompleted ? 'success' : 'primary'}
-            className="font-bold"
+            sx={{ fontWeight: 'bold' }}
+            size="small"
           />
-        </div>
+        </Box>
 
         {/* AUFGABENLISTE */}
-        <div className="flex flex-col gap-3 my-6">
+        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5, my: 2 }}>
           {challenge.tasks.map((task, index) => (
             <Card
               key={task.taskId}
               variant="outlined"
-              className={`transition-all ${
-                task.completed
-                  ? 'bg-green-50/70 dark:bg-green-950/20 border-green-300 dark:border-green-800'
-                  : 'bg-white dark:bg-stone-900 border-stone-300 dark:border-stone-700'
-              }`}
+              sx={{
+                bgcolor: task.completed ? 'action.selected' : 'background.paper',
+                borderColor: task.completed ? 'success.main' : 'divider',
+                transition: 'all 0.2s ease',
+              }}
             >
-              <CardContent className="p-3 flex items-center justify-between gap-4">
-                <div className="flex items-center gap-3 flex-1">
-                  <div className="w-8 h-8 rounded-full bg-amber-900 text-amber-50 font-bold flex items-center justify-center text-sm shrink-0">
-                    {index + 1}
-                  </div>
-
-                  <Checkbox
-                    checked={task.completed}
-                    onChange={() => handleToggleTask(task.taskId)}
-                    disabled={actionLoading}
-                    color="success"
-                  />
-
-                  <div className="flex flex-col">
-                    <Typography
-                      variant="body1"
-                      className={`font-bold ${task.completed ? 'line-through text-stone-500' : 'text-stone-900 dark:text-stone-100'}`}
+              <CardContent sx={{ p: { xs: 1.5, sm: 2 }, '&:last-child': { pb: { xs: 1.5, sm: 2 } } }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1.5 }}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, flex: 1 }}>
+                    <Box
+                      sx={{
+                        width: 28,
+                        height: 28,
+                        borderRadius: '50%',
+                        bgcolor: 'primary.main',
+                        color: 'primary.contrastText',
+                        fontWeight: 'bold',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        fontSize: '0.85rem',
+                        flexShrink: 0,
+                      }}
                     >
-                      {task.title}
-                    </Typography>
-                    {task.description && (
-                      <Typography variant="caption" color="textSecondary">
-                        {task.description}
-                      </Typography>
-                    )}
-                    {task.completedAt && (
-                      <Typography variant="caption" color="success.main" className="font-medium mt-0.5">
-                        Abgehakt am: {new Date(task.completedAt).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
-                      </Typography>
-                    )}
-                  </div>
-                </div>
+                      {index + 1}
+                    </Box>
 
-                {/* Tausch Button */}
-                {!task.completed && challenge.swapsRemaining > 0 && (
-                  <IconButton
-                    size="small"
-                    color="warning"
-                    title="Diese Aufgabe neu ziehen"
-                    onClick={() => setTaskToSwapId(task.taskId)}
-                    disabled={actionLoading}
-                  >
-                    <RefreshIcon fontSize="small" />
-                  </IconButton>
-                )}
+                    <Checkbox
+                      checked={task.completed}
+                      onChange={() => handleToggleTask(task.taskId)}
+                      disabled={actionLoading}
+                      color="success"
+                      size={isMobile ? 'small' : 'medium'}
+                    />
+
+                    <Box sx={{ display: 'flex', flexDirection: 'column' }}>
+                      <Typography
+                        variant="body1"
+                        sx={{
+                          fontWeight: 'bold',
+                          textDecoration: task.completed ? 'line-through' : 'none',
+                          color: task.completed ? 'text.secondary' : 'text.primary',
+                          fontSize: { xs: '0.9rem', sm: '1rem' },
+                        }}
+                      >
+                        {task.title}
+                      </Typography>
+                      {task.description && (
+                        <Typography variant="caption" color="text.secondary">
+                          {task.description}
+                        </Typography>
+                      )}
+                      {task.completedAt && (
+                        <Typography variant="caption" color="success.main" sx={{ fontWeight: 600, mt: 0.5 }}>
+                          Abgehakt am:{' '}
+                          {new Date(task.completedAt).toLocaleDateString('de-DE', {
+                            day: '2-digit',
+                            month: '2-digit',
+                            year: 'numeric',
+                            hour: '2-digit',
+                            minute: '2-digit',
+                          })}
+                        </Typography>
+                      )}
+                    </Box>
+                  </Box>
+
+                  {/* Tausch Button */}
+                  {!task.completed && challenge.swapsRemaining > 0 && (
+                    <IconButton
+                      size="small"
+                      color="warning"
+                      title="Diese Aufgabe neu ziehen"
+                      onClick={() => setTaskToSwapId(task.taskId)}
+                      disabled={actionLoading}
+                    >
+                      <RefreshIcon fontSize="small" />
+                    </IconButton>
+                  )}
+                </Box>
               </CardContent>
             </Card>
           ))}
-        </div>
+        </Box>
 
         {/* ABSCHLUSS-HERVORHEBUNG & RANGLISTEN-LINK */}
         {isAllCompleted && (
-          <Box className="mt-6 p-4 rounded-lg bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-300 dark:border-emerald-800 text-center flex flex-col items-center gap-3">
+          <Box
+            sx={{
+              mt: 3,
+              p: 2.5,
+              borderRadius: 2,
+              bgcolor: 'action.hover',
+              borderColor: 'success.main',
+              borderWidth: 1,
+              borderStyle: 'solid',
+              textAlign: 'center',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              gap: 1.5,
+            }}
+          >
             <CheckCircleIcon color="success" sx={{ fontSize: 48 }} />
-            <div>
-              <Typography variant="h6" className="font-bold text-emerald-900 dark:text-emerald-200">
+            <Box>
+              <Typography variant="h6" sx={{ fontWeight: 'bold' }} color="text.primary">
                 HERZLICHEN GLÜCKWUNSCH!
               </Typography>
-              <Typography variant="body2" color="textSecondary">
-                Du hast alle 7 Aufgaben absolviert! Benötigte Zeit: <strong className="text-emerald-700 dark:text-emerald-300">{challenge.daysNeeded} Tag(e)</strong>.
+              <Typography variant="body2" color="text.secondary">
+                Du hast alle 7 Aufgaben absolviert! Benötigte Zeit:{' '}
+                <strong style={{ color: theme.palette.success.main }}>{challenge.daysNeeded} Tag(e)</strong>.
               </Typography>
-            </div>
+            </Box>
 
             <Button
               variant="contained"
@@ -337,20 +500,31 @@ export const MonthlyChallengeCard: React.FC<MonthlyChallengeCardProps> = ({ onOp
       </Paper>
 
       {/* TAUSCH BESTÄTIGUNGS-MODAL */}
-      <Dialog open={Boolean(taskToSwapId)} onClose={() => setTaskToSwapId(null)}>
-        <DialogTitle className="font-bold">Aufgabe neu wählen?</DialogTitle>
+      <Dialog
+        open={Boolean(taskToSwapId)}
+        onClose={() => setTaskToSwapId(null)}
+        fullWidth
+        maxWidth="xs"
+        slotProps={{
+          paper: {
+            sx: { bgcolor: 'background.paper', borderColor: 'divider' },
+          },
+        }}
+      >
+        <DialogTitle sx={{ fontWeight: 'bold' }}>Aufgabe neu wählen?</DialogTitle>
         <DialogContent dividers>
-          <Typography variant="body2">
-            Möchtest du einen deiner 2 Neuwahl-Joker einsetzen, um diese Aufgabe durch eine andere zufällige Aufgabe aus der Stufe <strong>{challenge.difficulty.toUpperCase()}</strong> zu ersetzen?
+          <Typography variant="body2" color="text.primary">
+            Möchtest du einen deiner Neuwahl-Joker einsetzen, um diese Aufgabe durch eine andere zufällige Aufgabe aus der Stufe{' '}
+            <strong>{challenge.difficulty.toUpperCase()}</strong> zu ersetzen?
           </Typography>
         </DialogContent>
-        <DialogActions className="p-4">
+        <DialogActions sx={{ p: 2 }}>
           <Button onClick={() => setTaskToSwapId(null)}>Abbrechen</Button>
           <Button variant="contained" color="warning" onClick={handleConfirmSwap} disabled={actionLoading}>
             {actionLoading ? 'Tauscht...' : 'Jetzt Tauschen'}
           </Button>
         </DialogActions>
       </Dialog>
-    </div>
+    </Box>
   );
 };

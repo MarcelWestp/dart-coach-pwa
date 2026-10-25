@@ -34,8 +34,27 @@ export interface TrainingPlan {
   status?: 'assigned' | 'in_progress' | 'completed';
   isTemplate?: boolean;
   templateName?: string;
+  assignedType: 'individual' | 'group';
   createdAt?: string;
   updatedAt?: string;
+}
+
+// NEU: Typ für separat zugewiesene Leistungstests
+export interface AssignedPerformanceTest {
+  id?: string;
+  testId: string;
+  title: string;
+  description?: string;
+  coachId: string;
+  playerId: string;
+  calendarWeek: number;
+  year: number;
+  coachNote?: string;
+  status: 'assigned' | 'completed';
+  completedAt?: string;
+  assignedType: 'individual' | 'group'; // <-- NEU: Herkunft (Einzel vs. Gruppe)
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface CoachPlayerRelation {

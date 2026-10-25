@@ -6,6 +6,8 @@ import {
   doc,
   updateDoc,
   deleteDoc,
+  query,
+  where,
 } from "firebase/firestore";
 import { db } from "../../firebase/config";
 import { useAuth } from "../../context/AuthContext";
@@ -56,6 +58,7 @@ import DeleteIcon from "@mui/icons-material/Delete";
 import EditIcon from "@mui/icons-material/Edit";
 import SendIcon from "@mui/icons-material/Send";
 import PersonIcon from "@mui/icons-material/Person";
+import GroupIcon from "@mui/icons-material/Group";
 import VisibilityIcon from "@mui/icons-material/Visibility";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import FitnessCenterIcon from "@mui/icons-material/FitnessCenter";
@@ -70,6 +73,9 @@ export const CoachPlanList: React.FC<CoachPlanListProps> = () => {
   const [activeTab, setActiveTab] = useState<number>(0); // 0 = Vorlagen, 1 = Zugewiesene Pläne
   const [selectedPlayerFilter, setSelectedPlayerFilter] =
     useState<string>("all");
+  const [originFilter, setOriginFilter] = useState<"all" | "single" | "group">(
+    "all"
+  );
 
   const [templates, setTemplates] = useState<TrainingPlan[]>([]);
   const [assignedPlans, setAssignedPlans] = useState<TrainingPlan[]>([]);
@@ -109,8 +115,30 @@ export const CoachPlanList: React.FC<CoachPlanListProps> = () => {
     useState<TrainingPlan | null>(null);
 
   const fetchData = async () => {
+    if (!userProfile?.uid) {
+      setLoading(false);
+      return;
+    }
+
     setLoading(true);
     try {
+      // PERFORMANCE-OPTIMIERUNG: Serverseitiges Filtern über Firestore Queries
+      const templatesQuery = query(
+        collection(db, "trainingPlans"),
+        where("coachId", "==", userProfile.uid),
+        where("isTemplate", "==", true)
+      );
+
+      const assignedQuery = query(
+        collection(db, "assignedPlans"),
+        where("coachId", "==", userProfile.uid)
+      );
+
+      const groupsQuery = query(
+        collection(db, "playerGroups"),
+        where("coachId", "==", userProfile.uid)
+      );
+
       const [
         templatesSnap,
         assignedSnap,
@@ -119,32 +147,30 @@ export const CoachPlanList: React.FC<CoachPlanListProps> = () => {
         groupsSnap,
         resultsSnap,
       ] = await Promise.all([
-        getDocs(collection(db, "trainingPlans")),
-        getDocs(collection(db, "assignedPlans")),
+        getDocs(templatesQuery),
+        getDocs(assignedQuery),
         getDocs(collection(db, "exercises")),
         getDocs(collection(db, "users")),
-        getDocs(collection(db, "playerGroups")),
+        getDocs(groupsQuery),
         getDocs(collection(db, "testResults")),
       ]);
 
       // Vorlagen laden
       const fetchedTemplates: TrainingPlan[] = [];
       templatesSnap.forEach((d) => {
-        const data = d.data();
-        delete data.id;
-        if (data.isTemplate && data.coachId === userProfile?.uid) {
-          fetchedTemplates.push({ id: d.id, ...data } as TrainingPlan);
-        }
+        const { id, ...data } = d.data();
+        fetchedTemplates.push({ id: d.id, ...data } as TrainingPlan);
       });
 
       // Zugewiesene Pläne laden
       const fetchedAssigned: TrainingPlan[] = [];
       assignedSnap.forEach((d) => {
-        const data = d.data();
-        delete data.id;
-        if (data.coachId === userProfile?.uid) {
-          fetchedAssigned.push({ id: d.id, ...data } as TrainingPlan);
-        }
+        const { id, ...data } = d.data();
+        fetchedAssigned.push({
+          id: d.id,
+          ...data,
+          assignedType: data.assignedType || "single", // Fallback, falls ältere Daten ohne Parameter
+        } as TrainingPlan & { assignedType?: "single" | "group" });
       });
 
       // Sortierung nach Jahr & Kalenderwoche absteigend
@@ -158,29 +184,26 @@ export const CoachPlanList: React.FC<CoachPlanListProps> = () => {
 
       const fetchedExercises: Exercise[] = [];
       exercisesSnap.forEach((d) => {
-        const data = d.data();
-        delete data.id;
+        const { id, ...data } = d.data();
         fetchedExercises.push({ id: d.id, ...data } as Exercise);
       });
 
       const fetchedPlayers: UserProfile[] = [];
       usersSnap.forEach((d) => {
-        const data = d.data();
-        delete data.id;
-        fetchedPlayers.push({ id: d.id, ...data } as unknown as UserProfile);
+        const { id, ...data } = d.data();
+        fetchedPlayers.push({ uid: d.id, ...data } as unknown as UserProfile);
       });
 
       const fetchedGroups: PlayerGroup[] = [];
       groupsSnap.forEach((d) => {
-        const data = d.data();
-        delete data.id;
+        const { id, ...data } = d.data();
         fetchedGroups.push({ id: d.id, ...data } as PlayerGroup);
       });
 
+      // Korrektur: Dokumenten-ID sauber via Destructuring auflösen (delete data.id vermieden)
       const fetchedResults: TestResult[] = [];
       resultsSnap.forEach((d) => {
-        const data = d.data();
-        delete data.id;
+        const { id, ...data } = d.data();
         fetchedResults.push({ id: d.id, ...data } as TestResult);
       });
 
@@ -363,7 +386,9 @@ export const CoachPlanList: React.FC<CoachPlanListProps> = () => {
     if (!id) return;
     if (
       !window.confirm(
-        `Möchtest du den zugewiesenen Plan "${title || "Trainingsplan"}" für diesen Spieler wirklich löschen?`
+        `Möchtest du den zugewiesenen Plan "${
+          title || "Trainingsplan"
+        }" für diesen Spieler wirklich löschen?`
       )
     )
       return;
@@ -377,7 +402,7 @@ export const CoachPlanList: React.FC<CoachPlanListProps> = () => {
     }
   };
 
-  // --- ZUWEISUNGS-HANDLING ---
+  // --- ZUWEISUNGS-HANDLING MIT HERKUNFTS-SPEICHERUNG ---
   const handleOpenAssignModal = (template: TrainingPlan) => {
     setSelectedPlanTemplate(template);
     setAssignmentType("single");
@@ -404,11 +429,15 @@ export const CoachPlanList: React.FC<CoachPlanListProps> = () => {
         targetUserIds = group.memberIds;
       }
 
+      // Speichern der Herkunft: "single" oder "group"
+      const assignedType = assignmentType;
+
       const assignPromises = targetUserIds.map(async (userId) => {
         await addDoc(collection(db, "assignedPlans"), {
           title: selectedPlanTemplate.title,
           coachId: userProfile.uid,
           playerId: userId,
+          assignedType: assignedType, // <-- HERKUNFT MITGESPEICHERT ("single" | "group")
           year: selectedPlanTemplate.year || new Date().getFullYear(),
           calendarWeek: selectedPlanTemplate.calendarWeek || 1,
           coachNote: selectedPlanTemplate.coachNote || "",
@@ -471,7 +500,7 @@ export const CoachPlanList: React.FC<CoachPlanListProps> = () => {
     return { completedExercises, totalExercises, percent };
   };
 
-  // Gefilterte Liste zugewiesener Pläne
+  // Gefilterte Liste zugewiesener Pläne (nach Spieler, Status & Herkunft)
   const filteredAssignedPlans = assignedPlans.filter((plan) => {
     if (
       selectedPlayerFilter !== "all" &&
@@ -480,6 +509,10 @@ export const CoachPlanList: React.FC<CoachPlanListProps> = () => {
       return false;
     }
     if (!showCompleted && plan.status === "completed") {
+      return false;
+    }
+    const pOrigin = (plan as any).assignedType || "single";
+    if (originFilter !== "all" && pOrigin !== originFilter) {
       return false;
     }
     return true;
@@ -671,14 +704,14 @@ export const CoachPlanList: React.FC<CoachPlanListProps> = () => {
       {/* TAB 1: ZUGEWIESENE PLÄNE */}
       {activeTab === 1 && (
         <div className="flex flex-col gap-4">
-          {/* Filter-Zeile */}
+          {/* Filter-Zeile mit Herkunft & Spieler */}
           <Paper
             variant="outlined"
             sx={{ bgcolor: "background.paper", borderColor: "divider" }}
             className="flex justify-between items-center flex-wrap gap-4 p-3 shadow-sm"
           >
-            <div className="flex items-center gap-4 flex-wrap w-full sm:w-auto">
-              <FormControl size="small" className="w-full sm:w-auto min-w-[220px]">
+            <div className="flex items-center gap-4 flex-wrap w-full md:w-auto">
+              <FormControl size="small" className="w-full sm:w-auto min-w-[200px]">
                 <InputLabel id="filter-player-label">
                   Nach Spieler filtern
                 </InputLabel>
@@ -704,6 +737,21 @@ export const CoachPlanList: React.FC<CoachPlanListProps> = () => {
                 </Select>
               </FormControl>
 
+              {/* Herkunfts-Filter Dropdown */}
+              <FormControl size="small" className="w-full sm:w-auto min-w-[170px]">
+                <InputLabel id="filter-origin-label">Herkunft Filter</InputLabel>
+                <Select
+                  labelId="filter-origin-label"
+                  value={originFilter}
+                  label="Herkunft Filter"
+                  onChange={(e) => setOriginFilter(e.target.value as any)}
+                >
+                  <MenuItem value="all">Alle Herkünfte</MenuItem>
+                  <MenuItem value="single">Einzelzuweisung</MenuItem>
+                  <MenuItem value="group">Gruppenzuweisung</MenuItem>
+                </Select>
+              </FormControl>
+
               <FormControlLabel
                 control={
                   <Switch
@@ -718,7 +766,7 @@ export const CoachPlanList: React.FC<CoachPlanListProps> = () => {
                     className="font-medium"
                     color="text.primary"
                   >
-                    Abgeschlossene Pläne anzeigen
+                    Abgeschlossene anzeigen
                   </Typography>
                 }
               />
@@ -745,6 +793,7 @@ export const CoachPlanList: React.FC<CoachPlanListProps> = () => {
               filteredAssignedPlans.map((plan) => {
                 const { completedExercises, totalExercises, percent } =
                   calculatePlanProgress(plan);
+                const isGroup = ((plan as any).assignedType || "single") === "group";
 
                 return (
                   <Card
@@ -757,7 +806,7 @@ export const CoachPlanList: React.FC<CoachPlanListProps> = () => {
                     className="flex flex-col justify-between shadow-sm"
                   >
                     <CardContent>
-                      <div className="flex justify-between items-start mb-2">
+                      <div className="flex justify-between items-start mb-2 gap-2">
                         <div>
                           <Typography
                             variant="h6"
@@ -782,16 +831,33 @@ export const CoachPlanList: React.FC<CoachPlanListProps> = () => {
                           </Typography>
                         </div>
 
-                        <IconButton
-                          size="small"
-                          color="error"
-                          onClick={() =>
-                            handleDeleteAssignedPlan(plan.id, plan.title)
-                          }
-                          title="Zugewiesenen Plan löschen"
-                        >
-                          <DeleteIcon fontSize="small" />
-                        </IconButton>
+                        <div className="flex items-center gap-1">
+                          {/* Herkunfts-Badge */}
+                          <Chip
+                            icon={
+                              isGroup ? (
+                                <GroupIcon fontSize="small" />
+                              ) : (
+                                <PersonIcon fontSize="small" />
+                              )
+                            }
+                            label={isGroup ? "Gruppe" : "Einzel"}
+                            size="small"
+                            variant="outlined"
+                            color={isGroup ? "secondary" : "default"}
+                          />
+
+                          <IconButton
+                            size="small"
+                            color="error"
+                            onClick={() =>
+                              handleDeleteAssignedPlan(plan.id, plan.title)
+                            }
+                            title="Zugewiesenen Plan löschen"
+                          >
+                            <DeleteIcon fontSize="small" />
+                          </IconButton>
+                        </div>
                       </div>
 
                       <div className="flex justify-between items-center my-2">
@@ -896,17 +962,11 @@ export const CoachPlanList: React.FC<CoachPlanListProps> = () => {
 
                 <DialogContent dividers className="flex flex-col gap-4 p-4 sm:p-6">
                   <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-2">
-                    <Typography
-                      variant="subtitle2"
-                      color="text.primary"
-                    >
+                    <Typography variant="subtitle2" color="text.primary">
                       <strong>Spieler:</strong>{" "}
                       {getPlayerName(selectedPlanForView.playerId)}
                     </Typography>
-                    <Typography
-                      variant="subtitle2"
-                      color="text.primary"
-                    >
+                    <Typography variant="subtitle2" color="text.primary">
                       <strong>Zeitraum:</strong> KW{" "}
                       {selectedPlanForView.calendarWeek} /{" "}
                       {selectedPlanForView.year}
@@ -1095,7 +1155,6 @@ export const CoachPlanList: React.FC<CoachPlanListProps> = () => {
                                   )}
                                 </div>
 
-                                {/* Trainer-Hinweis an den Spieler */}
                                 {exItem.coachNote && (
                                   <Typography
                                     variant="caption"
@@ -1106,7 +1165,6 @@ export const CoachPlanList: React.FC<CoachPlanListProps> = () => {
                                   </Typography>
                                 )}
 
-                                {/* Status & Ergebnisse nach Ausführung */}
                                 {isDone ? (
                                   <Box
                                     sx={{
@@ -1119,7 +1177,6 @@ export const CoachPlanList: React.FC<CoachPlanListProps> = () => {
                                     }}
                                     className="flex flex-col gap-1 text-sm"
                                   >
-                                    {/* Erzielte Punkte anzeigen */}
                                     {matchingResult ? (
                                       <Typography
                                         variant="body2"
@@ -1140,7 +1197,6 @@ export const CoachPlanList: React.FC<CoachPlanListProps> = () => {
                                       </Typography>
                                     )}
 
-                                    {/* Score Details anzeigen */}
                                     {matchingResult?.exerciseScores &&
                                       matchingResult.exerciseScores.length >
                                         0 && (
@@ -1176,7 +1232,6 @@ export const CoachPlanList: React.FC<CoachPlanListProps> = () => {
                                       </Typography>
                                     )}
 
-                                    {/* Spieler-Feedback */}
                                     {exItem.playerNote ? (
                                       <Typography
                                         variant="caption"
@@ -1358,7 +1413,6 @@ export const CoachPlanList: React.FC<CoachPlanListProps> = () => {
                   onChange={(e) => handleUpdateBlockNote(bIdx, e.target.value)}
                 />
 
-                {/* Übungen im Block */}
                 <Typography
                   variant="subtitle2"
                   className="font-bold mt-2"
@@ -1400,7 +1454,6 @@ export const CoachPlanList: React.FC<CoachPlanListProps> = () => {
                         </IconButton>
                       </div>
 
-                      {/* EINGABE ZEITVORGABE & TRAINERNOTE */}
                       <div className="flex flex-col sm:flex-row gap-2 items-center mt-2">
                         <TextField
                           label="Zeitvorgabe (Min.)"
@@ -1508,7 +1561,7 @@ export const CoachPlanList: React.FC<CoachPlanListProps> = () => {
           </FormControl>
 
           {assignmentType === "single" ? (
-            <FormControl fullWidth required>
+            <FormControl fullWidth required size="small">
               <InputLabel id="assign-single-player-label">
                 Spieler Auswählen
               </InputLabel>
@@ -1526,7 +1579,7 @@ export const CoachPlanList: React.FC<CoachPlanListProps> = () => {
               </Select>
             </FormControl>
           ) : (
-            <FormControl fullWidth required>
+            <FormControl fullWidth required size="small">
               <InputLabel id="assign-group-label">
                 Gruppe Auswählen
               </InputLabel>

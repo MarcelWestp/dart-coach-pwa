@@ -53,11 +53,28 @@ import CommentIcon from "@mui/icons-material/Comment";
 import PlayArrowIcon from "@mui/icons-material/PlayArrow";
 import EmojiEventsIcon from "@mui/icons-material/EmojiEvents";
 import AccessTimeIcon from "@mui/icons-material/AccessTime";
+import GroupIcon from "@mui/icons-material/Group";
+import PersonIcon from "@mui/icons-material/Person";
+
+// Modell für separat zugewiesene Leistungstests
+interface AssignedTest {
+  id: string;
+  testId: string;
+  title: string;
+  description?: string;
+  calendarWeek: number;
+  year: number;
+  coachNote?: string;
+  status: "assigned" | "completed";
+  completedAt?: string;
+  assignedType?: "individual" | "group"; // Herkunft: Einzel- oder Gruppenzuweisung
+}
 
 export const PlayerPlanView: React.FC = () => {
   const { userProfile } = useAuth();
 
   const [plans, setPlans] = useState<TrainingPlan[]>([]);
+  const [assignedTests, setAssignedTests] = useState<AssignedTest[]>([]);
   const [exercises, setExercises] = useState<Exercise[]>([]);
   const [tests, setTests] = useState<PerformanceTest[]>([]);
   const [testResults, setTestResults] = useState<TestResult[]>([]);
@@ -66,6 +83,7 @@ export const PlayerPlanView: React.FC = () => {
 
   // Status für Filter & Auswahl
   const [showCompleted, setShowCompleted] = useState<boolean>(true);
+  const [originFilter, setOriginFilter] = useState<"all" | "individual" | "group">("all");
   const [activePlanId, setActivePlanId] = useState<string>("");
 
   // Status für Ergebniseingabe
@@ -96,20 +114,25 @@ export const PlayerPlanView: React.FC = () => {
     setLoading(true);
 
     try {
-      // 1. Zugewiesene Pläne für den angemeldeten Spieler filtern
+      // PERFORMANCEN-OPTIMIERUNG: Gezielte Abfragen mit where-Filtern
       const plansQuery = query(
         collection(db, "assignedPlans"),
         where("playerId", "==", userProfile.uid)
       );
 
-      // 2. Eigene Testergebnisse für den angemeldeten Spieler filtern
+      const assignedTestsQuery = query(
+        collection(db, "assignedPerformanceTests"),
+        where("playerId", "==", userProfile.uid)
+      );
+
       const resultsQuery = query(
         collection(db, "testResults"),
         where("userId", "==", userProfile.uid)
       );
 
-      const [plansSnap, exSnap, testSnap, resultsSnap] = await Promise.all([
+      const [plansSnap, assignedTestsSnap, exSnap, testSnap, resultsSnap] = await Promise.all([
         getDocs(plansQuery),
+        getDocs(assignedTestsQuery),
         getDocs(collection(db, "exercises")),
         getDocs(collection(db, "performanceTests")),
         getDocs(resultsQuery),
@@ -119,11 +142,25 @@ export const PlayerPlanView: React.FC = () => {
       plansSnap.forEach((d) => {
         const { id, ...data } = d.data();
         if (!data.isTemplate) {
-          fetchedPlans.push({ id: d.id, ...data } as TrainingPlan);
+          fetchedPlans.push({
+            id: d.id,
+            ...data,
+            // Fallback: Falls kein assignedType angegeben ist, als 'individual' werten
+            assignedType: data.assignedType || "individual",
+          } as TrainingPlan & { assignedType?: "individual" | "group" });
         }
       });
 
-      // Dokumenten-ID für testResults sauber per Destructuring erhalten
+      const fetchedAssignedTests: AssignedTest[] = [];
+      assignedTestsSnap.forEach((d) => {
+        const { id, ...data } = d.data();
+        fetchedAssignedTests.push({
+          id: d.id,
+          ...data,
+          assignedType: data.assignedType || "individual",
+        } as AssignedTest);
+      });
+
       const fetchedResults: TestResult[] = [];
       resultsSnap.forEach((d) => {
         const { id, ...data } = d.data();
@@ -136,7 +173,14 @@ export const PlayerPlanView: React.FC = () => {
         const yearB = b.year ?? 0;
         const weekA = a.calendarWeek ?? 0;
         const weekB = b.calendarWeek ?? 0;
+        return yearB !== yearA ? yearB - yearA : weekB - weekA;
+      });
 
+      fetchedAssignedTests.sort((a, b) => {
+        const yearA = a.year ?? 0;
+        const yearB = b.year ?? 0;
+        const weekA = a.calendarWeek ?? 0;
+        const weekB = b.calendarWeek ?? 0;
         return yearB !== yearA ? yearB - yearA : weekB - weekA;
       });
 
@@ -153,6 +197,7 @@ export const PlayerPlanView: React.FC = () => {
       });
 
       setPlans(fetchedPlans);
+      setAssignedTests(fetchedAssignedTests);
       setExercises(fetchedExercises);
       setTests(fetchedTests);
       setTestResults(fetchedResults);
@@ -200,11 +245,18 @@ export const PlayerPlanView: React.FC = () => {
     };
   }, [userProfile?.uid]);
 
-  // Gefilterte Liste anhand des Switch-Status (Completed anzeigen / verbergen)
+  // Gefilterte Liste der Trainingspläne
   const visiblePlans = plans.filter((p) => {
-    if (!showCompleted && p.status === "completed") {
-      return false;
-    }
+    if (!showCompleted && p.status === "completed") return false;
+    const pType = (p as any).assignedType || "individual";
+    if (originFilter !== "all" && pType !== originFilter) return false;
+    return true;
+  });
+
+  // Gefilterte Liste der zugewiesenen Leistungstests
+  const visibleAssignedTests = assignedTests.filter((t) => {
+    if (!showCompleted && t.status === "completed") return false;
+    if (originFilter !== "all" && t.assignedType !== originFilter) return false;
     return true;
   });
 
@@ -225,7 +277,7 @@ export const PlayerPlanView: React.FC = () => {
       setActivePlan(visiblePlans[0]);
       setActivePlanId(visiblePlans[0]?.id ?? "");
     }
-  }, [plans, showCompleted, activePlanId]);
+  }, [plans, showCompleted, originFilter, activePlanId]);
 
   // Hilfsfunktion: 48-Stunden-Sperrregel prüfen
   const canEditResult = (completedAt?: string) => {
@@ -334,8 +386,6 @@ export const PlayerPlanView: React.FC = () => {
 
   // Nach Ergebniserfassung des Leistungstests
   const handleTestResultSaved = async () => {
-    if (!activePlan || !activePlan?.id) return;
-
     await fetchData();
     setSelectedTestToRecord(null);
   };
@@ -348,7 +398,9 @@ export const PlayerPlanView: React.FC = () => {
     );
   }
 
-  if (plans.length === 0) {
+  const hasNoData = plans.length === 0 && assignedTests.length === 0;
+
+  if (hasNoData) {
     return (
       <Box className="p-6 max-w-4xl mx-auto text-center">
         <Typography
@@ -356,10 +408,10 @@ export const PlayerPlanView: React.FC = () => {
           className="font-bold mb-2"
           color="text.primary"
         >
-          Keine Trainingspläne vorhanden
+          Keine Pläne oder Leistungstests vorhanden
         </Typography>
         <Typography variant="body2" color="text.secondary">
-          Dein Trainer hat dir derzeit noch keinen Wochenplan zugewiesen.
+          Dein Trainer hat dir derzeit noch keine Wochenpläne oder Leistungstests zugewiesen.
         </Typography>
       </Box>
     );
@@ -397,7 +449,7 @@ export const PlayerPlanView: React.FC = () => {
           className="font-bold text-xl sm:text-3xl"
           color="text.primary"
         >
-          Mein Trainingsplan
+          Mein Trainingsbereich
         </Typography>
       </div>
 
@@ -407,7 +459,7 @@ export const PlayerPlanView: React.FC = () => {
         </Alert>
       )}
 
-      {/* Filterleiste: Select-Dropdown & Switch */}
+      {/* Filterleiste: Auswahl, Herkunft & Status-Switch */}
       <Paper
         variant="outlined"
         sx={{
@@ -417,24 +469,44 @@ export const PlayerPlanView: React.FC = () => {
         }}
         className="flex flex-wrap justify-between items-center gap-4 shadow-sm"
       >
-        <FormControl size="small" className="w-full sm:w-auto min-w-[260px]">
-          <InputLabel id="select-plan-label">
-            Trainingsplan auswählen
-          </InputLabel>
-          <Select
-            labelId="select-plan-label"
-            value={activePlanId}
-            label="Trainingsplan auswählen"
-            onChange={(e) => setActivePlanId(e.target.value)}
-          >
-            {visiblePlans.map((p) => (
-              <MenuItem key={p.id} value={p.id}>
-                KW {p.calendarWeek} / {p.year} - {p.title}
-                {p.status === "completed" ? " (Abgeschlossen)" : ""}
-              </MenuItem>
-            ))}
-          </Select>
-        </FormControl>
+        <div className="flex flex-wrap items-center gap-4 w-full md:w-auto">
+          {/* Plan-Auswahl Dropdown */}
+          {visiblePlans.length > 0 && (
+            <FormControl size="small" className="w-full sm:w-auto min-w-[240px]">
+              <InputLabel id="select-plan-label">
+                Trainingsplan auswählen
+              </InputLabel>
+              <Select
+                labelId="select-plan-label"
+                value={activePlanId}
+                label="Trainingsplan auswählen"
+                onChange={(e) => setActivePlanId(e.target.value)}
+              >
+                {visiblePlans.map((p) => (
+                  <MenuItem key={p.id} value={p.id}>
+                    KW {p.calendarWeek} / {p.year} - {p.title}
+                    {p.status === "completed" ? " (Abgeschlossen)" : ""}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+          )}
+
+          {/* Herkunfts-Filter Dropdown */}
+          <FormControl size="small" className="w-full sm:w-auto min-w-[180px]">
+            <InputLabel id="select-origin-label">Herkunft Filter</InputLabel>
+            <Select
+              labelId="select-origin-label"
+              value={originFilter}
+              label="Herkunft Filter"
+              onChange={(e) => setOriginFilter(e.target.value as any)}
+            >
+              <MenuItem value="all">Alle Herkünfte</MenuItem>
+              <MenuItem value="individual">Einzelzuweisung</MenuItem>
+              <MenuItem value="group">Gruppenzuweisung</MenuItem>
+            </Select>
+          </FormControl>
+        </div>
 
         <FormControlLabel
           control={
@@ -446,25 +518,109 @@ export const PlayerPlanView: React.FC = () => {
           }
           label={
             <Typography variant="body2" className="font-medium" color="text.primary">
-              Abgeschlossene Pläne anzeigen
+              Abgeschlossene anzeigen
             </Typography>
           }
         />
       </Paper>
 
-      {visiblePlans.length === 0 && (
+      {/* SEKTION 1: SEPARAT ZUGEWIESENE LEISTUNGSTESTS */}
+      {visibleAssignedTests.length > 0 && (
+        <Box className="flex flex-col gap-3">
+          <Typography variant="h6" className="font-bold" color="text.primary">
+            Zugewiesene Leistungstests
+          </Typography>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {visibleAssignedTests.map((assignedTest) => {
+              const testObj = tests.find((t) => t.id === assignedTest.testId);
+              const isDone = assignedTest.status === "completed";
+              const isEditable = canEditResult(assignedTest.completedAt);
+              const isGroup = assignedTest.assignedType === "group";
+
+              return (
+                <Card
+                  key={assignedTest.id}
+                  variant="outlined"
+                  sx={{
+                    borderColor: isDone ? "success.main" : "warning.main",
+                    bgcolor: "action.hover",
+                  }}
+                >
+                  <CardContent className="flex flex-col gap-3">
+                    <div className="flex justify-between items-start gap-2">
+                      <div>
+                        <Typography variant="subtitle1" className="font-bold" color="text.primary">
+                          {assignedTest.title}
+                        </Typography>
+                        <Typography variant="caption" color="text.secondary" className="block">
+                          KW {assignedTest.calendarWeek} / {assignedTest.year}
+                        </Typography>
+                      </div>
+
+                      {/* Herkunfts-Chip */}
+                      <Chip
+                        icon={isGroup ? <GroupIcon fontSize="small" /> : <PersonIcon fontSize="small" />}
+                        label={isGroup ? "Gruppe" : "Einzel"}
+                        size="small"
+                        variant="outlined"
+                        color={isGroup ? "secondary" : "default"}
+                      />
+                    </div>
+
+                    {assignedTest.coachNote && (
+                      <Typography variant="body2" color="text.secondary" className="italic text-xs">
+                        Trainer-Notiz: "{assignedTest.coachNote}"
+                      </Typography>
+                    )}
+
+                    <div className="flex justify-between items-center mt-2 flex-wrap gap-2">
+                      <Typography variant="caption" color="text.secondary">
+                        {isDone
+                          ? `Absolviert am ${new Date(
+                              assignedTest.completedAt!
+                            ).toLocaleDateString("de-DE")}`
+                          : "Noch nicht absolviert"}
+                      </Typography>
+
+                      <Button
+                        variant={isDone ? "outlined" : "contained"}
+                        color={isDone ? "secondary" : "primary"}
+                        size="small"
+                        disabled={isDone && !isEditable}
+                        onClick={() =>
+                          testObj && setSelectedTestToRecord(testObj)
+                        }
+                        startIcon={isDone ? <EditIcon /> : <PlayArrowIcon />}
+                      >
+                        {isDone
+                          ? isEditable
+                            ? "Bearbeiten"
+                            : "Gesperrt (>48h)"
+                          : "Test Absolvieren"}
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              );
+            })}
+          </div>
+        </Box>
+      )}
+
+      {visiblePlans.length === 0 && visibleAssignedTests.length === 0 && (
         <Paper
           variant="outlined"
           sx={{ bgcolor: "background.paper", borderColor: "divider" }}
           className="p-6 text-center"
         >
           <Typography variant="body1" color="text.secondary">
-            Keine aktiven Pläne vorhanden. Aktiviere den Schalter oben, um
-            bereits abgeschlossene Pläne anzuzeigen.
+            Keine aktiven Pläne oder Leistungstests für die gewählte Filterkombination vorhanden.
           </Typography>
         </Paper>
       )}
 
+      {/* SEKTION 2: TRAININGSPLAN DETAILANSEICHT */}
       {activePlan && visiblePlans.length > 0 && (
         <Paper
           variant="outlined"
@@ -474,14 +630,40 @@ export const PlayerPlanView: React.FC = () => {
           {/* Header des aktiven Plans */}
           <div className="flex justify-between items-start flex-wrap gap-4">
             <div>
-              <Typography
-                variant="h5"
-                className="font-bold text-lg sm:text-xl"
-                color="text.primary"
-              >
-                {activePlan.title} (KW {activePlan.calendarWeek} /{" "}
-                {activePlan.year})
-              </Typography>
+              <div className="flex items-center gap-2 flex-wrap">
+                <Typography
+                  variant="h5"
+                  className="font-bold text-lg sm:text-xl"
+                  color="text.primary"
+                >
+                  {activePlan.title} (KW {activePlan.calendarWeek} /{" "}
+                  {activePlan.year})
+                </Typography>
+
+                {/* Herkunfts-Chip für den Trainingsplan */}
+                <Chip
+                  icon={
+                    ((activePlan as any).assignedType || "individual") === "group" ? (
+                      <GroupIcon fontSize="small" />
+                    ) : (
+                      <PersonIcon fontSize="small" />
+                    )
+                  }
+                  label={
+                    ((activePlan as any).assignedType || "individual") === "group"
+                      ? "Gruppe"
+                      : "Einzel"
+                  }
+                  size="small"
+                  variant="outlined"
+                  color={
+                    ((activePlan as any).assignedType || "individual") === "group"
+                      ? "secondary"
+                      : "default"
+                  }
+                />
+              </div>
+
               {activePlan.coachNote && (
                 <Typography
                   variant="body2"
@@ -535,7 +717,7 @@ export const PlayerPlanView: React.FC = () => {
               </Typography>
               {activePlan.performanceTestId && (
                 <Typography variant="caption" color="text.secondary">
-                  <strong>Leistungstest:</strong>{" "}
+                  <strong>Integrierter Leistungstest:</strong>{" "}
                   {activePlan.performanceTestCompletedAt
                     ? "✓ Erledigt"
                     : "Offen"}
@@ -552,7 +734,7 @@ export const PlayerPlanView: React.FC = () => {
             </Alert>
           )}
 
-          {/* Optionaler Leistungstest */}
+          {/* Optionaler integrierter Leistungstest */}
           {activePlan.performanceTestId &&
             (() => {
               const testObj = tests.find(
@@ -683,7 +865,7 @@ export const PlayerPlanView: React.FC = () => {
                       const isDone = !!bEx.completedAt;
                       const isEditable = canEditResult(bEx.completedAt);
 
-                      // Zuordnung des Testergebnisses über scoreResultId oder Übungs-ID
+                      // Zuordnung des Testergebnisses über scoreResultId oder Fallback
                       const matchingResult = testResults.find((r) => {
                         if (bEx.scoreResultId && r.id === bEx.scoreResultId) {
                           return true;
@@ -695,7 +877,6 @@ export const PlayerPlanView: React.FC = () => {
                         );
                       });
 
-                      // Formatiertes Erledigungsdatum
                       const formattedDate = bEx.completedAt
                         ? new Date(bEx.completedAt).toLocaleDateString(
                             "de-DE",
@@ -735,7 +916,6 @@ export const PlayerPlanView: React.FC = () => {
                                 {exerciseObj ? exerciseObj.title : "Übung"}
                               </Typography>
 
-                              {/* Zeitvorgabe des Trainers */}
                               {bEx.durationMinutes &&
                                 bEx.durationMinutes > 0 && (
                                   <Chip
@@ -748,7 +928,7 @@ export const PlayerPlanView: React.FC = () => {
                                 )}
                             </div>
 
-                            {/* Anzeige der Punktzahl / des Erledigungsdatums */}
+                            {/* Punkte- und Datumsanzeige */}
                             {isDone && (
                               <div className="mt-1 flex items-center gap-1.5 flex-wrap">
                                 <Chip
@@ -842,9 +1022,9 @@ export const PlayerPlanView: React.FC = () => {
             })}
           </div>
 
-          {/* Spieler Feedback für gesamten Plan */}
           <Divider className="my-2" />
 
+          {/* Feedback für den gesamten Wochenplan */}
           <Paper
             variant="outlined"
             sx={{

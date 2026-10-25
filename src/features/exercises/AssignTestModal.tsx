@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { collection, getDocs, addDoc } from "firebase/firestore";
+import { collection, getDocs, addDoc, query, where } from "firebase/firestore";
 import { db } from "../../firebase/config";
 import { useAuth } from "../../context/AuthContext";
 import { sendNotificationIfEnabled } from "../../services/notificationService";
@@ -87,55 +87,75 @@ export const AssignTestModal: React.FC<AssignTestModalProps> = ({
   };
 
   /**
-   * Lädt die Spieler (Kader) und Gruppen des Trainers
+   * Lädt die Spieler (Kader) und Gruppen des Trainers mit optimierten Abfragen
    */
   useEffect(() => {
-    if (!open) return;
+    if (!open || !userProfile?.uid) return;
 
     const fetchRosterAndGroups = async () => {
       try {
         setError(null);
 
-        // 1. Trainer-Spieler-Beziehungen abfragen
-        const relSnap = await getDocs(collection(db, "coachPlayerRelations"));
+        // PERFORMANCE-OPTIMIERUNG 1: Gezielte Abfrage nur für die Kader-Beziehungen dieses Trainers
+        const relQuery = query(
+          collection(db, "coachPlayerRelations"),
+          where("coachId", "==", userProfile.uid)
+        );
+
+        // PERFORMANCE-OPTIMIERUNG 2: Gezielte Abfrage nur für die Gruppen dieses Trainers
+        const groupQuery = query(
+          collection(db, "playerGroups"),
+          where("coachId", "==", userProfile.uid)
+        );
+
+        const [relSnap, groupSnap] = await Promise.all([
+          getDocs(relQuery),
+          getDocs(groupQuery),
+        ]);
+
         const playerIds: string[] = [];
         relSnap.forEach((d) => {
           const data = d.data();
-          if (data.coachId === userProfile?.uid && data.playerId) {
+          if (data.playerId) {
             playerIds.push(data.playerId);
           }
         });
 
-        // 2. Spieler-Profile laden
-        const userSnap = await getDocs(collection(db, "users"));
-        const fetchedUsers: UserProfile[] = [];
+        // 2. Spieler-Profile der Kader-Spieler laden
+        let fetchedUsers: UserProfile[] = [];
 
-        userSnap.forEach((d) => {
-          const data = d.data();
-          const userId = d.id; // Dokumenten-ID als Basis-UID verwenden
+        if (playerIds.length > 0) {
+          // In Batches laden, da Firestore 'in'-Queries auf max. 30 Elemente beschränkt sind
+          const batchSize = 30;
+          const userPromises = [];
 
-          const isMyPlayer =
-            playerIds.includes(userId) ||
-            data.assignedCoachId === userProfile?.uid;
-
-          if (isMyPlayer) {
-            fetchedUsers.push({
-              ...data,
-              uid: userId, // WICHTIG: Garantiert ein valides 'uid'-Feld für das MUI-Select
-            } as UserProfile);
+          for (let i = 0; i < playerIds.length; i += batchSize) {
+            const batchIds = playerIds.slice(i, i + batchSize);
+            const userQuery = query(
+              collection(db, "users"),
+              where("__name__", "in", batchIds)
+            );
+            userPromises.push(getDocs(userQuery));
           }
-        });
+
+          const userSnaps = await Promise.all(userPromises);
+          userSnaps.forEach((userSnap) => {
+            userSnap.forEach((d) => {
+              fetchedUsers.push({
+                ...d.data(),
+                uid: d.id, // Dokumenten-ID als eindeutige UID setzen
+              } as UserProfile);
+            });
+          });
+        }
 
         setRoster(fetchedUsers);
 
-        // 3. Gruppen laden
-        const groupSnap = await getDocs(collection(db, "playerGroups"));
+        // 3. Gruppen verarbeiten
         const fetchedGroups: PlayerGroup[] = [];
         groupSnap.forEach((d) => {
           const data = d.data();
-          if (data.coachId === userProfile?.uid) {
-            fetchedGroups.push({ id: d.id, ...data } as PlayerGroup);
-          }
+          fetchedGroups.push({ id: d.id, ...data } as PlayerGroup);
         });
         setGroups(fetchedGroups);
       } catch (err) {
@@ -154,6 +174,10 @@ export const AssignTestModal: React.FC<AssignTestModalProps> = ({
     if (!testToAssign || !userProfile) return;
 
     let targetPlayerIds: string[] = [];
+
+    // Herkunft ermitteln: Einzelzuweisung vs. Gruppenzuweisung
+    const assignedType: "individual" | "group" =
+      assignTarget === "player" ? "individual" : "group";
 
     if (assignTarget === "player") {
       if (!selectedPlayerId) {
@@ -185,7 +209,7 @@ export const AssignTestModal: React.FC<AssignTestModalProps> = ({
     try {
       const nowIso = new Date().toISOString();
 
-      // Zuweisungen für alle Zielspieler parallel/in Schleife anlegen
+      // Zuweisungen für alle Zielspieler parallel anlegen
       const assignPromises = targetPlayerIds.map(async (pId) => {
         await addDoc(collection(db, "assignedPerformanceTests"), {
           testId: testToAssign.id,
@@ -197,6 +221,7 @@ export const AssignTestModal: React.FC<AssignTestModalProps> = ({
           calendarWeek,
           year,
           coachNote: coachNote.trim(),
+          assignedType: assignedType, // <-- HERKUNFT WIRD JETZT MITGESPEICHERT ("individual" | "group")
           status: "assigned",
           createdAt: nowIso,
           updatedAt: nowIso,
@@ -233,7 +258,7 @@ export const AssignTestModal: React.FC<AssignTestModalProps> = ({
       <DialogContent dividers className="flex flex-col gap-4">
         {error && <Alert severity="error">{error}</Alert>}
 
-        <Typography variant="subtitle2" className="font-bold">
+        <Typography variant="subtitle2" className="font-bold" color="text.primary">
           Empfänger auswählen:
         </Typography>
 
@@ -258,7 +283,7 @@ export const AssignTestModal: React.FC<AssignTestModalProps> = ({
         </RadioGroup>
 
         {assignTarget === "player" && (
-          <FormControl fullWidth required className="mt-2">
+          <FormControl fullWidth required className="mt-2" size="small">
             <InputLabel id="player-select-label">Spieler auswählen</InputLabel>
             <Select
               labelId="player-select-label"
@@ -282,7 +307,7 @@ export const AssignTestModal: React.FC<AssignTestModalProps> = ({
         )}
 
         {assignTarget === "group" && (
-          <FormControl fullWidth required className="mt-2">
+          <FormControl fullWidth required className="mt-2" size="small">
             <InputLabel id="group-select-label">Gruppe auswählen</InputLabel>
             <Select
               labelId="group-select-label"
@@ -309,6 +334,7 @@ export const AssignTestModal: React.FC<AssignTestModalProps> = ({
           <TextField
             label="Kalenderwoche"
             type="number"
+            size="small"
             value={calendarWeek}
             onChange={(e) => setCalendarWeek(Number(e.target.value))}
             fullWidth
@@ -318,6 +344,7 @@ export const AssignTestModal: React.FC<AssignTestModalProps> = ({
           <TextField
             label="Jahr"
             type="number"
+            size="small"
             value={year}
             onChange={(e) => setYear(Number(e.target.value))}
             fullWidth
@@ -330,6 +357,7 @@ export const AssignTestModal: React.FC<AssignTestModalProps> = ({
           label="Anmerkung des Trainers (optional)"
           multiline
           rows={2}
+          size="small"
           value={coachNote}
           onChange={(e) => setCoachNote(e.target.value)}
           placeholder="z. B. Bitte bis Freitag durchführen..."

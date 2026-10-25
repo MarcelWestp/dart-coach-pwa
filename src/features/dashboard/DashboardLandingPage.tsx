@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import {
   collection,
   getDocs,
@@ -21,6 +21,7 @@ import type {
   UserAchievementProgress,
   AchievementTier,
 } from "../../types/achievement";
+import { calculateUserLevel } from "../../utils/level";
 import {
   Paper,
   Typography,
@@ -59,6 +60,7 @@ import HelpIcon from "@mui/icons-material/Help";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import ChatIcon from "@mui/icons-material/Chat";
 import MilitaryTechIcon from "@mui/icons-material/MilitaryTech";
+import StarsIcon from "@mui/icons-material/Stars";
 import { MailOutlined } from "@mui/icons-material";
 import type { WidgetConfig } from "../../types/user";
 
@@ -470,15 +472,23 @@ export const DashboardLandingPage: React.FC<DashboardLandingPageProps> = ({
     userMonthlyIndex !== -1 ? monthlyLeaderboard[userMonthlyIndex] : null;
   const userMonthlyRank = userMonthlyIndex !== -1 ? userMonthlyIndex + 1 : null;
 
-  // 4. Achievements Berechnungen
-  const unlockedAchievements = achievements.filter((ach) => {
-    const prog = userProgress[ach.id];
-    return prog && prog.unlockedTiers && prog.unlockedTiers.length > 0;
-  });
+  // 4. Achievements Berechnungen & Dynamischer Level-Berechnung
+  const unlockedAchievements = useMemo(() => {
+    return achievements.filter((ach) => {
+      const prog = userProgress[ach.id];
+      return prog && prog.unlockedTiers && prog.unlockedTiers.length > 0;
+    });
+  }, [achievements, userProgress]);
 
-  const totalXp = Object.values(userProgress).reduce((sum, prog) => {
-    return sum + (prog.unlockedTiers?.length || 0) * 25;
-  }, 0);
+  const totalXp = useMemo(() => {
+    return Object.values(userProgress).reduce((sum, prog) => {
+      return sum + (prog.unlockedTiers?.length || 0) * 25;
+    }, 0);
+  }, [userProgress]);
+
+  const levelInfo = useMemo(() => {
+    return calculateUserLevel(totalXp);
+  }, [totalXp]);
 
   // 5. Statistik letzte 7 Tage
   const sevenDaysAgo = new Date();
@@ -1007,14 +1017,40 @@ export const DashboardLandingPage: React.FC<DashboardLandingPageProps> = ({
                 </Typography>
               </div>
 
-              <Chip
-                icon={<EmojiEventsIcon />}
-                label={`Gesamt XP: ${totalXp}`}
-                color="primary"
-                size="small"
-                className="font-bold text-xs"
-              />
+              <div className="flex items-center gap-2">
+                <Chip
+                  icon={<StarsIcon fontSize="small" />}
+                  label={`Level ${levelInfo.level}`}
+                  color="primary"
+                  size="small"
+                  className="font-bold text-xs"
+                />
+                <Chip
+                  icon={<EmojiEventsIcon />}
+                  label={`Gesamt XP: ${totalXp}`}
+                  variant="outlined"
+                  size="small"
+                  className="font-bold text-xs"
+                />
+              </div>
             </div>
+
+            {/* Level-Fortschrittsbalken */}
+            <Box className="p-2.5 rounded-lg border border-divider bg-action-hover">
+              <div className="flex justify-between items-center mb-1">
+                <Typography variant="caption" color="text.secondary" className="text-[11px]">
+                  Fortschritt zu Level {levelInfo.level + 1}
+                </Typography>
+                <Typography variant="caption" color="text.primary" className="font-semibold text-[11px]">
+                  {levelInfo.currentXp} / {levelInfo.xpForNextLevel} XP ({levelInfo.progressPercent}%)
+                </Typography>
+              </div>
+              <LinearProgress
+                variant="determinate"
+                value={levelInfo.progressPercent}
+                sx={{ height: 6, borderRadius: 3 }}
+              />
+            </Box>
 
             {unlockedAchievements.length > 0 ? (
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2 sm:gap-3">

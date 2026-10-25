@@ -1,5 +1,12 @@
 import React, { useEffect, useState } from "react";
-import { collection, getDocs, doc, updateDoc } from "firebase/firestore";
+import {
+  collection,
+  getDocs,
+  doc,
+  updateDoc,
+  query,
+  where,
+} from "firebase/firestore";
 import { db } from "../../firebase/config";
 import { useAuth } from "../../context/AuthContext";
 import { sendNotificationIfEnabled } from "../../services/notificationService";
@@ -81,27 +88,45 @@ export const PlayerPlanView: React.FC = () => {
   } | null>(null);
 
   const fetchData = async () => {
+    if (!userProfile?.uid) {
+      setLoading(false);
+      return;
+    }
+
     setLoading(true);
+
     try {
+      // 1. Zugewiesene Pläne für den angemeldeten Spieler filtern
+      const plansQuery = query(
+        collection(db, "assignedPlans"),
+        where("playerId", "==", userProfile.uid)
+      );
+
+      // 2. Eigene Testergebnisse für den angemeldeten Spieler filtern
+      const resultsQuery = query(
+        collection(db, "testResults"),
+        where("userId", "==", userProfile.uid)
+      );
+
       const [plansSnap, exSnap, testSnap, resultsSnap] = await Promise.all([
-        getDocs(collection(db, "assignedPlans")),
+        getDocs(plansQuery),
         getDocs(collection(db, "exercises")),
         getDocs(collection(db, "performanceTests")),
-        getDocs(collection(db, "testResults")),
+        getDocs(resultsQuery),
       ]);
 
       const fetchedPlans: TrainingPlan[] = [];
       plansSnap.forEach((d) => {
         const { id, ...data } = d.data();
-        if (data.playerId === userProfile?.uid && !data.isTemplate) {
+        if (!data.isTemplate) {
           fetchedPlans.push({ id: d.id, ...data } as TrainingPlan);
         }
       });
 
-      // Korrektur: Dokumenten-ID für testResults erhalten
+      // Dokumenten-ID für testResults sauber per Destructuring erhalten
       const fetchedResults: TestResult[] = [];
       resultsSnap.forEach((d) => {
-        const data = d.data();
+        const { id, ...data } = d.data();
         fetchedResults.push({ id: d.id, ...data } as TestResult);
       });
 
@@ -133,7 +158,7 @@ export const PlayerPlanView: React.FC = () => {
       setTestResults(fetchedResults);
 
       // --- ERINNERUNG FÜR AKTUELLE WOCHE PRÜFEN ---
-      if (userProfile?.uid && fetchedPlans.length > 0) {
+      if (fetchedPlans.length > 0) {
         const { calendarWeek, year } = getWeekAndYearFromDate(
           new Date().toISOString()
         );
@@ -164,7 +189,15 @@ export const PlayerPlanView: React.FC = () => {
   };
 
   useEffect(() => {
-    fetchData();
+    let isMounted = true;
+
+    if (userProfile?.uid && isMounted) {
+      fetchData();
+    }
+
+    return () => {
+      isMounted = false;
+    };
   }, [userProfile?.uid]);
 
   // Gefilterte Liste anhand des Switch-Status (Completed anzeigen / verbergen)

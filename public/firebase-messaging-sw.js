@@ -1,7 +1,16 @@
 importScripts('https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js');
 importScripts('https://www.gstatic.com/firebasejs/9.23.0/firebase-messaging-compat.js');
 
-// Standard Firebase Konfiguration
+// 1. Sofortige Aktivierung & Kontrolle übernehmen (Skip Waiting)
+self.addEventListener('install', () => {
+  self.skipWaiting();
+});
+
+self.addEventListener('activate', (event) => {
+  event.waitUntil(clients.claim());
+});
+
+// 2. Standard Firebase Konfiguration
 firebase.initializeApp({
   apiKey: "DEIN_VITE_FIREBASE_API_KEY",
   authDomain: "DEIN_VITE_FIREBASE_AUTH_DOMAIN",
@@ -13,10 +22,8 @@ firebase.initializeApp({
 
 const messaging = firebase.messaging();
 
-// Wird aufgerufen, wenn eine Push-Benachrichtigung im Hintergrund eingeht
+// 3. Wird aufgerufen, wenn eine Push-Benachrichtigung im Hintergrund eingeht
 messaging.onBackgroundMessage((payload) => {
-  console.log('[firebase-messaging-sw.js] Eingehende Background-Nachricht:', payload);
-
   const notificationTitle = payload.notification?.title || 'Dart Performance Platform';
   const notificationOptions = {
     body: payload.notification?.body || 'Neue Benachrichtigung erhalten.',
@@ -30,7 +37,7 @@ messaging.onBackgroundMessage((payload) => {
   self.registration.showNotification(notificationTitle, notificationOptions);
 });
 
-// Bei Klick auf die Push-Benachrichtigung auf dem Smartphone die App/Link öffnen
+// 4. Bei Klick auf die Push-Benachrichtigung auf dem Smartphone die App/Link öffnen
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
   const urlToOpen = event.notification.data?.url || '/';

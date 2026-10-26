@@ -1,22 +1,23 @@
 import { getMessaging, getToken } from 'firebase/messaging';
 import { doc, updateDoc } from 'firebase/firestore';
 import { db, app } from '../firebase/config';
+import { getFunctions, httpsCallable } from 'firebase/functions';
 
+/**
+ * Fordert die Push-Berechtigung an und speichert das FCM Token im UserProfile
+ */
 export const requestAndSavePushToken = async (userId: string): Promise<boolean> => {
   try {
     if (!('Notification' in window)) {
-      console.warn('Browser unterstützt keine Push-Benachrichtigungen.');
       return false;
     }
 
     const permission = await Notification.requestPermission();
     if (permission !== 'granted') {
-      console.warn('Push-Benachrichtigungen wurden vom Nutzer/Browser abgelehnt.');
       return false;
     }
 
     if (!('serviceWorker' in navigator)) {
-      console.warn('Kein Service Worker im Browser verfügbar.');
       return false;
     }
 
@@ -47,16 +48,16 @@ export const requestAndSavePushToken = async (userId: string): Promise<boolean> 
         updatedAt: new Date().toISOString(),
       });
       return true;
-    } else {
-      console.warn('Kein FCM Registration Token empfangen.');
-      return false;
     }
+    return false;
   } catch (error) {
-    console.error('Fehler beim Anfordern des Push-Tokens:', error);
     return false;
   }
 };
 
+/**
+ * Entzieht das Push-Token im UserProfile
+ */
 export const disablePushNotifications = async (userId: string): Promise<void> => {
   try {
     await updateDoc(doc(db, 'users', userId), {
@@ -65,6 +66,36 @@ export const disablePushNotifications = async (userId: string): Promise<void> =>
       updatedAt: new Date().toISOString(),
     });
   } catch (error) {
-    console.error('Fehler beim Deaktivieren der Push-Benachrichtigungen:', error);
+    // Stille Fehlerbehandlung
+  }
+};
+
+/**
+ * Ruft die sichere Cloud Function 'sendPushNotification' auf, 
+ * um eine Push-Benachrichtigung an ein geschlossenes Gerät zu senden.
+ */
+export const sendDirectPushNotification = async ({
+  targetUserId,
+  title,
+  body,
+  link,
+}: {
+  targetUserId: string;
+  title: string;
+  body: string;
+  link?: string;
+}): Promise<void> => {
+  try {
+    const functions = getFunctions(app, 'europe-west1'); // Passe die Region bei Bedarf an
+    const sendPush = httpsCallable(functions, 'sendPushNotification');
+
+    await sendPush({
+      targetUserId,
+      title,
+      body,
+      link: link || '/',
+    });
+  } catch (err) {
+    // Stille Fehlerbehandlung
   }
 };

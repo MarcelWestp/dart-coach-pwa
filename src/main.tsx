@@ -9,16 +9,18 @@ createRoot(document.getElementById('root')!).render(
   </StrictMode>,
 )
 
-// NEU: Service Worker auf localhost und PWA registrieren
+// Service Worker auf localhost und PWA registrieren
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
     navigator.serviceWorker
       .register('/firebase-messaging-sw.js')
-      .then((reg) => {
-        console.log('Firebase SW erfolgreich registriert:', reg);
+      .then(() => {
+        // Registrierung erfolgreich
+          console.log('Firebase SW erfolgreich registriert:');
       })
-      .catch((err) => {
-        console.error('Fehler bei SW Registrierung:', err);
+      .catch(() => {
+        // Fehler bei der Registrierung abfangen
+        console.error('Firebase SW Registrierung fehlgeschlagen: ');
       });
   });
 }

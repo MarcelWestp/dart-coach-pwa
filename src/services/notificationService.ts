@@ -1,6 +1,7 @@
 import { doc, getDoc, addDoc, collection, query, where, getDocs } from 'firebase/firestore';
 import { db } from '../firebase/config';
 import type { UserProfile } from '../types/user';
+import { sendDirectPushNotification } from './pushNotificationService';
 
 export type NotificationType =
   | 'newOrUpdatedTrainingPlans'
@@ -20,7 +21,8 @@ interface SendNotificationParams {
 }
 
 /**
- * Prüft die NotificationSettings des Users und speichert eine In-App-Benachrichtigung
+ * Prüft die NotificationSettings des Users, speichert die In-App-Benachrichtigung
+ * und sendet eine Smartphone-Push-Benachrichtigung (FCM) an das Gerät des Nutzers.
  */
 export const sendNotificationIfEnabled = async ({
   userId,
@@ -43,7 +45,12 @@ export const sendNotificationIfEnabled = async ({
     }
 
     // Sonderfälle oder spezifische Typ-Prüfung
-    if (type !== 'trainingPlanReminder' && type !== 'newPlayerRegistration' && type !== 'newFeedback' && settings[type] === false) {
+    if (
+      type !== 'trainingPlanReminder' &&
+      type !== 'newPlayerRegistration' &&
+      type !== 'newFeedback' &&
+      settings[type] === false
+    ) {
       return false; // Spezifischer Typ vom User deaktiviert
     }
 
@@ -51,7 +58,7 @@ export const sendNotificationIfEnabled = async ({
       return false; // Erinnerung vor Ablauf deaktiviert
     }
 
-    // 3. Benachrichtigung in Firestore 'notifications'-Collection anlegen (In-App Feed)
+    // 3. In-App-Benachrichtigung in Firestore 'notifications'-Collection anlegen
     await addDoc(collection(db, 'notifications'), {
       userId,
       type,
@@ -62,9 +69,16 @@ export const sendNotificationIfEnabled = async ({
       createdAt: new Date().toISOString(),
     });
 
+    // 4. Handy-Push-Benachrichtigung an das Gerät senden
+    await sendDirectPushNotification({
+      targetUserId: userId,
+      title,
+      body: message,
+      link: link || '/',
+    });
+
     return true;
   } catch (error) {
-    console.error('Fehler beim Senden der Benachrichtigung:', error);
     return false;
   }
 };
@@ -80,7 +94,6 @@ export const notifyAllAdmins = async ({
   link,
 }: Omit<SendNotificationParams, 'userId'>): Promise<void> => {
   try {
-    // Gezielte Abfrage statt getDocs(collection(db, 'users')) -> Vermeidet Performance-Bottlenecks bei vielen Nutzern
     const adminQuery = query(
       collection(db, 'users'),
       where('roles', 'array-contains', 'admin')
@@ -99,6 +112,6 @@ export const notifyAllAdmins = async ({
 
     await Promise.all(notificationPromises);
   } catch (error) {
-    console.error('Fehler beim Benachrichtigen der Admins:', error);
+    // Stille Fehlerbehandlung
   }
 };

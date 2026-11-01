@@ -25,6 +25,7 @@ export interface DynamicAchievement {
   iconName: string;               // Icon-Referenz für die UI
   category: 'training' | 'league' | 'social' | 'special';
   triggerType: AchievementTriggerType;
+  tagId?: string;                // Optional: Falls an spezifischen Übungstag gebunden
   exerciseId?: string;           // Optional: Falls an spezifische Übung gebunden
   isSecret?: boolean;            // Geheim bis zur Freischaltung?
   requirements: AchievementRequirement[]; // Die 5 Stufen mit Schwellenwerten

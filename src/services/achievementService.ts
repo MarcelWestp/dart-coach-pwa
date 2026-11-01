@@ -4,9 +4,9 @@ import {
   doc,
   getDoc,
   setDoc,
+  updateDoc,
   query,
   where,
-  updateDoc,
   arrayUnion,
 } from "firebase/firestore";
 import { db } from "../firebase/config";
@@ -20,7 +20,7 @@ import { sendNotificationIfEnabled } from "./notificationService";
 
 /**
  * Prüft und aktualisiert den Achievement-Fortschritt eines Spielers.
- * Wenn neue Stufen erreicht werden, vergibt die Funktion XP sowie freigeschaltete Titel als Belohnung.
+ * Berücksichtigt jetzt korrekt exercise_tag_count und exercise_highscore inklusive scoreDirection.
  */
 export const triggerAchievementCheck = async (
   userId: string,
@@ -35,7 +35,7 @@ export const triggerAchievementCheck = async (
 
     if (achSnap.empty) return;
 
-    // Optional: Falls eine spezifische Übung beteiligt ist, deren scoreDirection laden
+    // Optional: Falls eine spezifische Übung beteiligt ist, deren scoreDirection & tags laden
     let exerciseDirection: "higher_is_better" | "lower_is_better" = "higher_is_better";
     if (contextData?.exerciseId) {
       const exDoc = await getDoc(doc(db, "exercises", contextData.exerciseId));
@@ -47,34 +47,55 @@ export const triggerAchievementCheck = async (
       }
     }
 
-    // 2. Aktuellen Wert des Spielers ermitteln
-    let currentValue = 0;
-
-    if (triggerType === "total_exercises_count") {
-      const resultsSnap = await getDocs(
-        query(collection(db, "testResults"), where("userId", "==", userId))
-      );
-      currentValue = resultsSnap.size;
-    } else if (triggerType === "specific_exercise_count" && contextData?.exerciseId) {
-      const resultsSnap = await getDocs(
-        query(
-          collection(db, "testResults"),
-          where("userId", "==", userId),
-          where("exerciseId", "==", contextData.exerciseId)
-        )
-      );
-      currentValue = resultsSnap.size;
-    } else if (triggerType === "exercise_highscore" && contextData?.score !== undefined) {
-      currentValue = contextData.score;
-    }
-
-    // 3. Jedes zutreffende Achievement prüfen
+    // 2. Jedes zutreffende Achievement prüfen
     for (const achDoc of achSnap.docs) {
       const ach = { id: achDoc.id, ...achDoc.data() } as DynamicAchievement;
 
       // Falls eine spezifische Übung verknüpft ist, aber nicht übereinstimmt, überspringen
       if (ach.exerciseId && contextData?.exerciseId && ach.exerciseId !== contextData.exerciseId) {
         continue;
+      }
+
+      // Aktuellen Wert des Spielers je nach Trigger-Typ ermitteln
+      let currentValue = 0;
+
+      if (triggerType === "total_exercises_count") {
+        const resultsSnap = await getDocs(
+          query(collection(db, "testResults"), where("userId", "==", userId))
+        );
+        currentValue = resultsSnap.size;
+      } else if (triggerType === "specific_exercise_count" && contextData?.exerciseId) {
+        const resultsSnap = await getDocs(
+          query(
+            collection(db, "testResults"),
+            where("userId", "==", userId),
+            where("exerciseId", "==", contextData.exerciseId)
+          )
+        );
+        currentValue = resultsSnap.size;
+      } else if (triggerType === "exercise_highscore" && contextData?.score !== undefined) {
+        currentValue = contextData.score;
+      } else if (triggerType === "exercise_tag_count" && ach.tagId) {
+        // Zähle alle absolvierten Übungen des Spielers, die das im Achievement hinterlegte Tag (ach.tagId) besitzen
+        const resultsSnap = await getDocs(
+          query(collection(db, "testResults"), where("userId", "==", userId))
+        );
+        
+        let tagCount = 0;
+        for (const resDoc of resultsSnap.docs) {
+          const resData = resDoc.data();
+          const exId = resData.exerciseId || resData.testId;
+          if (exId) {
+            const exDoc = await getDoc(doc(db, "exercises", exId));
+            if (exDoc.exists()) {
+              const exData = exDoc.data() as Exercise;
+              if (exData.tagIds && exData.tagIds.includes(ach.tagId)) {
+                tagCount++;
+              }
+            }
+          }
+        }
+        currentValue = tagCount;
       }
 
       // Aktuellen User-Fortschritt laden
@@ -84,11 +105,11 @@ export const triggerAchievementCheck = async (
         ? (userAchSnap.data() as UserAchievementProgress)
         : { userId, achievementId: ach.id, currentValue: 0, unlockedTiers: [] };
 
-      // Für Highscores den echten Bestwert behalten (je nach Wertungsrichtung)
+      // Für Highscores den optimalen Bestwert behalten (unter Beachtung von higher_is_better / lower_is_better)
       let newValue = currentValue;
       if (triggerType === "exercise_highscore") {
-        const prevValue = existingProg.currentValue || 0;
-        if (prevValue > 0) {
+        const prevValue = existingProg.currentValue;
+        if (prevValue !== undefined && prevValue !== null && prevValue !== 0) {
           newValue = exerciseDirection === "lower_is_better"
             ? Math.min(prevValue, currentValue)
             : Math.max(prevValue, currentValue);
@@ -101,9 +122,15 @@ export const triggerAchievementCheck = async (
 
       // Prüfen, welche neuen Stufen erreicht wurden
       for (const req of ach.requirements || []) {
-        const isReached = exerciseDirection === "lower_is_better"
-          ? newValue <= req.threshold
-          : newValue >= req.threshold;
+        let isReached = false;
+        if (triggerType === "exercise_highscore") {
+          isReached = exerciseDirection === "lower_is_better"
+            ? newValue <= req.threshold
+            : newValue >= req.threshold;
+        } else {
+          // Für Zähler (Anzahl Übungen, Tags etc.) gilt: >= Schwellenwert
+          isReached = newValue >= req.threshold;
+        }
 
         if (isReached && !newlyUnlockedTiers.includes(req.tier)) {
           newlyUnlockedTiers.push(req.tier);
@@ -146,7 +173,7 @@ export const triggerAchievementCheck = async (
           await sendNotificationIfEnabled({
             userId,
             type: "achievementUnlocked",
-            title: `Neues Achievement freigeschaltet!`,
+            title: `🏆 Neues Achievement freigeschaltet!`,
             message: `Du hast die Stufe "${highestTier.toUpperCase()}" für "${ach.title}" erreicht!${titleNotice}`,
             link: "/achievements",
           });

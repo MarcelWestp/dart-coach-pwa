@@ -27,11 +27,13 @@ export interface TrainerLicense {
 }
 
 export interface NotificationSettings {
+  [x: string]: any;
   enabled: boolean;                      // Haupt-Schalter (Alle an/aus)
   newOrUpdatedTrainingPlans: boolean;    // Neue / bearbeitete Trainingspläne
   newOrUpdatedPerformanceTest: boolean;  // Neuer / geänderter Leistungstest
   monthlyExerciseHighscore: boolean;     // Neuer Highscore in Übung des Monats
   achievementUnlocked: boolean;     // Neuer Highscore in Übung des Monats
+  confirm1v1Match: boolean;             // 1v1 Match Bestätigungen
   trainingPlanReminder: boolean;         // Erinnerung vor Ablauf des Trainingsplans
   reminderDaysBefore: number;            // Tage vor Ablauf (1, 2 oder 3)
 }

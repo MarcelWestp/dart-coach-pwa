@@ -10,7 +10,8 @@ export type NotificationType =
   | 'achievementUnlocked'
   | 'trainingPlanReminder'
   | 'newPlayerRegistration'
-  | 'newFeedback';
+  | 'newFeedback'
+  | 'confirm1v1Match';
 
 interface SendNotificationParams {
   userId: string;
@@ -49,6 +50,7 @@ export const sendNotificationIfEnabled = async ({
       type !== 'trainingPlanReminder' &&
       type !== 'newPlayerRegistration' &&
       type !== 'newFeedback' &&
+      type !== 'confirm1v1Match' &&
       settings[type] === false
     ) {
       return false; // Spezifischer Typ vom User deaktiviert
@@ -56,6 +58,10 @@ export const sendNotificationIfEnabled = async ({
 
     if (type === 'trainingPlanReminder' && !settings.trainingPlanReminder) {
       return false; // Erinnerung vor Ablauf deaktiviert
+    }
+
+    if (type === 'confirm1v1Match' && !settings.confirm1v1Match) {
+      return false; // 1v1 Match Bestätigungen deaktiviert
     }
 
     // 3. In-App-Benachrichtigung in Firestore 'notifications'-Collection anlegen

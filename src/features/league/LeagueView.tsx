@@ -76,24 +76,21 @@ export const LeagueView: React.FC = () => {
   const [exercises, setExercises] = useState<Exercise[]>([]);
   const [testResults, setTestResults] = useState<TestResult[]>([]);
   const [leagues, setLeagues] = useState<LeagueConfig[]>([]);
-  const [monthlyConfigs, setMonthlyConfigs] = useState<MonthlyExerciseConfig[]>(
-    [],
-  );
+  const [monthlyConfigs, setMonthlyConfigs] = useState<MonthlyExerciseConfig[]>([]);
   const [ratings, setRatings] = useState<PlayerRating[]>([]);
   const [matches, setMatches] = useState<MatchResult[]>([]);
 
   const currentDate = new Date();
   const [selectedArchivedMonth, setSelectedArchivedMonth] = useState<number>(
-    currentDate.getMonth() + 1,
+    currentDate.getMonth() + 1
   );
   const [selectedArchivedYear, setSelectedArchivedYear] = useState<number>(
-    currentDate.getFullYear(),
+    currentDate.getFullYear()
   );
 
   const [isRecordModalOpen, setIsRecordModalOpen] = useState(false);
   const [isMatchModalOpen, setIsMatchModalOpen] = useState(false);
-  const [selectedProfileUser, setSelectedProfileUser] =
-    useState<UserProfile | null>(null);
+  const [selectedProfileUser, setSelectedProfileUser] = useState<UserProfile | null>(null);
 
   const [selectedOpponentId, setSelectedOpponentId] = useState("");
   const [selectedMatchLeagueId, setSelectedMatchLeagueId] = useState("");
@@ -118,7 +115,7 @@ export const LeagueView: React.FC = () => {
       const fetchedUsers: UserProfile[] = [];
       uSnap.forEach((d) => {
         const data = d.data();
-        delete data.id;
+        delete (data as any).id;
         fetchedUsers.push({
           ...data,
           uid: d.id,
@@ -129,42 +126,42 @@ export const LeagueView: React.FC = () => {
       const fetchedEx: Exercise[] = [];
       exSnap.forEach((d) => {
         const data = d.data();
-        delete data.id;
+        delete (data as any).id;
         fetchedEx.push({ id: d.id, ...data } as Exercise);
       });
 
       const fetchedRes: TestResult[] = [];
       resSnap.forEach((d) => {
         const data = d.data();
-        delete data.id;
+        delete (data as any).id;
         fetchedRes.push({ id: d.id, ...data } as TestResult);
       });
 
       const fetchedLeagues: LeagueConfig[] = [];
       lSnap.forEach((d) => {
         const data = d.data();
-        delete data.id;
+        delete (data as any).id;
         fetchedLeagues.push({ id: d.id, ...data } as LeagueConfig);
       });
 
       const fetchedMonthly: MonthlyExerciseConfig[] = [];
       mSnap.forEach((d) => {
         const data = d.data();
-        delete data.id;
+        delete (data as any).id;
         fetchedMonthly.push({ id: d.id, ...data } as MonthlyExerciseConfig);
       });
 
       const fetchedRatings: PlayerRating[] = [];
       rSnap.forEach((d) => {
         const data = d.data();
-        delete data.id;
+        delete (data as any).id;
         fetchedRatings.push({ id: d.id, ...data } as unknown as PlayerRating);
       });
 
       const fetchedMatches: MatchResult[] = [];
       matchSnap.forEach((d) => {
         const data = d.data();
-        delete data.id;
+        delete (data as any).id;
         fetchedMatches.push({ id: d.id, ...data } as MatchResult);
       });
 
@@ -176,7 +173,7 @@ export const LeagueView: React.FC = () => {
       setRatings(fetchedRatings);
       setMatches(fetchedMatches);
     } catch (err) {
-      console.error("Fehler beim Laden der Ligationen:", err);
+      console.error("Fehler beim Laden der Ligadaten:", err);
       setError("Fehler beim Laden der Ligationen.");
     } finally {
       setLoading(false);
@@ -187,11 +184,20 @@ export const LeagueView: React.FC = () => {
     fetchData();
   }, []);
 
+  const currentMonthlyConfig = monthlyConfigs.find(
+    (m) => m.month === selectedArchivedMonth && m.year === selectedArchivedYear
+  );
+  const monthlyExercise = exercises.find(
+    (e) => e.id === currentMonthlyConfig?.exerciseId
+  );
+
   const handleResultRecorded = async () => {
     if (!userProfile || !monthlyExercise || !currentMonthlyConfig) {
       await fetchData();
       return;
     }
+
+    const direction = monthlyExercise.scoreDirection || "higher_is_better";
 
     const userPreviousResults = testResults.filter((res) => {
       const resExId = (res as any).exerciseId || res.testId;
@@ -204,15 +210,20 @@ export const LeagueView: React.FC = () => {
       );
     });
 
-    const oldHighscore = userPreviousResults.reduce(
-      (max, r) => (r.totalPoints > max ? r.totalPoints : max),
-      0,
-    );
+    let oldBest: number | undefined = undefined;
+    if (userPreviousResults.length > 0) {
+      oldBest = userPreviousResults.reduce((best, r) => {
+        if (best === undefined) return r.totalPoints;
+        return direction === "lower_is_better"
+          ? Math.min(best, r.totalPoints)
+          : Math.max(best, r.totalPoints);
+      }, userPreviousResults[0].totalPoints);
+    }
 
     await fetchData();
 
     const latestResSnap = await getDocs(collection(db, "testResults"));
-    let newBest = 0;
+    let newBest: number | undefined = undefined;
     latestResSnap.forEach((d) => {
       const res = d.data() as TestResult;
       const resExId = (res as any).exerciseId || res.testId;
@@ -222,17 +233,36 @@ export const LeagueView: React.FC = () => {
           resDate.getMonth() + 1 === currentMonthlyConfig.month &&
           resDate.getFullYear() === currentMonthlyConfig.year
         ) {
-          if (res.totalPoints > newBest) newBest = res.totalPoints;
+          if (newBest === undefined) {
+            newBest = res.totalPoints;
+          } else {
+            newBest =
+              direction === "lower_is_better"
+                ? Math.min(newBest, res.totalPoints)
+                : Math.max(newBest, res.totalPoints);
+          }
         }
       }
     });
 
-    if (newBest > oldHighscore) {
+    let isNewRecord = false;
+    if (newBest !== undefined) {
+      if (oldBest === undefined) {
+        isNewRecord = true;
+      } else {
+        isNewRecord =
+          direction === "lower_is_better"
+            ? (newBest as number) < oldBest
+            : (newBest as number) > oldBest;
+      }
+    }
+
+    if (isNewRecord && newBest !== undefined) {
       await sendNotificationIfEnabled({
         userId: userProfile.uid,
         type: "monthlyExerciseHighscore",
-        title: "Neuer Highscore!",
-        message: `Glückwunsch! Du hast einen neuen Highscore von ${newBest} Punkten in der Übung des Monats ("${monthlyExercise.title}") aufgestellt.`,
+        title: "Neuer Bestwert!",
+        message: `Glückwunsch! Du hast einen neuen Bestwert von ${newBest} in der Übung des Monats ("${monthlyExercise.title}") aufgestellt.`,
         link: "/league",
       });
     }
@@ -246,16 +276,10 @@ export const LeagueView: React.FC = () => {
     return user.nickname || user.realName;
   };
 
-  const currentMonthlyConfig = monthlyConfigs.find(
-    (m) => m.month === selectedArchivedMonth && m.year === selectedArchivedYear,
-  );
-  const monthlyExercise = exercises.find(
-    (e) => e.id === currentMonthlyConfig?.exerciseId,
-  );
-
   const getMonthlyHighscores = () => {
     if (!currentMonthlyConfig || !monthlyExercise) return [];
 
+    const direction = monthlyExercise.scoreDirection || "higher_is_better";
     const scoresByUser: { [userId: string]: number } = {};
 
     testResults.forEach((res) => {
@@ -267,9 +291,14 @@ export const LeagueView: React.FC = () => {
           resDate.getMonth() + 1 === currentMonthlyConfig.month &&
           resDate.getFullYear() === currentMonthlyConfig.year
         ) {
-          const currentBest = scoresByUser[res.userId] || 0;
-          if (res.totalPoints > currentBest) {
+          const currentVal = scoresByUser[res.userId];
+          if (currentVal === undefined) {
             scoresByUser[res.userId] = res.totalPoints;
+          } else {
+            scoresByUser[res.userId] =
+              direction === "lower_is_better"
+                ? Math.min(currentVal, res.totalPoints)
+                : Math.max(currentVal, res.totalPoints);
           }
         }
       }
@@ -283,12 +312,17 @@ export const LeagueView: React.FC = () => {
       };
     });
 
-    return leaderboard.sort((a, b) => b.score - a.score);
+    return leaderboard.sort((a, b) => {
+      if (direction === "lower_is_better") {
+        return a.score - b.score;
+      }
+      return b.score - a.score;
+    });
   };
 
   const calculatePerformanceScore = (
     userId: string,
-    exerciseIds?: string[],
+    exerciseIds?: string[]
   ) => {
     if (!exerciseIds || exerciseIds.length === 0) return 0;
 
@@ -298,19 +332,19 @@ export const LeagueView: React.FC = () => {
       const userExResults = testResults.filter(
         (r) =>
           r.userId === userId &&
-          ((r as any).exerciseId === exId || r.testId === exId),
+          ((r as any).exerciseId === exId || r.testId === exId)
       );
       if (userExResults.length === 0) return;
 
       const totalPointsSum = userExResults.reduce(
         (s, r) => s + r.totalPoints,
-        0,
+        0
       );
       const avg = totalPointsSum / userExResults.length;
 
       const latestResult = userExResults.sort(
         (a, b) =>
-          new Date(b.completedAt).getTime() - new Date(a.completedAt).getTime(),
+          new Date(b.completedAt).getTime() - new Date(a.completedAt).getTime()
       )[0];
 
       const diff = latestResult.totalPoints - avg;
@@ -356,9 +390,9 @@ export const LeagueView: React.FC = () => {
 
       await sendNotificationIfEnabled({
         userId: p2Id,
-        type: "trainingPlanReminder",
-        title: "Neues 1v1 Match eingetragen",
-        message: `${getDisplayName(userProfile)} hat ein Match gegen dich eingetragen (${myScore}:${opponentScore}). Bitte bestätige das Ergebnis.`,
+        type: "confirm1v1Match",
+        title: "1v1 Match bestätigen",
+        message: `${getDisplayName(userProfile)} hat ein Match gegen dich eingetragen (${myScore}:${opponentScore}). Bitte bestätige oder lehne es ab.`,
         link: "/league",
       });
 
@@ -381,10 +415,10 @@ export const LeagueView: React.FC = () => {
       const p2Id = match.player2Id;
 
       const p1RatingObj = ratings.find(
-        (r) => r.userId === p1Id && r.leagueId === match.leagueId,
+        (r) => r.userId === p1Id && r.leagueId === match.leagueId
       );
       const p2RatingObj = ratings.find(
-        (r) => r.userId === p2Id && r.leagueId === match.leagueId,
+        (r) => r.userId === p2Id && r.leagueId === match.leagueId
       );
 
       const p1RatingBefore = p1RatingObj ? p1RatingObj.rating : 1000;
@@ -393,22 +427,24 @@ export const LeagueView: React.FC = () => {
       const p1Won = match.winnerId === p1Id;
       const ratingDiff = Math.abs(p1RatingBefore - p2RatingBefore);
 
-      const score1 =
-        match.player1Id === p1Id ? match.scorePlayer1 : match.scorePlayer2;
-      const score2 =
-        match.player1Id === p1Id ? match.scorePlayer2 : match.scorePlayer1;
+      const score1 = match.player1Id === p1Id ? match.scorePlayer1 : match.scorePlayer2;
+      const score2 = match.player1Id === p1Id ? match.scorePlayer2 : match.scorePlayer1;
       const legDiff = Math.abs(score1 - score2);
 
       let p1Change = 0;
       let p2Change = 0;
 
       if (ratingDiff <= 100) {
-        const baseChange = 50;
-        const adjustment = legDiff === 1 ? 10 : 0;
+        let baseChange = 50;
+        if (legDiff === 1) {
+          baseChange = p1Won ? 40 : -40;
+        } else if (legDiff === 2) {
+          baseChange = p1Won ? 45 : -45;
+        } else {
+          baseChange = p1Won ? 55 : -55;
+        }
 
-        p1Change = p1Won
-          ? baseChange + (legDiff === 1 ? -10 : 0)
-          : -baseChange + adjustment;
+        p1Change = p1Won ? baseChange : -baseChange;
         p2Change = -p1Change;
       } else {
         const p1IsFavorite = p1RatingBefore > p2RatingBefore;
@@ -452,7 +488,7 @@ export const LeagueView: React.FC = () => {
         userId: string,
         leagueId: string,
         newRating: number,
-        ratingObj?: PlayerRating,
+        ratingObj?: PlayerRating
       ) => {
         if (ratingObj?.id) {
           const ratingRef = doc(db, "playerRatings", ratingObj.id);
@@ -573,11 +609,22 @@ export const LeagueView: React.FC = () => {
                   className="mt-1"
                 >
                   {currentMonthlyConfig?.description ||
-                    "Spiele diese Übung beliebig oft. Nur dein bester Score fließt in die Rangliste ein."}
+                    "Spiele diese Übung beliebig oft. Nur dein bestes Ergebnis fließt in die Rangliste ein."}
                 </Typography>
+                {monthlyExercise && (
+                  <Chip
+                    size="small"
+                    variant="outlined"
+                    className="mt-2"
+                    label={
+                      monthlyExercise.scoreDirection === "lower_is_better"
+                        ? "⏱️ Wertung: Weniger Versuche / Darts sind besser"
+                        : "🎯 Wertung: Mehr Punkte / Treffer sind besser"
+                    }
+                  />
+                )}
               </div>
 
-              {/* Archiv-Filter */}
               <div className="flex gap-2 items-center flex-wrap">
                 <HistoryIcon color="action" />
                 <FormControl size="small" className="w-36">
@@ -664,7 +711,7 @@ export const LeagueView: React.FC = () => {
                     <TableCell className="font-bold">Platz</TableCell>
                     <TableCell className="font-bold">Spieler</TableCell>
                     <TableCell align="right" className="font-bold">
-                      Bestes Ergebnis
+                      Beste Leistung
                     </TableCell>
                   </TableRow>
                 </TableHead>
@@ -685,10 +732,10 @@ export const LeagueView: React.FC = () => {
                           {idx === 0
                             ? "🥇 1."
                             : idx === 1
-                              ? "🥈 2."
-                              : idx === 2
-                                ? "🥉 3."
-                                : `${idx + 1}.`}
+                            ? "🥈 2."
+                            : idx === 2
+                            ? "🥉 3."
+                            : `${idx + 1}.`}
                         </TableCell>
                         <TableCell
                           className="font-semibold cursor-pointer hover:underline text-primary-main"
@@ -698,15 +745,12 @@ export const LeagueView: React.FC = () => {
                         >
                           {getDisplayName(entry.user)}
                         </TableCell>
-                        <TableCell
-                          align="right"
-                          className="font-bold text-base"
-                        >
-                          <Typography
-                            color="primary.main"
-                            className="font-bold"
-                          >
-                            {entry.score} Punkte
+                        <TableCell align="right" className="font-bold text-base">
+                          <Typography color="primary.main" className="font-bold">
+                            {entry.score}{" "}
+                            {monthlyExercise?.resultType === "attempts"
+                              ? "Versuche/Darts"
+                              : "Punkte"}
                           </Typography>
                         </TableCell>
                       </TableRow>
@@ -851,7 +895,7 @@ export const LeagueView: React.FC = () => {
           {/* AUSSTEHENDE BESTÄTIGUNGEN */}
           {userProfile &&
             matches.filter(
-              (m) => m.status === "pending" && m.player2Id === userProfile.uid,
+              (m) => m.status === "pending" && m.player2Id === userProfile.uid
             ).length > 0 && (
               <Paper
                 variant="outlined"
@@ -868,7 +912,7 @@ export const LeagueView: React.FC = () => {
                 {matches
                   .filter(
                     (m) =>
-                      m.status === "pending" && m.player2Id === userProfile.uid,
+                      m.status === "pending" && m.player2Id === userProfile.uid
                   )
                   .map((m) => {
                     const p1 = users.find((u) => u.uid === m.player1Id);
@@ -928,10 +972,10 @@ export const LeagueView: React.FC = () => {
               .filter((l) => l.type === "match" && l.isActive)
               .map((league) => {
                 const leagueRatings = ratings.filter(
-                  (r) => r.leagueId === league.id,
+                  (r) => r.leagueId === league.id
                 );
                 const leagueMatches = matches.filter(
-                  (m) => m.leagueId === league.id && m.status === "confirmed",
+                  (m) => m.leagueId === league.id && m.status === "confirmed"
                 );
 
                 const leaderboard = users
@@ -939,10 +983,10 @@ export const LeagueView: React.FC = () => {
                     const rObj = leagueRatings.find((r) => r.userId === u.uid);
 
                     const playerMatches = leagueMatches.filter(
-                      (m) => m.player1Id === u.uid || m.player2Id === u.uid,
+                      (m) => m.player1Id === u.uid || m.player2Id === u.uid
                     );
                     const wins = playerMatches.filter(
-                      (m) => m.winnerId === u.uid,
+                      (m) => m.winnerId === u.uid
                     ).length;
                     const losses = playerMatches.length - wins;
 

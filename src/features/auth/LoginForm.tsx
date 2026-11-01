@@ -14,9 +14,13 @@ import {
   DialogContentText,
   DialogActions,
   Box,
+  InputAdornment,
+  IconButton,
   useMediaQuery,
   useTheme
 } from '@mui/material';
+import Visibility from '@mui/icons-material/Visibility';
+import VisibilityOff from '@mui/icons-material/VisibilityOff';
 
 interface LoginFormProps {
   onSwitchToRegister: () => void;
@@ -28,6 +32,7 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onSwitchToRegister }) => {
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false); // NEU: State für Passwort-Sichtbarkeit
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -124,14 +129,30 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onSwitchToRegister }) => {
               onChange={(e) => setEmail(e.target.value)}
             />
 
+            {/* NEU: Passwortfeld mit Toggle für die Sichtbarkeit */}
             <TextField
               label="Passwort"
-              type="password"
+              type={showPassword ? 'text' : 'password'}
               variant="outlined"
               fullWidth
               required
               value={password}
               onChange={(e) => setPassword(e.target.value)}
+              slotProps={{
+                input: {
+                  endAdornment: (
+                    <InputAdornment position="end">
+                      <IconButton
+                        aria-label="Passwort anzeigen oder verbergen"
+                        onClick={() => setShowPassword((prev) => !prev)}
+                        edge="end"
+                      >
+                        {showPassword ? <VisibilityOff /> : <Visibility />}
+                      </IconButton>
+                    </InputAdornment>
+                  ),
+                },
+              }}
             />
 
             {/* Passwort vergessen Link */}

@@ -10,13 +10,13 @@ export interface ChallengeTask {
   updatedAt: string;
 }
 
-// Status einer zugewiesenen Aufgabe auf der Karte des Spielers
+// Status einer zugewiesenen Aufgabe auf lauter Karte des Spielers
 export interface PlayerChallengeTask {
   taskId: string;
   title: string;
   description: string;
   completed: boolean;
-  completedAt?: string; // Zeitstempel (ISO-String), wann die Aufgabe abgehakt wurde
+  completedAt?: string | null; // Erlaubt string, undefined oder null für Firestore-Kompatibilität
   isSwapped?: boolean;  // Markierung, falls diese Aufgabe durch einen Joker getauscht wurde
 }
 
@@ -30,8 +30,8 @@ export interface UserMonthlyChallenge {
   swapsRemaining: number;      // Startet bei 2 Neuwahl-Jokern
   swappedTaskIds: string[];    // Historie der in diesem Monat getauschten Aufgaben-IDs
   startDate: string;           // ISO-String: Exakter Zeitstempel der Kategoriewahl
-  completedAt?: string;        // ISO-String: Zeitstempel, wann die 7. Aufgabe abgeschlossen wurde
-  daysNeeded?: number;         // Errechnete benötigte Tage (jeder angebrochene Tag zählt als ganzer Tag)
+  completedAt?: string | null; // ISO-String oder null/undefined
+  daysNeeded?: number | null;  // Errechnete benötigte Tage oder null/undefined
   createdAt: string;
   updatedAt: string;
 }

@@ -181,6 +181,7 @@ export const startUserMonthlyChallenge = async (
     title: t.title,
     description: t.description,
     completed: false,
+    completedAt: null,
   }));
 
   const now = new Date().toISOString();
@@ -192,6 +193,8 @@ export const startUserMonthlyChallenge = async (
     swapsRemaining: 2,
     swappedTaskIds: [],
     startDate: now,
+    completedAt: null,
+    daysNeeded: null,
     createdAt: now,
     updatedAt: now,
   };
@@ -228,23 +231,26 @@ export const toggleTaskCompletion = async (
       return {
         ...t,
         completed: isNowCompleted,
-        completedAt: isNowCompleted ? now : undefined,
+        completedAt: isNowCompleted ? now : null,
       };
     }
-    return t;
+    return {
+      ...t,
+      completedAt: t.completedAt !== undefined && t.completedAt !== null ? t.completedAt : null,
+    };
   });
 
   const allCompleted = updatedTasks.every((t) => t.completed);
 
-  let completedAt = challenge.completedAt;
-  let daysNeeded = challenge.daysNeeded;
+  let completedAt: string | null = challenge.completedAt ?? null;
+  let daysNeeded: number | null = challenge.daysNeeded ?? null;
 
   if (allCompleted) {
     completedAt = now;
     daysNeeded = calculateDaysNeeded(challenge.startDate, completedAt);
   } else {
-    completedAt = undefined;
-    daysNeeded = undefined;
+    completedAt = null;
+    daysNeeded = null;
   }
 
   const updateData = {
@@ -312,10 +318,14 @@ export const swapChallengeTask = async (
         title: newTask.title,
         description: newTask.description,
         completed: false,
+        completedAt: null,
         isSwapped: true,
       };
     }
-    return t;
+    return {
+      ...t,
+      completedAt: t.completedAt !== undefined && t.completedAt !== null ? t.completedAt : null,
+    };
   });
 
   const now = new Date().toISOString();

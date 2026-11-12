@@ -25,8 +25,6 @@ import {
   Tab,
   Box,
   Divider,
-  Card,
-  CardContent,
   Dialog,
   DialogTitle,
   DialogContent,
@@ -34,13 +32,9 @@ import {
   DialogActions,
   IconButton
 } from "@mui/material";
-import VerifiedUserIcon from "@mui/icons-material/VerifiedUser";
-import PendingIcon from "@mui/icons-material/HourglassEmpty";
-import CancelIcon from "@mui/icons-material/Cancel";
-import VisibilityIcon from "@mui/icons-material/Visibility";
-import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import DeleteIcon from "@mui/icons-material/Delete";
 import { AchievementManagement } from "./AchievmentManagement";
+import { TrainerLicenseManagement } from "./TrainerLicenseManagement";
 
 export const AdminDashboard: React.FC = () => {
   const [users, setUsers] = useState<UserProfile[]>([]);
@@ -489,7 +483,7 @@ export const AdminDashboard: React.FC = () => {
       )}
 
       {/* Tab 1: Trainer-Lizenzen */}
-      {activeAdminTab === 1 && <Box>...</Box>}
+      {activeAdminTab === 1 && <TrainerLicenseManagement licenses={allUserLicenses} onUpdateStatus={handleUpdateLicenseStatus} />}
       {activeAdminTab === 2 && <TagManagement />}
       {activeAdminTab === 3 && <FeedbackManagement />}
       {activeAdminTab === 4 && <AchievementManagement />}

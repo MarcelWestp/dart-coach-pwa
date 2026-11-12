@@ -40,6 +40,8 @@ import FitnessCenterIcon from "@mui/icons-material/FitnessCenter";
 import MenuBookIcon from "@mui/icons-material/MenuBook";
 import SupervisorAccountIcon from "@mui/icons-material/SupervisorAccount";
 import AdminPanelSettingsIcon from "@mui/icons-material/AdminPanelSettings";
+import PeopleIcon from "@mui/icons-material/People";
+import { CommunityView } from "./features/community/CommunityView";
 
 const MainContent: React.FC = () => {
   const { currentUser, userProfile, loading } = useAuth();
@@ -63,6 +65,7 @@ const MainContent: React.FC = () => {
   const [libraryAnchor, setLibraryAnchor] = useState<null | HTMLElement>(null);
   const [coachAnchor, setCoachAnchor] = useState<null | HTMLElement>(null);
   const [adminAnchor, setAdminAnchor] = useState<null | HTMLElement>(null);
+  const [communityAnchor, setCommunityAnchor] = useState<null | HTMLElement>(null);
 
   useEffect(() => {
     if (userProfile?.themePreference) {
@@ -119,6 +122,7 @@ const MainContent: React.FC = () => {
     setLibraryAnchor(null);
     setCoachAnchor(null);
     setAdminAnchor(null);
+    setCommunityAnchor(null);
   };
 
   return (
@@ -216,7 +220,35 @@ const MainContent: React.FC = () => {
               </MenuItem>
             </Menu>
 
-            {/* 3. KATEGORIE: Trainer-Bereich */}
+            {/* 3. KATEGORIE: Community */}
+            <Button
+              size={isMobile ? "small" : "medium"}
+              startIcon={<PeopleIcon fontSize="small" />}
+              endIcon={<KeyboardArrowDownIcon fontSize="small" />}
+              variant={
+                ["community-players", ].includes(activeView)
+                  ? "contained"
+                  : "text"
+              }
+              onClick={(e) => setCommunityAnchor(e.currentTarget)}
+              className="text-xs sm:text-sm shrink-0 whitespace-nowrap"
+            >
+              Community
+            </Button>
+            <Menu
+              anchorEl={communityAnchor}
+              open={Boolean(communityAnchor)}
+              onClose={() => setCommunityAnchor(null)}
+            >
+              <MenuItem onClick={() => handleSelectView("community-players")}>
+                Übersicht Spieler
+              </MenuItem>
+              {/* <MenuItem onClick={() => handleSelectView("teams")}>
+                Teams & Gruppen
+              </MenuItem> */}
+            </Menu>
+
+            {/* 4. KATEGORIE: Trainer-Bereich */}
             {isCoach && (
               <>
                 <Button
@@ -263,7 +295,7 @@ const MainContent: React.FC = () => {
               </>
             )}
 
-            {/* 4. KATEGORIE: Administration */}
+            {/* 5. KATEGORIE: Administration */}
             {isAdmin && (
               <>
                 <Button
@@ -355,6 +387,8 @@ const MainContent: React.FC = () => {
           )}
           {activeView === "profile" && <UserProfileView />}
           {activeView === "player-achievements" && <PlayerAchievementsView />}
+          {activeView === "community-players" && <CommunityView />}
+
         </main>
       </Box>
     </ProtectedRoute>

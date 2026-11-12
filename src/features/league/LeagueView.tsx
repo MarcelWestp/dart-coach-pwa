@@ -44,6 +44,8 @@ import {
   Divider,
   Card,
   Box,
+  useMediaQuery,
+  useTheme,
 } from "@mui/material";
 import EmojiEventsIcon from "@mui/icons-material/EmojiEvents";
 import CalendarMonthIcon from "@mui/icons-material/CalendarMonth";
@@ -67,6 +69,8 @@ interface MatchResult {
 
 export const LeagueView: React.FC = () => {
   const { userProfile } = useAuth();
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
 
   const [activeTab, setActiveTab] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -198,7 +202,6 @@ export const LeagueView: React.FC = () => {
     }
 
     const direction = monthlyExercise.scoreDirection || "higher_is_better";
-
     const userPreviousResults = testResults.filter((res) => {
       const resExId = (res as any).exerciseId || res.testId;
       if (res.userId !== userProfile.uid || resExId !== monthlyExercise.id)
@@ -284,7 +287,6 @@ export const LeagueView: React.FC = () => {
 
     testResults.forEach((res) => {
       const resExId = (res as any).exerciseId || res.testId;
-
       if (resExId === monthlyExercise.id) {
         const resDate = new Date(res.completedAt);
         if (
@@ -325,7 +327,6 @@ export const LeagueView: React.FC = () => {
     exerciseIds?: string[]
   ) => {
     if (!exerciseIds || exerciseIds.length === 0) return 0;
-
     let totalLeaguePoints = 0;
 
     exerciseIds.forEach((exId) => {
@@ -341,7 +342,6 @@ export const LeagueView: React.FC = () => {
         0
       );
       const avg = totalPointsSum / userExResults.length;
-
       const latestResult = userExResults.sort(
         (a, b) =>
           new Date(b.completedAt).getTime() - new Date(a.completedAt).getTime()
@@ -436,41 +436,28 @@ export const LeagueView: React.FC = () => {
 
       if (ratingDiff <= 100) {
         let baseChange = 50;
-        if (legDiff === 1) {
-          baseChange = p1Won ? 40 : -40;
-        } else if (legDiff === 2) {
-          baseChange = p1Won ? 45 : -45;
-        } else {
-          baseChange = p1Won ? 55 : -55;
-        }
+        if (legDiff === 1) baseChange = p1Won ? 40 : -40;
+        else if (legDiff === 2) baseChange = p1Won ? 45 : -45;
+        else baseChange = p1Won ? 55 : -55;
 
         p1Change = p1Won ? baseChange : -baseChange;
         p2Change = -p1Change;
       } else {
         const p1IsFavorite = p1RatingBefore > p2RatingBefore;
-
         if ((p1Won && p1IsFavorite) || (!p1Won && !p1IsFavorite)) {
-          const baseWin = 25;
-          const baseLoss = -25;
-          p1Change = p1Won ? baseWin : baseLoss;
+          p1Change = p1Won ? 25 : -25;
         } else {
           if (p1Won) {
             p1Change = Math.min(100, 50 + legDiff * 15);
-            p2Change = -p1Change;
           } else {
-            const lossAmount = legDiff === 1 ? 10 : legDiff === 2 ? 25 : 50;
-            p1Change = -lossAmount;
-            p2Change = -p1Change;
+            p1Change = -(legDiff === 1 ? 10 : legDiff === 2 ? 25 : 50);
           }
         }
+        p2Change = -p1Change;
       }
 
       p1Change = Math.max(-100, Math.min(100, p1Change));
       p2Change = Math.max(-100, Math.min(100, p2Change));
-
-      if (ratingDiff > 100) {
-        p2Change = -p1Change;
-      }
 
       const p1RatingAfter = Math.max(0, p1RatingBefore + p1Change);
       const p2RatingAfter = Math.max(0, p2RatingBefore + p2Change);
@@ -540,21 +527,19 @@ export const LeagueView: React.FC = () => {
     selectedArchivedYear === currentDate.getFullYear();
 
   return (
-    <Box className="p-4 sm:p-6 max-w-6xl mx-auto space-y-6">
+    <Box className="p-2 sm:p-6 max-w-6xl mx-auto space-y-6 overflow-x-hidden">
       <div className="flex justify-between items-center flex-wrap gap-2">
         <div>
           <Typography
             variant="h4"
             component="h1"
-            className="font-bold flex items-center gap-2"
+            className="font-bold flex items-center gap-2 text-xl sm:text-3xl"
             color="text.primary"
           >
-            <EmojiEventsIcon fontSize="large" color="primary" /> Trainingsliga &
-            Ranglisten
+            <EmojiEventsIcon fontSize="large" color="primary" /> Trainingsliga & Ranglisten
           </Typography>
           <Typography variant="body2" color="text.secondary">
-            Miss dich in Monats-Challenges, Performance-Ranglisten und
-            1v1-Duellen.
+            Miss dich in Monats-Challenges, Performance-Ranglisten und 1v1-Duellen.
           </Typography>
         </div>
       </div>
@@ -568,18 +553,19 @@ export const LeagueView: React.FC = () => {
       <Paper
         variant="outlined"
         sx={{ bgcolor: "background.paper", borderColor: "divider" }}
-        className="shadow-sm"
+        className="shadow-sm overflow-x-auto"
       >
         <Tabs
           value={activeTab}
           onChange={(_, val) => setActiveTab(val)}
           indicatorColor="primary"
           textColor="primary"
-          variant="fullWidth"
+          variant={isMobile ? "scrollable" : "fullWidth"}
+          scrollButtons="auto"
         >
-          <Tab icon={<CalendarMonthIcon />} label="Übung des Monats" />
-          <Tab icon={<EmojiEventsIcon />} label="Performance Leagues" />
-          <Tab icon={<SportsKabaddiIcon />} label="Match Leagues (1v1)" />
+          <Tab icon={<CalendarMonthIcon />} label="Übung des Monats" className="text-xs sm:text-sm min-w-0" />
+          <Tab icon={<EmojiEventsIcon />} label="Performance Leagues" className="text-xs sm:text-sm min-w-0" />
+          <Tab icon={<SportsKabaddiIcon />} label="Match Leagues (1v1)" className="text-xs sm:text-sm min-w-0" />
         </Tabs>
       </Paper>
 
@@ -589,84 +575,42 @@ export const LeagueView: React.FC = () => {
           <Paper
             variant="outlined"
             sx={{ bgcolor: "background.paper", borderColor: "divider" }}
-            className="p-4 sm:p-6 shadow-md flex flex-col gap-4"
+            className="p-3 sm:p-6 shadow-md flex flex-col gap-4"
           >
             <div className="flex justify-between items-center flex-wrap gap-4">
               <div>
-                <Typography
-                  variant="h5"
-                  className="font-bold"
-                  color="text.primary"
-                >
-                  Monats-Challenge:{" "}
-                  {monthlyExercise
-                    ? monthlyExercise.title
-                    : "Keine Übung festgelegt"}
+                <Typography variant="h5" className="font-bold text-lg sm:text-xl" color="text.primary">
+                  Monats-Challenge: {monthlyExercise ? monthlyExercise.title : "Keine Übung"}
                 </Typography>
-                <Typography
-                  variant="body2"
-                  color="text.secondary"
-                  className="mt-1"
-                >
+                <Typography variant="body2" color="text.secondary" className="mt-1">
                   {currentMonthlyConfig?.description ||
-                    "Spiele diese Übung beliebig oft. Nur dein bestes Ergebnis fließt in die Rangliste ein."}
+                    "Spiele diese Übung beliebig oft. Nur dein bestes Ergebnis fließt ein."}
                 </Typography>
-                {monthlyExercise && (
-                  <Chip
-                    size="small"
-                    variant="outlined"
-                    className="mt-2"
-                    label={
-                      monthlyExercise.scoreDirection === "lower_is_better"
-                        ? "⏱️ Wertung: Weniger Versuche / Darts sind besser"
-                        : "🎯 Wertung: Mehr Punkte / Treffer sind besser"
-                    }
-                  />
-                )}
               </div>
 
               <div className="flex gap-2 items-center flex-wrap">
                 <HistoryIcon color="action" />
-                <FormControl size="small" className="w-36">
-                  <InputLabel id="archive-month-label">Monat</InputLabel>
+                <FormControl size="small" className="w-32">
+                  <InputLabel>Monat</InputLabel>
                   <Select
-                    labelId="archive-month-label"
                     value={selectedArchivedMonth}
                     label="Monat"
-                    onChange={(e) =>
-                      setSelectedArchivedMonth(Number(e.target.value))
-                    }
+                    onChange={(e) => setSelectedArchivedMonth(Number(e.target.value))}
                   >
-                    {[
-                      { value: 1, name: "Januar" },
-                      { value: 2, name: "Februar" },
-                      { value: 3, name: "März" },
-                      { value: 4, name: "April" },
-                      { value: 5, name: "Mai" },
-                      { value: 6, name: "Juni" },
-                      { value: 7, name: "Juli" },
-                      { value: 8, name: "August" },
-                      { value: 9, name: "September" },
-                      { value: 10, name: "Oktober" },
-                      { value: 11, name: "November" },
-                      { value: 12, name: "Dezember" },
-                    ].map((m) => (
-                      <MenuItem key={m.value} value={m.value}>
-                        {m.name}
+                    {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => (
+                      <MenuItem key={m} value={m}>
+                        Monat {m}
                       </MenuItem>
                     ))}
                   </Select>
                 </FormControl>
 
                 <FormControl size="small" className="w-28">
-                  <InputLabel id="archive-year-label">Jahr</InputLabel>
+                  <InputLabel>Jahr</InputLabel>
                   <Select
-                    labelId="archive-year-label"
                     value={selectedArchivedYear}
                     label="Jahr"
-                    onChange={(e) =>
-                      setSelectedArchivedYear(Number(e.target.value))
-                    }
+                    onChange={(e) => setSelectedArchivedYear(Number(e.target.value))}
                   >
                     {[2025, 2026, 2027, 2028].map((y) => (
                       <MenuItem key={y} value={y}>
@@ -686,21 +630,14 @@ export const LeagueView: React.FC = () => {
                   startIcon={<PlayArrowIcon />}
                   onClick={() => setIsRecordModalOpen(true)}
                 >
-                  Ergebnis für Monatsübung eintragen
+                  Ergebnis eintragen
                 </Button>
               </Box>
             )}
 
-            {!isCurrentMonthActive && (
-              <Alert severity="warning">
-                Du betrachtest ein vergangenes Monats-Archiv. Ergebnisse für
-                diesen Monat sind gesperrt.
-              </Alert>
-            )}
-
             <Divider className="my-2" />
 
-            <Typography variant="h6" className="font-bold" color="text.primary">
+            <Typography variant="h6" className="font-bold">
               Rangliste ({selectedArchivedMonth} / {selectedArchivedYear})
             </Typography>
 
@@ -710,9 +647,7 @@ export const LeagueView: React.FC = () => {
                   <TableRow>
                     <TableCell className="font-bold">Platz</TableCell>
                     <TableCell className="font-bold">Spieler</TableCell>
-                    <TableCell align="right" className="font-bold">
-                      Beste Leistung
-                    </TableCell>
+                    <TableCell align="right" className="font-bold">Beste Leistung</TableCell>
                   </TableRow>
                 </TableHead>
                 <TableBody>
@@ -720,8 +655,7 @@ export const LeagueView: React.FC = () => {
                     <TableRow>
                       <TableCell colSpan={3} align="center" className="py-6">
                         <Typography variant="body2" color="text.secondary">
-                          In diesem Monat wurden noch keine Ergebnisse
-                          eingetragen.
+                          Keine Ergebnisse im gewählten Monat.
                         </Typography>
                       </TableCell>
                     </TableRow>
@@ -729,28 +663,17 @@ export const LeagueView: React.FC = () => {
                     getMonthlyHighscores().map((entry, idx) => (
                       <TableRow key={entry.user?.uid || idx} hover>
                         <TableCell className="font-bold">
-                          {idx === 0
-                            ? "🥇 1."
-                            : idx === 1
-                            ? "🥈 2."
-                            : idx === 2
-                            ? "🥉 3."
-                            : `${idx + 1}.`}
+                          {idx === 0 ? "🥇 1." : idx === 1 ? "🥈 2." : idx === 2 ? "🥉 3." : `${idx + 1}.`}
                         </TableCell>
                         <TableCell
-                          className="font-semibold cursor-pointer hover:underline text-primary-main"
-                          onClick={() =>
-                            setSelectedProfileUser(entry.user || null)
-                          }
+                          className="font-semibold cursor-pointer hover:underline text-primary.main"
+                          onClick={() => setSelectedProfileUser(entry.user || null)}
                         >
                           {getDisplayName(entry.user)}
                         </TableCell>
-                        <TableCell align="right" className="font-bold text-base">
+                        <TableCell align="right" className="font-bold">
                           <Typography color="primary.main" className="font-bold">
-                            {entry.score}{" "}
-                            {monthlyExercise?.resultType === "attempts"
-                              ? "Versuche/Darts"
-                              : "Punkte"}
+                            {entry.score} Pkt.
                           </Typography>
                         </TableCell>
                       </TableRow>
@@ -776,13 +699,8 @@ export const LeagueView: React.FC = () => {
       {/* TAB 2: PERFORMANCE LEAGUES */}
       {activeTab === 1 && (
         <div className="flex flex-col gap-6">
-          {leagues.filter((l) => l.type === "performance" && l.isActive)
-            .length === 0 ? (
-            <Paper
-              variant="outlined"
-              sx={{ bgcolor: "background.paper", borderColor: "divider" }}
-              className="p-8 text-center"
-            >
+          {leagues.filter((l) => l.type === "performance" && l.isActive).length === 0 ? (
+            <Paper variant="outlined" sx={{ bgcolor: "background.paper", borderColor: "divider" }} className="p-8 text-center">
               <Typography variant="body1" color="text.secondary">
                 Aktuell sind keine Performance-Ligen aktiv.
               </Typography>
@@ -804,22 +722,14 @@ export const LeagueView: React.FC = () => {
                     key={league.id}
                     variant="outlined"
                     sx={{ bgcolor: "background.paper", borderColor: "divider" }}
-                    className="p-4 sm:p-6 shadow-md flex flex-col gap-4"
+                    className="p-3 sm:p-6 shadow-md flex flex-col gap-4"
                   >
                     <div>
-                      <Typography
-                        variant="h5"
-                        className="font-bold"
-                        color="text.primary"
-                      >
+                      <Typography variant="h5" className="font-bold text-lg sm:text-xl" color="text.primary">
                         {league.title}
                       </Typography>
                       {league.description && (
-                        <Typography
-                          variant="body2"
-                          color="text.secondary"
-                          className="mt-1"
-                        >
+                        <Typography variant="body2" color="text.secondary" className="mt-1">
                           {league.description}
                         </Typography>
                       )}
@@ -833,23 +743,14 @@ export const LeagueView: React.FC = () => {
                           <TableRow>
                             <TableCell className="font-bold">Platz</TableCell>
                             <TableCell className="font-bold">Spieler</TableCell>
-                            <TableCell align="right" className="font-bold">
-                              Gewertete Ligapunkte
-                            </TableCell>
+                            <TableCell align="right" className="font-bold">Ligapunkte</TableCell>
                           </TableRow>
                         </TableHead>
                         <TableBody>
                           {leaderboard.length === 0 ? (
                             <TableRow>
-                              <TableCell
-                                colSpan={3}
-                                align="center"
-                                className="py-6"
-                              >
-                                <Typography
-                                  variant="body2"
-                                  color="text.secondary"
-                                >
+                              <TableCell colSpan={3} align="center" className="py-6">
+                                <Typography variant="body2" color="text.secondary">
                                   Noch keine gewerteten Ergebnisse vorhanden.
                                 </Typography>
                               </TableCell>
@@ -857,22 +758,15 @@ export const LeagueView: React.FC = () => {
                           ) : (
                             leaderboard.map((entry, idx) => (
                               <TableRow key={entry.user.uid} hover>
-                                <TableCell className="font-bold">
-                                  {idx + 1}.
-                                </TableCell>
+                                <TableCell className="font-bold">{idx + 1}.</TableCell>
                                 <TableCell
-                                  className="font-semibold cursor-pointer hover:underline text-primary-main"
-                                  onClick={() =>
-                                    setSelectedProfileUser(entry.user)
-                                  }
+                                  className="font-semibold cursor-pointer hover:underline"
+                                  onClick={() => setSelectedProfileUser(entry.user)}
                                 >
                                   {getDisplayName(entry.user)}
                                 </TableCell>
                                 <TableCell align="right" className="font-bold">
-                                  <Typography
-                                    color="primary.main"
-                                    className="font-bold"
-                                  >
+                                  <Typography color="primary.main" className="font-bold">
                                     {entry.score} Pkt.
                                   </Typography>
                                 </TableCell>
@@ -892,61 +786,30 @@ export const LeagueView: React.FC = () => {
       {/* TAB 3: MATCH LEAGUES (1v1 Duelle) */}
       {activeTab === 2 && (
         <div className="flex flex-col gap-6">
-          {/* AUSSTEHENDE BESTÄTIGUNGEN */}
           {userProfile &&
-            matches.filter(
-              (m) => m.status === "pending" && m.player2Id === userProfile.uid
-            ).length > 0 && (
+            matches.filter((m) => m.status === "pending" && m.player2Id === userProfile.uid).length > 0 && (
               <Paper
                 variant="outlined"
-                sx={{
-                  bgcolor: "warning.dark",
-                  borderColor: "warning.main",
-                  color: "warning.contrastText",
-                }}
-                className="p-4 flex flex-col gap-3"
+                sx={{ bgcolor: "warning.dark", borderColor: "warning.main", color: "warning.contrastText" }}
+                className="p-4 flex flex-col gap-3 rounded-lg"
               >
                 <Typography variant="subtitle1" className="font-bold">
                   ⏳ Ausstehende Match-Bestätigungen
                 </Typography>
                 {matches
-                  .filter(
-                    (m) =>
-                      m.status === "pending" && m.player2Id === userProfile.uid
-                  )
+                  .filter((m) => m.status === "pending" && m.player2Id === userProfile.uid)
                   .map((m) => {
                     const p1 = users.find((u) => u.uid === m.player1Id);
                     return (
-                      <Paper
-                        key={m.id}
-                        variant="outlined"
-                        sx={{ bgcolor: "background.paper" }}
-                        className="flex justify-between items-center p-3 rounded shadow-sm flex-wrap gap-2"
-                      >
+                      <Paper key={m.id} variant="outlined" sx={{ bgcolor: "background.paper" }} className="flex justify-between items-center p-3 rounded flex-wrap gap-2">
                         <Typography variant="body2" color="text.primary">
-                          <strong>{getDisplayName(p1)}</strong> hat ein Match
-                          gegen dich eingetragen:{" "}
-                          <strong>
-                            {m.scorePlayer1} : {m.scorePlayer2}
-                          </strong>
+                          <strong>{getDisplayName(p1)}</strong> trug Match ein: <strong>{m.scorePlayer1} : {m.scorePlayer2}</strong>
                         </Typography>
                         <div className="flex gap-2">
-                          <Button
-                            size="small"
-                            variant="contained"
-                            color="success"
-                            startIcon={<CheckCircleIcon />}
-                            onClick={() => handleConfirmMatch(m)}
-                          >
+                          <Button size="small" variant="contained" color="success" startIcon={<CheckCircleIcon />} onClick={() => handleConfirmMatch(m)}>
                             Bestätigen
                           </Button>
-                          <Button
-                            size="small"
-                            variant="outlined"
-                            color="error"
-                            startIcon={<CancelIcon />}
-                            onClick={() => handleRejectMatch(m.id)}
-                          >
+                          <Button size="small" variant="outlined" color="error" startIcon={<CancelIcon />} onClick={() => handleRejectMatch(m.id)}>
                             Ablehnen
                           </Button>
                         </div>
@@ -956,13 +819,8 @@ export const LeagueView: React.FC = () => {
               </Paper>
             )}
 
-          {leagues.filter((l) => l.type === "match" && l.isActive).length ===
-          0 ? (
-            <Paper
-              variant="outlined"
-              sx={{ bgcolor: "background.paper", borderColor: "divider" }}
-              className="p-8 text-center"
-            >
+          {leagues.filter((l) => l.type === "match" && l.isActive).length === 0 ? (
+            <Paper variant="outlined" sx={{ bgcolor: "background.paper", borderColor: "divider" }} className="p-8 text-center">
               <Typography variant="body1" color="text.secondary">
                 Aktuell sind keine 1v1 Match-Ligen aktiv.
               </Typography>
@@ -971,30 +829,36 @@ export const LeagueView: React.FC = () => {
             leagues
               .filter((l) => l.type === "match" && l.isActive)
               .map((league) => {
-                const leagueRatings = ratings.filter(
-                  (r) => r.leagueId === league.id
-                );
-                const leagueMatches = matches.filter(
-                  (m) => m.leagueId === league.id && m.status === "confirmed"
-                );
+                const leagueRatings = ratings.filter((r) => r.leagueId === league.id);
+                const leagueMatches = matches.filter((m) => m.leagueId === league.id && m.status === "confirmed");
 
                 const leaderboard = users
                   .map((u) => {
                     const rObj = leagueRatings.find((r) => r.userId === u.uid);
-
-                    const playerMatches = leagueMatches.filter(
-                      (m) => m.player1Id === u.uid || m.player2Id === u.uid
-                    );
-                    const wins = playerMatches.filter(
-                      (m) => m.winnerId === u.uid
-                    ).length;
+                    const playerMatches = leagueMatches.filter((m) => m.player1Id === u.uid || m.player2Id === u.uid);
+                    const wins = playerMatches.filter((m) => m.winnerId === u.uid).length;
                     const losses = playerMatches.length - wins;
+
+                    let totalLegsWon = 0;
+                    let totalLegsLost = 0;
+
+                    playerMatches.forEach((m) => {
+                      if (m.player1Id === u.uid) {
+                        totalLegsWon += m.scorePlayer1;
+                        totalLegsLost += m.scorePlayer2;
+                      } else {
+                        totalLegsWon += m.scorePlayer2;
+                        totalLegsLost += m.scorePlayer1;
+                      }
+                    });
 
                     return {
                       user: u,
                       rating: rObj ? rObj.rating : 1000,
                       wins,
                       losses,
+                      legsWon: totalLegsWon,
+                      legsLost: totalLegsLost,
                     };
                   })
                   .sort((a, b) => b.rating - a.rating);
@@ -1004,23 +868,15 @@ export const LeagueView: React.FC = () => {
                     key={league.id}
                     variant="outlined"
                     sx={{ bgcolor: "background.paper", borderColor: "divider" }}
-                    className="p-4 sm:p-6 shadow-md flex flex-col gap-4"
+                    className="p-3 sm:p-6 shadow-md flex flex-col gap-4"
                   >
                     <div className="flex justify-between items-center flex-wrap gap-2">
                       <div>
-                        <Typography
-                          variant="h5"
-                          className="font-bold"
-                          color="text.primary"
-                        >
+                        <Typography variant="h5" className="font-bold text-lg sm:text-xl" color="text.primary">
                           {league.title}
                         </Typography>
                         {league.description && (
-                          <Typography
-                            variant="body2"
-                            color="text.secondary"
-                            className="mt-1"
-                          >
+                          <Typography variant="body2" color="text.secondary" className="mt-1">
                             {league.description}
                           </Typography>
                         )}
@@ -1041,76 +897,91 @@ export const LeagueView: React.FC = () => {
 
                     <Divider />
 
-                    <TableContainer component={Paper} variant="outlined">
-                      <Table>
-                        <TableHead>
-                          <TableRow>
-                            <TableCell className="font-bold">Platz</TableCell>
-                            <TableCell className="font-bold">Spieler</TableCell>
-                            <TableCell align="center" className="font-bold">
-                              Gewonnen
-                            </TableCell>
-                            <TableCell align="center" className="font-bold">
-                              Verloren
-                            </TableCell>
-                            <TableCell align="center" className="font-bold">
-                              Legverhältnis
-                            </TableCell>
-                            <TableCell align="right" className="font-bold">
-                              DPR Rating
-                            </TableCell>
-                          </TableRow>
-                        </TableHead>
-                        <TableBody>
-                          {leaderboard.map((entry, idx) => (
-                            <TableRow key={entry.user.uid} hover>
-                              <TableCell className="font-bold">
-                                {idx + 1}.
-                              </TableCell>
-                              <TableCell
-                                className="font-semibold cursor-pointer hover:underline text-primary-main"
-                                onClick={() =>
-                                  setSelectedProfileUser(entry.user)
-                                }
-                              >
-                                {getDisplayName(entry.user)}
-                              </TableCell>
-                              <TableCell
-                                align="center"
-                                className="text-green-600 font-semibold"
-                              >
-                                {entry.wins}
-                              </TableCell>
-                              <TableCell
-                                align="center"
-                                className="text-red-500 font-semibold"
-                              >
-                                {entry.losses}
-                              </TableCell>
-                              <TableCell
-                                align="center"
-                                className="font-semibold"
-                              >
-                                <Typography
-                                  variant="body2"
-                                  color="text.primary"
-                                >
-                                  {entry.wins} : {entry.losses}
-                                </Typography>
-                              </TableCell>
-                              <TableCell align="right" className="font-bold">
+                    {/* RESPONSIVE ANSICHT: CARDS AUF HANDY, TABELLE AB TABLET/DESKTOP */}
+                    {isMobile ? (
+                      <div className="flex flex-col gap-3">
+                        {leaderboard.length === 0 ? (
+                          <Typography variant="body2" color="text.secondary" className="text-center py-4">
+                            Keine Spieler in dieser Liga.
+                          </Typography>
+                        ) : (
+                          leaderboard.map((entry, idx) => (
+                            <Card key={entry.user.uid} variant="outlined" className="p-3 flex flex-col gap-2 rounded-lg" sx={{ bgcolor: "background.paper" }}>
+                              <div className="flex justify-between items-center">
+                                <div className="flex items-center gap-2">
+                                  <Typography variant="subtitle1" className="font-bold">
+                                    {idx + 1}.
+                                  </Typography>
+                                  <Typography
+                                    variant="subtitle1"
+                                    className="font-bold cursor-pointer text-primary-main"
+                                    onClick={() => setSelectedProfileUser(entry.user)}
+                                  >
+                                    {getDisplayName(entry.user)}
+                                  </Typography>
+                                </div>
                                 <Chip
                                   label={`${entry.rating} Pkt.`}
                                   color="primary"
-                                  variant="outlined"
                                   size="small"
+                                  variant="outlined"
                                 />
-                              </TableCell>
+                              </div>
+                              <div className="flex justify-between items-center text-xs text-gray-500 dark:text-gray-400 border-t pt-2">
+                                <span>Spiele: {entry.wins} : {entry.losses}</span>
+                                <span className="font-semibold text-text.primary">Legs: {entry.legsWon} : {entry.legsLost}</span>
+                              </div>
+                            </Card>
+                          ))
+                        )}
+                      </div>
+                    ) : (
+                      <TableContainer component={Paper} variant="outlined">
+                        <Table>
+                          <TableHead>
+                            <TableRow>
+                              <TableCell className="font-bold">Platz</TableCell>
+                              <TableCell className="font-bold">Spieler</TableCell>
+                              <TableCell align="center" className="font-bold">Gewonnen</TableCell>
+                              <TableCell align="center" className="font-bold">Verloren</TableCell>
+                              <TableCell align="center" className="font-bold">Legverhältnis</TableCell>
+                              <TableCell align="right" className="font-bold">DPR-Rating</TableCell>
                             </TableRow>
-                          ))}
-                        </TableBody>
-                      </Table>
-                    </TableContainer>
+                          </TableHead>
+                          <TableBody>
+                            {leaderboard.length === 0 ? (
+                              <TableRow>
+                                <TableCell colSpan={6} align="center" className="py-6">
+                                  <Typography variant="body2" color="text.secondary">
+                                    Noch keine Ergebnisse vorhanden.
+                                  </Typography>
+                                </TableCell>
+                              </TableRow>
+                            ) : (
+                              leaderboard.map((entry, idx) => (
+                                <TableRow key={entry.user.uid} hover>
+                                  <TableCell className="font-bold">{idx + 1}.</TableCell>
+                                  <TableCell
+                                    className="font-semibold cursor-pointer hover:underline text-primary-main"
+                                    onClick={() => setSelectedProfileUser(entry.user)}
+                                  >
+                                    {getDisplayName(entry.user)}
+                                  </TableCell>
+                                  <TableCell align="center" className="text-green-600 font-semibold">{entry.wins}</TableCell>
+                                  <TableCell align="center" className="text-red-500 font-semibold">{entry.losses}</TableCell>
+                                  <TableCell align="center" className="font-semibold">
+                                    {entry.legsWon} : {entry.legsLost}
+                                  </TableCell>
+                                  <TableCell align="right" className="font-bold">
+                                    <Chip label={`${entry.rating} Pkt.`} color="primary" variant="outlined" size="small" />
+                                  </TableCell>
+                                </TableRow>
+                              ))
+                            )}
+                          </TableBody>
+                        </Table>
+                      </TableContainer>
+                    )}
                   </Paper>
                 );
               })
@@ -1124,23 +995,13 @@ export const LeagueView: React.FC = () => {
         user={selectedProfileUser}
       />
 
-      <Dialog
-        open={isMatchModalOpen}
-        onClose={() => setIsMatchModalOpen(false)}
-        maxWidth="sm"
-        fullWidth
-      >
-        <DialogTitle className="font-bold">
-          1v1 Trainings-Match Eintragen
-        </DialogTitle>
+      <Dialog open={isMatchModalOpen} onClose={() => setIsMatchModalOpen(false)} maxWidth="sm" fullWidth>
+        <DialogTitle className="font-bold">1v1 Trainings-Match Eintragen</DialogTitle>
         <form onSubmit={handleRecordMatch}>
           <DialogContent dividers className="flex flex-col gap-4">
             <FormControl fullWidth required>
-              <InputLabel id="select-opponent-label">
-                Gegner auswählen
-              </InputLabel>
+              <InputLabel>Gegner auswählen</InputLabel>
               <Select
-                labelId="select-opponent-label"
                 value={selectedOpponentId}
                 label="Gegner auswählen"
                 onChange={(e) => setSelectedOpponentId(e.target.value)}
@@ -1156,16 +1017,8 @@ export const LeagueView: React.FC = () => {
             </FormControl>
 
             <div className="grid grid-cols-2 gap-4">
-              <Card
-                variant="outlined"
-                sx={{ bgcolor: "background.paper" }}
-                className="p-3 text-center"
-              >
-                <Typography
-                  variant="caption"
-                  className="font-bold block mb-1"
-                  color="text.secondary"
-                >
+              <Card variant="outlined" sx={{ bgcolor: "background.paper" }} className="p-3 text-center">
+                <Typography variant="caption" className="font-bold block mb-1" color="text.secondary">
                   Deine Legs/Sätze
                 </Typography>
                 <input
@@ -1174,22 +1027,12 @@ export const LeagueView: React.FC = () => {
                   required
                   className="w-full text-center text-2xl font-bold p-2 border rounded dark:bg-gray-800 dark:text-white"
                   value={myScore}
-                  onChange={(e) =>
-                    setMyScore(parseInt(e.target.value, 10) || 0)
-                  }
+                  onChange={(e) => setMyScore(parseInt(e.target.value, 10) || 0)}
                 />
               </Card>
 
-              <Card
-                variant="outlined"
-                sx={{ bgcolor: "background.paper" }}
-                className="p-3 text-center"
-              >
-                <Typography
-                  variant="caption"
-                  className="font-bold block mb-1"
-                  color="text.secondary"
-                >
+              <Card variant="outlined" sx={{ bgcolor: "background.paper" }} className="p-3 text-center">
+                <Typography variant="caption" className="font-bold block mb-1" color="text.secondary">
                   Gegner Legs/Sätze
                 </Typography>
                 <input
@@ -1198,28 +1041,18 @@ export const LeagueView: React.FC = () => {
                   required
                   className="w-full text-center text-2xl font-bold p-2 border rounded dark:bg-gray-800 dark:text-white"
                   value={opponentScore}
-                  onChange={(e) =>
-                    setOpponentScore(parseInt(e.target.value, 10) || 0)
-                  }
+                  onChange={(e) => setOpponentScore(parseInt(e.target.value, 10) || 0)}
                 />
               </Card>
             </div>
             <Typography variant="caption" color="text.secondary">
-              * Das Match wird erst nach Bestätigung durch den Gegner gewertet
-              und in die Rangliste eingetragen.
+              * Das Match wird erst nach Bestätigung durch den Gegner gewertet.
             </Typography>
           </DialogContent>
 
           <DialogActions className="p-4">
-            <Button onClick={() => setIsMatchModalOpen(false)}>
-              Abbrechen
-            </Button>
-            <Button
-              type="submit"
-              variant="contained"
-              color="primary"
-              disabled={matchSubmitting || !selectedOpponentId}
-            >
+            <Button onClick={() => setIsMatchModalOpen(false)}>Abbrechen</Button>
+            <Button type="submit" variant="contained" color="primary" disabled={matchSubmitting || !selectedOpponentId}>
               {matchSubmitting ? "Wird angefragt..." : "Match anfragen"}
             </Button>
           </DialogActions>

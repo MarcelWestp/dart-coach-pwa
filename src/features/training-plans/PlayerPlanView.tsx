@@ -92,6 +92,7 @@ export const PlayerPlanView: React.FC = () => {
     exercise: Exercise;
     blockId: string;
     exIndex: number;
+    durationMinutes?: number;
   } | null>(null);
 
   const [selectedTestToRecord, setSelectedTestToRecord] =
@@ -114,7 +115,6 @@ export const PlayerPlanView: React.FC = () => {
     setLoading(true);
 
     try {
-      // PERFORMANCEN-OPTIMIERUNG: Gezielte Abfragen mit where-Filtern
       const plansQuery = query(
         collection(db, "assignedPlans"),
         where("playerId", "==", userProfile.uid)
@@ -145,7 +145,6 @@ export const PlayerPlanView: React.FC = () => {
           fetchedPlans.push({
             id: d.id,
             ...data,
-            // Fallback: Falls kein assignedType angegeben ist, als 'individual' werten
             assignedType: data.assignedType || "individual",
           } as TrainingPlan & { assignedType?: "individual" | "group" });
         }
@@ -167,7 +166,6 @@ export const PlayerPlanView: React.FC = () => {
         fetchedResults.push({ id: d.id, ...data } as TestResult);
       });
 
-      // Nach Kalenderwoche / Jahr absteigend sortieren
       fetchedPlans.sort((a, b) => {
         const yearA = a.year ?? 0;
         const yearB = b.year ?? 0;
@@ -202,7 +200,6 @@ export const PlayerPlanView: React.FC = () => {
       setTests(fetchedTests);
       setTestResults(fetchedResults);
 
-      // --- ERINNERUNG FÜR AKTUELLE WOCHE PRÜFEN ---
       if (fetchedPlans.length > 0) {
         const { calendarWeek, year } = getWeekAndYearFromDate(
           new Date().toISOString()
@@ -245,7 +242,6 @@ export const PlayerPlanView: React.FC = () => {
     };
   }, [userProfile?.uid]);
 
-  // Gefilterte Liste der Trainingspläne
   const visiblePlans = plans.filter((p) => {
     if (!showCompleted && p.status === "completed") return false;
     const pType = (p as any).assignedType || "individual";
@@ -253,14 +249,12 @@ export const PlayerPlanView: React.FC = () => {
     return true;
   });
 
-  // Gefilterte Liste der zugewiesenen Leistungstests
   const visibleAssignedTests = assignedTests.filter((t) => {
     if (!showCompleted && t.status === "completed") return false;
     if (originFilter !== "all" && t.assignedType !== originFilter) return false;
     return true;
   });
 
-  // Synchronisieren des aktiven Plans bei Filteränderungen oder Datenupdates
   useEffect(() => {
     if (visiblePlans.length === 0) {
       setActivePlan(null);
@@ -279,7 +273,6 @@ export const PlayerPlanView: React.FC = () => {
     }
   }, [plans, showCompleted, originFilter, activePlanId]);
 
-  // Hilfsfunktion: 48-Stunden-Sperrregel prüfen
   const canEditResult = (completedAt?: string) => {
     if (!completedAt) return true;
     const completedDate = new Date(completedAt).getTime();
@@ -288,7 +281,6 @@ export const PlayerPlanView: React.FC = () => {
     return hoursDiff <= 48;
   };
 
-  // Spieler-Notiz/Feedback in Firestore speichern
   const handleSavePlayerFeedback = async () => {
     if (!editingFeedbackTarget || !activePlan || !activePlan?.id) return;
 
@@ -338,7 +330,6 @@ export const PlayerPlanView: React.FC = () => {
     }
   };
 
-  // Nach Ergebniserfassung einer Übung
   const handleResultSaved = async () => {
     if (!selectedExerciseToRecord || !activePlan || !activePlan?.id) return;
 
@@ -384,7 +375,6 @@ export const PlayerPlanView: React.FC = () => {
     }
   };
 
-  // Nach Ergebniserfassung des Leistungstests
   const handleTestResultSaved = async () => {
     await fetchData();
     setSelectedTestToRecord(null);
@@ -459,7 +449,6 @@ export const PlayerPlanView: React.FC = () => {
         </Alert>
       )}
 
-      {/* Filterleiste: Auswahl, Herkunft & Status-Switch */}
       <Paper
         variant="outlined"
         sx={{
@@ -470,7 +459,6 @@ export const PlayerPlanView: React.FC = () => {
         className="flex flex-wrap justify-between items-center gap-4 shadow-sm"
       >
         <div className="flex flex-wrap items-center gap-4 w-full md:w-auto">
-          {/* Plan-Auswahl Dropdown */}
           {visiblePlans.length > 0 && (
             <FormControl size="small" className="w-full sm:w-auto min-w-[240px]">
               <InputLabel id="select-plan-label">
@@ -492,7 +480,6 @@ export const PlayerPlanView: React.FC = () => {
             </FormControl>
           )}
 
-          {/* Herkunfts-Filter Dropdown */}
           <FormControl size="small" className="w-full sm:w-auto min-w-[180px]">
             <InputLabel id="select-origin-label">Herkunft Filter</InputLabel>
             <Select
@@ -524,7 +511,6 @@ export const PlayerPlanView: React.FC = () => {
         />
       </Paper>
 
-      {/* SEKTION 1: SEPARAT ZUGEWIESENE LEISTUNGSTESTS */}
       {visibleAssignedTests.length > 0 && (
         <Box className="flex flex-col gap-3">
           <Typography variant="h6" className="font-bold" color="text.primary">
@@ -558,7 +544,6 @@ export const PlayerPlanView: React.FC = () => {
                         </Typography>
                       </div>
 
-                      {/* Herkunfts-Chip */}
                       <Chip
                         icon={isGroup ? <GroupIcon fontSize="small" /> : <PersonIcon fontSize="small" />}
                         label={isGroup ? "Gruppe" : "Einzel"}
@@ -620,14 +605,12 @@ export const PlayerPlanView: React.FC = () => {
         </Paper>
       )}
 
-      {/* SEKTION 2: TRAININGSPLAN DETAILANSEICHT */}
       {activePlan && visiblePlans.length > 0 && (
         <Paper
           variant="outlined"
           sx={{ bgcolor: "background.paper", borderColor: "divider" }}
           className="p-4 sm:p-6 shadow-sm flex flex-col gap-6"
         >
-          {/* Header des aktiven Plans */}
           <div className="flex justify-between items-start flex-wrap gap-4">
             <div>
               <div className="flex items-center gap-2 flex-wrap">
@@ -640,7 +623,6 @@ export const PlayerPlanView: React.FC = () => {
                   {activePlan.year})
                 </Typography>
 
-                {/* Herkunfts-Chip für den Trainingsplan */}
                 <Chip
                   icon={
                     ((activePlan as any).assignedType || "individual") === "group" ? (
@@ -685,7 +667,6 @@ export const PlayerPlanView: React.FC = () => {
             />
           </div>
 
-          {/* Fortschritts-Anzeige */}
           <Paper
             variant="outlined"
             sx={{
@@ -726,7 +707,6 @@ export const PlayerPlanView: React.FC = () => {
             </div>
           </Paper>
 
-          {/* Trainer Abschluss-Feedback */}
           {activePlan.coachFeedback && (
             <Alert severity="info">
               <strong>Abschluss-Feedback deines Trainers:</strong>{" "}
@@ -734,7 +714,6 @@ export const PlayerPlanView: React.FC = () => {
             </Alert>
           )}
 
-          {/* Optionaler integrierter Leistungstest */}
           {activePlan.performanceTestId &&
             (() => {
               const testObj = tests.find(
@@ -799,7 +778,6 @@ export const PlayerPlanView: React.FC = () => {
 
           <Divider />
 
-          {/* Trainingsblöcke Ansicht */}
           <Typography variant="h6" className="font-bold" color="text.primary">
             Trainingsblöcke
           </Typography>
@@ -857,7 +835,6 @@ export const PlayerPlanView: React.FC = () => {
                       </Paper>
                     )}
 
-                    {/* Übungs-Liste des Blocks */}
                     {block.exercises.map((bEx, exIdx) => {
                       const exerciseObj = exercises.find(
                         (e) => e.id === bEx.exerciseId
@@ -865,7 +842,6 @@ export const PlayerPlanView: React.FC = () => {
                       const isDone = !!bEx.completedAt;
                       const isEditable = canEditResult(bEx.completedAt);
 
-                      // Zuordnung des Testergebnisses über scoreResultId oder Fallback
                       const matchingResult = testResults.find((r) => {
                         if (bEx.scoreResultId && r.id === bEx.scoreResultId) {
                           return true;
@@ -928,7 +904,6 @@ export const PlayerPlanView: React.FC = () => {
                                 )}
                             </div>
 
-                            {/* Punkte- und Datumsanzeige */}
                             {isDone && (
                               <div className="mt-1 flex items-center gap-1.5 flex-wrap">
                                 <Chip
@@ -979,6 +954,7 @@ export const PlayerPlanView: React.FC = () => {
                                   exercise: exerciseObj,
                                   blockId: block.id,
                                   exIndex: exIdx,
+                                  durationMinutes: bEx.durationMinutes,
                                 })
                               }
                               startIcon={
@@ -997,7 +973,6 @@ export const PlayerPlanView: React.FC = () => {
                       );
                     })}
 
-                    {/* Block Spieler-Feedback Button */}
                     <div className="mt-2 text-right">
                       <Button
                         size="small"
@@ -1024,7 +999,6 @@ export const PlayerPlanView: React.FC = () => {
 
           <Divider className="my-2" />
 
-          {/* Feedback für den gesamten Wochenplan */}
           <Paper
             variant="outlined"
             sx={{
@@ -1064,7 +1038,6 @@ export const PlayerPlanView: React.FC = () => {
         </Paper>
       )}
 
-      {/* Modal zur Ergebniseingabe Einzelübung */}
       {selectedExerciseToRecord && (
         <RecordResultModal
           open={!!selectedExerciseToRecord}
@@ -1072,10 +1045,10 @@ export const PlayerPlanView: React.FC = () => {
           exercise={selectedExerciseToRecord.exercise}
           allExercises={exercises}
           onResultRecorded={handleResultSaved}
+          initialDurationMinutes={selectedExerciseToRecord.durationMinutes}
         />
       )}
 
-      {/* Modal zur Ergebniseingabe Leistungstest */}
       {selectedTestToRecord && (
         <RecordResultModal
           open={!!selectedTestToRecord}
@@ -1086,7 +1059,6 @@ export const PlayerPlanView: React.FC = () => {
         />
       )}
 
-      {/* Feedback-Eingabedialog */}
       {editingFeedbackTarget && (
         <Dialog
           open={!!editingFeedbackTarget}

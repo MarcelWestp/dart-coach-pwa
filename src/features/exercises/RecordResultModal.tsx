@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { collection, addDoc } from "firebase/firestore";
 import { db } from "../../firebase/config";
 import { useAuth } from "../../context/AuthContext";
@@ -26,9 +26,15 @@ import {
   Chip,
   useMediaQuery,
   useTheme,
+  IconButton,
+  Tooltip,
 } from "@mui/material";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import HelpIcon from "@mui/icons-material/Help";
+import TimerIcon from "@mui/icons-material/Timer";
+import PlayArrowIcon from "@mui/icons-material/PlayArrow";
+import PauseIcon from "@mui/icons-material/Pause";
+import ReplayIcon from "@mui/icons-material/Replay";
 
 interface RecordResultModalProps {
   open: boolean;
@@ -37,9 +43,9 @@ interface RecordResultModalProps {
   test?: PerformanceTest | null;
   allExercises: Exercise[];
   onResultRecorded: () => void;
+  initialDurationMinutes?: number;
 }
 
-// Hilfsfunktion zur Ermittlung des passenden Eingabelabels
 const getScoreInputLabel = (resultType?: ExerciseResultType): string => {
   switch (resultType) {
     case "attempts":
@@ -61,6 +67,7 @@ export const RecordResultModal: React.FC<RecordResultModalProps> = ({
   test,
   allExercises,
   onResultRecorded,
+  initialDurationMinutes,
 }) => {
   const { userProfile } = useAuth();
   const theme = useTheme();
@@ -70,13 +77,80 @@ export const RecordResultModal: React.FC<RecordResultModalProps> = ({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // State beim Öffnen/Schließen des Modals zurücksetzen
-  useEffect(() => {
+  // Timer States
+  const [timerSeconds, setTimerSeconds] = useState<number>(180);
+  const [initialTimerSeconds, setInitialTimerSeconds] = useState<number>(180);
+  const [timerRunning, setTimerRunning] = useState<boolean>(false);
+  const [timerPaused, setTimerPaused] = useState<boolean>(false);
+  
+  const timerRef = useRef<number | null>(null);
+
+useEffect(() => {
     if (open) {
       setScores({});
       setError(null);
+      setTimerRunning(false);
+      setTimerPaused(false);
+      if (timerRef.current) clearInterval(timerRef.current);
+
+      // Priorität: 1. Prop aus Plan, 2. Übungs-Property, 3. Fallback (15 Minuten)
+      const defaultMinutes = 
+        initialDurationMinutes ?? 
+        (exercise as any)?.durationMinutes ?? 
+        (exercise as any)?.duration ?? 
+        15;
+        
+      const totalSecs = Number(defaultMinutes) * 60;
+
+      setTimerSeconds(totalSecs);
+      setInitialTimerSeconds(totalSecs);
     }
-  }, [open, exercise, test]);
+  }, [open, exercise, test, initialDurationMinutes]);
+
+  useEffect(() => {
+    if (timerRunning) {
+      timerRef.current = window.setInterval(() => {
+        setTimerSeconds((prev) => {
+          if (prev <= 1) {
+            setTimerRunning(false);
+            if (timerRef.current) clearInterval(timerRef.current);
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+    } else {
+      if (timerRef.current) clearInterval(timerRef.current);
+    }
+
+    return () => {
+      if (timerRef.current) clearInterval(timerRef.current);
+    };
+  }, [timerRunning]);
+
+  const handleStartTimer = () => {
+    if (timerSeconds > 0) {
+      setTimerRunning(true);
+      setTimerPaused(false);
+    }
+  };
+
+  const handlePauseTimer = () => {
+    setTimerRunning(false);
+    setTimerPaused(true);
+  };
+
+  const handleStopTimer = () => {
+    setTimerRunning(false);
+    setTimerPaused(false);
+    setTimerSeconds(initialTimerSeconds);
+  };
+
+  const formatTime = (totalSecs: number) => {
+    const mins = Math.floor(totalSecs / 60);
+    const secs = totalSecs % 60;
+    return `${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
+  };
 
   const handleScoreChange = (key: string, value: string) => {
     const numericValue = parseInt(value, 10);
@@ -108,7 +182,6 @@ export const RecordResultModal: React.FC<RecordResultModalProps> = ({
           };
         });
 
-        // 1. Ergebnis in Firestore speichern (ohne starres exerciseType)
         await addDoc(collection(db, "testResults"), {
           testId: test.id,
           userId: userProfile.uid,
@@ -117,7 +190,6 @@ export const RecordResultModal: React.FC<RecordResultModalProps> = ({
           completedAt,
         });
 
-        // 2. Achievements für Leistungstest triggern
         await triggerAchievementCheck(userProfile.uid, "total_exercises_count");
 
         for (const exScore of exerciseScores) {
@@ -137,7 +209,6 @@ export const RecordResultModal: React.FC<RecordResultModalProps> = ({
       } else if (exercise) {
         const points = scores[exercise.id] || 0;
 
-        // 1. Ergebnis für Einzelübung in Firestore speichern
         await addDoc(collection(db, "testResults"), {
           exerciseId: exercise.id,
           userId: userProfile.uid,
@@ -151,7 +222,6 @@ export const RecordResultModal: React.FC<RecordResultModalProps> = ({
           completedAt,
         });
 
-        // 2. Achievements für Einzelübung triggern
         await triggerAchievementCheck(userProfile.uid, "total_exercises_count");
         await triggerAchievementCheck(
           userProfile.uid,
@@ -343,6 +413,89 @@ export const RecordResultModal: React.FC<RecordResultModalProps> = ({
                   className="mb-1"
                 />
               )}
+
+              {/* Timer Accordion */}
+              <Accordion
+                elevation={0}
+                variant="outlined"
+                sx={{
+                  bgcolor: "action.hover",
+                  borderColor: "divider",
+                  mt: 1,
+                }}
+              >
+                <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+                  <Typography
+                    variant="caption"
+                    className="font-bold flex items-center gap-1"
+                    color="text.primary"
+                  >
+                    <TimerIcon fontSize="small" color="primary" /> Übungs-Timer öffnen
+                  </Typography>
+                </AccordionSummary>
+                <AccordionDetails className="flex flex-col gap-3">
+                  <Box className="flex flex-col sm:flex-row items-center justify-between gap-3 bg-background.paper p-3 rounded-lg border border-divider">
+                    <Box className="flex items-center gap-2 w-full sm:w-auto">
+                      <TextField
+                        label="Minuten"
+                        type="number"
+                        size="small"
+                        disabled={timerRunning}
+                        value={Math.round((timerSeconds / 60) * 10) / 10}
+                        onChange={(e) => {
+                          const mins = Math.max(0, parseFloat(e.target.value) || 0);
+                          const totalSecs = Math.round(mins * 60);
+                          setTimerSeconds(totalSecs);
+                          setInitialTimerSeconds(totalSecs);
+                        }}
+                        className="w-28"
+                        slotProps={{ htmlInput: { min: 0.1, step: 0.5 } }}
+                      />
+                      <Typography variant="h5" className="font-mono font-bold tracking-wider px-2" color="primary.main">
+                        {formatTime(timerSeconds)}
+                      </Typography>
+                    </Box>
+
+                    <Box className="flex items-center gap-1 flex-wrap justify-end w-full sm:w-auto">
+                      {!timerRunning ? (
+                        <Button
+                          variant="contained"
+                          color="success"
+                          size="small"
+                          startIcon={<PlayArrowIcon />}
+                          onClick={handleStartTimer}
+                          disabled={timerSeconds === 0}
+                        >
+                          {timerPaused ? "Fortsetzen" : "Start"}
+                        </Button>
+                      ) : (
+                        <Button
+                          variant="contained"
+                          color="warning"
+                          size="small"
+                          startIcon={<PauseIcon />}
+                          onClick={handlePauseTimer}
+                        >
+                          Pause
+                        </Button>
+                      )}
+
+                      <Tooltip title="Zurücksetzen auf Startwert">
+                        <span>
+                          <IconButton
+                            color="error"
+                            size="small"
+                            onClick={handleStopTimer}
+                            disabled={!timerRunning && timerSeconds === initialTimerSeconds}
+                          >
+                            <ReplayIcon />
+                          </IconButton>
+                        </span>
+                      </Tooltip>
+                    </Box>
+                  </Box>
+                </AccordionDetails>
+              </Accordion>
 
               {exercise.instructions && (
                 <Accordion

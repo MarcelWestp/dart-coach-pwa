@@ -42,6 +42,7 @@ import SupervisorAccountIcon from "@mui/icons-material/SupervisorAccount";
 import AdminPanelSettingsIcon from "@mui/icons-material/AdminPanelSettings";
 import PeopleIcon from "@mui/icons-material/People";
 import { CommunityView } from "./features/community/CommunityView";
+import { X01SetupView } from "./features/games/X01SetupView";
 
 const MainContent: React.FC = () => {
   const { currentUser, userProfile, loading } = useAuth();
@@ -60,12 +61,14 @@ const MainContent: React.FC = () => {
 
   // Dropdown Menü-Anchors
   const [trainingAnchor, setTrainingAnchor] = useState<null | HTMLElement>(
-    null
+    null,
   );
   const [libraryAnchor, setLibraryAnchor] = useState<null | HTMLElement>(null);
   const [coachAnchor, setCoachAnchor] = useState<null | HTMLElement>(null);
   const [adminAnchor, setAdminAnchor] = useState<null | HTMLElement>(null);
-  const [communityAnchor, setCommunityAnchor] = useState<null | HTMLElement>(null);
+  const [communityAnchor, setCommunityAnchor] = useState<null | HTMLElement>(
+    null,
+  );
 
   useEffect(() => {
     if (userProfile?.themePreference) {
@@ -157,6 +160,7 @@ const MainContent: React.FC = () => {
                   "monthly-challenge-leaderboard",
                   "player-stats",
                   "player-achievements",
+                  "scorer",
                 ].includes(activeView)
                   ? "contained"
                   : "text"
@@ -177,10 +181,12 @@ const MainContent: React.FC = () => {
               <MenuItem onClick={() => handleSelectView("player-plan")}>
                 Mein Trainingsplan
               </MenuItem>
+              <MenuItem onClick={() => handleSelectView("scorer")}>
+                Scorer
+              </MenuItem>
               <MenuItem onClick={() => handleSelectView("league")}>
                 Trainingsliga & Ranglisten
               </MenuItem>
-              {/* NEU: Monatliche Herausforderung */}
               <MenuItem onClick={() => handleSelectView("monthly-challenge")}>
                 Dart-Pass
               </MenuItem>
@@ -226,7 +232,7 @@ const MainContent: React.FC = () => {
               startIcon={<PeopleIcon fontSize="small" />}
               endIcon={<KeyboardArrowDownIcon fontSize="small" />}
               variant={
-                ["community-players", ].includes(activeView)
+                ["community-players"].includes(activeView)
                   ? "contained"
                   : "text"
               }
@@ -324,7 +330,9 @@ const MainContent: React.FC = () => {
                   <MenuItem onClick={() => handleSelectView("admin-league")}>
                     Liga-Verwaltung
                   </MenuItem>
-                  <MenuItem onClick={() => handleSelectView("admin-challenges")}>
+                  <MenuItem
+                    onClick={() => handleSelectView("admin-challenges")}
+                  >
                     Challenge-Pool Verwaltung
                   </MenuItem>
                   <MenuItem onClick={() => handleSelectView("admin-dashboard")}>
@@ -388,7 +396,9 @@ const MainContent: React.FC = () => {
           {activeView === "profile" && <UserProfileView />}
           {activeView === "player-achievements" && <PlayerAchievementsView />}
           {activeView === "community-players" && <CommunityView />}
-
+          {activeView === "scorer" && <X01SetupView onStartGame={function (config: any): void {
+            throw new Error("Function not implemented.", config);
+          } }  />}
         </main>
       </Box>
     </ProtectedRoute>

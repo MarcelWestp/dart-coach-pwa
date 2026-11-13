@@ -53,7 +53,7 @@ export const GameModeView: React.FC = () => {
           </Box>
           <div className="space-y-1">
             <Typography variant="h5" className="font-extrabold tracking-tight" color="text.primary">
-              Spielmodus wählen
+              Spielmodus wählen (WORK IN PROGRESS)
             </Typography>
             <Typography variant="body2" color="text.secondary">
               Wähle den gewünschten Dart-Spielmodus für dein Training oder Match aus.

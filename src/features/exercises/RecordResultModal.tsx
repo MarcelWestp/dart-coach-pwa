@@ -85,7 +85,7 @@ export const RecordResultModal: React.FC<RecordResultModalProps> = ({
   
   const timerRef = useRef<number | null>(null);
 
-useEffect(() => {
+  useEffect(() => {
     if (open) {
       setScores({});
       setError(null);
@@ -93,12 +93,11 @@ useEffect(() => {
       setTimerPaused(false);
       if (timerRef.current) clearInterval(timerRef.current);
 
-      // Priorität: 1. Prop aus Plan, 2. Übungs-Property, 3. Fallback (15 Minuten)
       const defaultMinutes = 
         initialDurationMinutes ?? 
         (exercise as any)?.durationMinutes ?? 
         (exercise as any)?.duration ?? 
-        15;
+        3;
         
       const totalSecs = Number(defaultMinutes) * 60;
 
@@ -438,6 +437,7 @@ useEffect(() => {
                     <Box className="flex items-center gap-2 w-full sm:w-auto">
                       <TextField
                         label="Minuten"
+                        name="minutes"
                         type="number"
                         size="small"
                         disabled={timerRunning}
@@ -449,7 +449,8 @@ useEffect(() => {
                           setInitialTimerSeconds(totalSecs);
                         }}
                         className="w-28"
-                        slotProps={{ htmlInput: { min: 0.1, step: 0.5 } }}
+                        // Wichtig: Keine strikten HTML5-Einschränkungen (min/step), 
+                        // damit der Browser das Feld bei Formular-Submissions nicht validiert oder blockiert!
                       />
                       <Typography variant="h5" className="font-mono font-bold tracking-wider px-2" color="primary.main">
                         {formatTime(timerSeconds)}

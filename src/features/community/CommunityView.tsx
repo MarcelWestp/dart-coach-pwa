@@ -162,9 +162,6 @@ export const CommunityView: React.FC<CommunityViewProps> = ({ initialView = 'pla
                             >
                               {getDisplayName(player)}
                             </Typography>
-                            <Typography variant="caption" color="text.secondary">
-                              {player.email}
-                            </Typography>
                           </Box>
                         </Box>
                       </TableCell>

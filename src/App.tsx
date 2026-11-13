@@ -42,7 +42,7 @@ import SupervisorAccountIcon from "@mui/icons-material/SupervisorAccount";
 import AdminPanelSettingsIcon from "@mui/icons-material/AdminPanelSettings";
 import PeopleIcon from "@mui/icons-material/People";
 import { CommunityView } from "./features/community/CommunityView";
-import { X01SetupView } from "./features/games/X01SetupView";
+import { GameModeView } from "./features/games/GameModeView";
 
 const MainContent: React.FC = () => {
   const { currentUser, userProfile, loading } = useAuth();
@@ -396,9 +396,7 @@ const MainContent: React.FC = () => {
           {activeView === "profile" && <UserProfileView />}
           {activeView === "player-achievements" && <PlayerAchievementsView />}
           {activeView === "community-players" && <CommunityView />}
-          {activeView === "scorer" && <X01SetupView onStartGame={function (config: any): void {
-            throw new Error("Function not implemented.", config);
-          } }  />}
+          {activeView === "scorer" && <GameModeView />}
         </main>
       </Box>
     </ProtectedRoute>

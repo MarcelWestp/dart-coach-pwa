@@ -27,7 +27,7 @@ import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import SettingsIcon from '@mui/icons-material/Settings';
 import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
 import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
-import { useAuth } from '../../context/AuthContext';
+import { useAuth } from '../../../context/AuthContext';
 
 interface PlayerConfig {
   name: string;
@@ -80,6 +80,10 @@ export const X01SetupView: React.FC<X01SetupProps> = ({ onStartGame }) => {
 
   const [inMode, setInMode] = useState<'single' | 'double' | 'master'>('single');
   const [outMode, setOutMode] = useState<'single' | 'double' | 'master'>('double');
+
+  // Neu: Match-Modus & Ziel (Standard: Best of 5)
+  const [matchMode, setMatchMode] = useState<'bestOf' | 'firstTo'>('bestOf');
+  const [matchTarget, setMatchTarget] = useState<number>(5);
 
   const [gameType, setGameType] = useState<'local' | 'doubles' | 'bot' | 'self'>('local');
   const [botDifficulty, setBotDifficulty] = useState<string>('60');
@@ -240,6 +244,8 @@ export const X01SetupView: React.FC<X01SetupProps> = ({ onStartGame }) => {
       startScore: finalScore,
       inMode,
       outMode,
+      matchMode,
+      matchTarget,
       gameType,
       botDifficulty: gameType === 'bot' ? Number(botDifficulty) : null,
       players,
@@ -338,6 +344,41 @@ export const X01SetupView: React.FC<X01SetupProps> = ({ onStartGame }) => {
                   <FormControlLabel value="double" control={<Radio size="small" />} label="Double" />
                   <FormControlLabel value="master" control={<Radio size="small" />} label="Master" />
                 </RadioGroup>
+              </div>
+
+              <Divider className="border-divider my-4" />
+
+              {/* Match-Modus (Best of / First to) */}
+              <div className="space-y-3">
+                <Typography variant="caption" color="text.secondary" className="font-bold uppercase tracking-wider block mb-2">
+                  Match-Modus (Legs)
+                </Typography>
+                <FormControl component="fieldset" size="small" fullWidth className="mb-2">
+                  <RadioGroup
+                    row
+                    value={matchMode}
+                    onChange={(e) => setMatchMode(e.target.value as 'bestOf' | 'firstTo')}
+                  >
+                    <FormControlLabel value="bestOf" control={<Radio size="small" />} label="Best of" />
+                    <FormControlLabel value="firstTo" control={<Radio size="small" />} label="First to" />
+                  </RadioGroup>
+                </FormControl>
+
+                <FormControl fullWidth size="small">
+                  <InputLabel id="match-target-label">Anzahl / Ziel</InputLabel>
+                  <Select
+                    labelId="match-target-label"
+                    value={matchTarget}
+                    label="Anzahl / Ziel"
+                    onChange={(e) => setMatchTarget(Number(e.target.value))}
+                  >
+                    {[1, 2, 3, 4, 5, 7, 9, 11, 13, 15].map((num) => (
+                      <MenuItem key={num} value={num}>
+                        {matchMode === 'bestOf' ? `Best of ${num} (First to ${Math.floor(num / 2) + 1})` : `First to ${num}`}
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
               </div>
             </div>
           </div>
@@ -470,7 +511,7 @@ export const X01SetupView: React.FC<X01SetupProps> = ({ onStartGame }) => {
                       value={players[idx]?.name || ''}
                       onChange={(e) => handlePlayerSettingChange(idx, 'name', e.target.value)}
                       variant="standard"
-                      InputProps={{ disableUnderline: true }}
+                      slotProps={{ input: { disableUnderline: true } }}
                     />
                     <div className="flex items-center gap-1">
                       <IconButton size="small" disabled={idx === 0} onClick={() => handleMovePlayer(idx, 'up')}>
@@ -502,7 +543,7 @@ export const X01SetupView: React.FC<X01SetupProps> = ({ onStartGame }) => {
                       value={players[idx]?.name || ''}
                       onChange={(e) => handlePlayerSettingChange(idx, 'name', e.target.value)}
                       variant="standard"
-                      InputProps={{ disableUnderline: true }}
+                      slotProps={{ input: { disableUnderline: true } }}
                     />
                     <div className="flex items-center gap-1">
                       <IconButton size="small" disabled={idx === 2} onClick={() => handleMovePlayer(idx, 'up')}>
@@ -532,7 +573,7 @@ export const X01SetupView: React.FC<X01SetupProps> = ({ onStartGame }) => {
                     value={player.name}
                     onChange={(e) => handlePlayerSettingChange(idx, 'name', e.target.value)}
                     variant="standard"
-                    InputProps={{ disableUnderline: true }}
+                    slotProps={{ input: { disableUnderline: true } }}
                   />
                   <div className="flex items-center gap-1">
                     <IconButton size="small" disabled={idx === 0} onClick={() => handleMovePlayer(idx, 'up')}>
